@@ -1,0 +1,116 @@
+# CSMJU2030 · คำขอขึ้นทะเบียนระบบย่อย (Blueprint หน้า 6 ขั้นที่ 1)
+#
+# ยื่นไฟล์นี้ผ่าน Admin Panel → PM ตรวจ role mapping → อนุมัติและออก
+# client_id / client_secret → deploy staging → ทดสอบเชื่อม token จริง → sign-off
+#
+# ยังไม่ได้ยื่น: ช่องที่เป็น TODO ต้องให้ PL เติมก่อนส่ง
+
+name: csmju-social-reels
+display_name: "CS Nexus — สังคมออนไลน์ วิดีโอสั้น และห้องคอลประจำสาขา"
+owner: 6704101382-anuchat # username ของ AIE เจ้าของระบบ
+repo: github.com/csmju2030/csmju-social-reels # TODO(PL): ยืนยัน org/ชื่อ repo กับ PM
+standards_version: "1.2.0"
+
+# Layer 1 → Layer 2 (Blueprint หน้า 11)
+# ต้องตรงกับ RolesGuard.defaultLayer2Role() ใน backend/src/common/auth/roles.guard.ts
+# ถ้าแก้ที่นี่ ต้องแก้ที่โค้ดด้วย ไม่งั้นสิทธิ์จริงกับที่ยื่นไว้ไม่ตรงกัน
+default_role_mapping:
+  student: guest
+  alumni: guest
+  staff: editor
+  admin: admin
+
+requested_exceptions:
+  - username: 6704101382-anuchat
+    role: admin # เจ้าของระบบต้องเข้าหน้าจัดการเนื้อหาของระบบย่อยได้
+
+callback_url: https://social-reels.csmju2030.ac.th/auth/callback # TODO(PL): ยืนยันโดเมนกับ PM
+
+# ─────────────────────────────────────────────────────────────────────
+# ขอบเขตของระบบย่อย — ให้ PM ตรวจได้ว่าเราแตะอะไรและไม่แตะอะไร
+# ─────────────────────────────────────────────────────────────────────
+
+api:
+  base_path: /api/v1
+  health_check: /health # บังคับตามหน้า 7
+  openapi: backend/openapi.json # เขียนใหม่ทุกครั้งที่บูต จึงตรงกับของจริงเสมอ
+  endpoint_count: 87
+  websocket:
+    namespace: /realtime
+    # TODO(PL): ถาม PM ว่า API Gateway proxy WebSocket พร้อม header ให้ไหม
+    # ถ้าใช่ กลไกตั๋วชั่วคราว (realtime-tickets) เอาออกได้
+    auth: gateway_header_or_short_lived_ticket
+
+modules:
+  - subsystem-members # สิทธิ์ Layer 2 + โควตาพื้นที่
+  - profiles # โปรไฟล์ + แคชชื่อจาก Core
+  - follows # กราฟการติดตาม + ฟีด
+  - notifications # แจ้งเตือน + ผลักผ่าน socket
+  - assets # อัปโหลดสามจังหวะ + ตรวจ magic bytes
+  - reels # คลิปสั้น ไลก์ คอมเมนต์ ยอดผู้ชม
+  - posts # กระดานข่าว Q&A ตามรายวิชา
+  - channels # แชท เธรด ปักหมุด แก้ข้อความ
+  - realtime # Socket.io gateway + ตั๋ว
+  - voice # ห้องเสียง WebRTC mesh + แชร์หน้าจอ
+  - reactions # อิโมจิบนแชท/โพสต์/คลิป
+  - bookmarks # บันทึกไว้ดูทีหลัง
+  - search # ค้นคลิป กระทู้ คน ข้อความ
+  - reports # แจ้งเนื้อหา + คิวผู้ดูแล
+  - meetings # นัดประชุมล่วงหน้าแบบ Teams
+  - stories # สตอรี่ 24 ชั่วโมง (หมดอายุตอนอ่าน ไม่ต้องมี cron)
+  - presence # ใครออนไลน์ทั่วระบบ (ในหน่วยความจำ ไม่ลงฐานข้อมูล)
+  - audit-logs # เปิดให้ Admin Panel กลางอ่าน (หน้า 3)
+
+# ยืนยันว่าทำตามข้อห้ามในหน้า 8, 9 และ 13
+compliance:
+  own_login_page: false # ไม่มีหน้า login ของตัวเอง
+  verifies_jwt_signature: false # ไม่มีโค้ดตรวจลายเซ็น JWT แม้แต่บรรทัดเดียว
+  frontend_touches_database: false # หน้าบ้านคุยกับ backend เท่านั้น
+  duplicates_core_identity: false # ใช้ username เป็นคีย์เดียว ไม่เก็บ user_id/student_id
+  stores_layer1_role: false # อ่านจาก header ทุก request
+  response_envelope: true # { success, data, meta } ทุก endpoint
+  snake_case_json: true
+  iso8601_timestamps: true
+
+# ข้อมูลที่เก็บไว้ในฐานข้อมูลของระบบย่อยนี้ (Database-per-Subsystem หน้า 10)
+data_ownership:
+  local_only:
+    - layer2_role # Local Data นิยามเองได้ (หน้า 11)
+    - layer2_role_explicit # แยก "ผู้ดูแลตั้งเอง" ออกจาก "แปลงมาจาก layer1_role"
+    - bio # ข้อความแนะนำตัวที่เขียนเพื่อชุมชนนี้ (เนื้อหา ไม่ใช่ตัวตน)
+    - รูปปกโปรไฟล์ (ไม่ใช่รูปโปรไฟล์ ซึ่งเป็นของ Core)
+    - storage_quota_bytes
+    - เนื้อหาที่ผู้ใช้สร้างในระบบย่อยนี้ (คลิป กระทู้ ข้อความ ไฟล์แนบ)
+    - กราฟการติดตาม รีแอ็กชัน บุ๊กมาร์ก แจ้งเตือน
+  cached_from_core:
+    - display_name # ตาราง profile_cache · TTL 6 ชั่วโมง · ไม่ใช่แหล่งความจริง
+    - avatar_url
+  # TODO(PL): ยืนยันกับ PM ว่าการแคช display_name แบบนี้ผ่านมาตรฐานหน้า 10
+  never_stored:
+    - layer1_role
+    - faculty
+    - email
+    - รหัสผ่านหรือ token ของผู้ใช้
+
+# เพดานที่บังคับที่ชั้น service ไม่ใช่ที่ UI (เพราะ UI เลี่ยงได้)
+limits:
+  storage_quota_per_user_bytes: 209715200 # 200 MB
+  max_admin_settable_quota_bytes: 5368709120 # 5 GB
+  voice_seats_per_room: 8 # จากคณิตศาสตร์ของ mesh P2P
+  screen_share_viewers: 4
+  mentions_per_message: 10
+  pinned_messages_per_channel: 50
+  message_edit_window_minutes: 15
+  socket_messages_per_10s: 20
+  reel_duration_ms: 60000
+  story_ttl_hours: 24
+  story_notify_follower_cap: 50 # เกินนี้ไม่แจ้งเตือน กันช่องแจ้งเตือนล้น
+  bio_max_chars: 300
+
+# สิ่งที่ระบบย่อยนี้ต้องการจาก Core
+depends_on_core:
+  - sso_login # ผ่าน API Gateway
+  - user_profile_api # GET /api/v1/users/{username} → display_name, avatar_url
+  - layer1_role_header # X-Layer1-Role
+  # TODO(PL): ยืนยันรูปแบบ user_profile_api กับ PM — ตอนนี้เดารูปแบบไว้ก่อน
+  #           ถ้ายังไม่มี ระบบจะ fallback ไปแสดง username ซึ่งใช้งานได้แต่ไม่สวย

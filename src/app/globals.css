@@ -1,0 +1,182 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans), var(--font-noto-thai);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans), var(--font-noto-thai);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Design System ของ CSMJU2030 — สีสี่ตัวนี้เป็นค่าบังคับของทั้งองค์กร
+   ห้ามเปลี่ยน เพราะทุกระบบย่อยต้องดูเป็นระบบเดียวกัน (Blueprint หน้า 12)
+
+     #004C99  น้ำเงินหลัก      ปุ่มหลัก ลิงก์ หัวข้อ
+     #E6F2FF  น้ำเงินอ่อน      พื้นหลังของสิ่งที่ถูกเลือก แถบไฮไลต์
+     #334155  เทาเข้ม          ตัวอักษรเนื้อหา
+     #F8FAFC  ขาวนวล           พื้นหลังหน้า
+
+   ก่อนหน้านี้ธีมเป็น zinc + indigo ซึ่งจะไม่ผ่านการตรวจ compliance
+   และสำคัญกว่านั้นคือ component ที่ก๊อปจาก 21st.dev หรือ reactbits
+   จะเข้ากับที่อื่นในองค์กรทันทีถ้าใช้ token ชุดนี้
+   ───────────────────────────────────────────────────────────────── */
+:root {
+  --csmju-primary: #004c99;
+  --csmju-primary-soft: #e6f2ff;
+  --csmju-ink: #334155;
+  --csmju-surface: #f8fafc;
+
+  --background: var(--csmju-surface);
+  --foreground: var(--csmju-ink);
+  --card: #ffffff;
+  --card-foreground: var(--csmju-ink);
+  --popover: #ffffff;
+  --popover-foreground: var(--csmju-ink);
+  --primary: var(--csmju-primary);
+  --primary-foreground: #ffffff;
+  --secondary: var(--csmju-primary-soft);
+  --secondary-foreground: var(--csmju-primary);
+  --muted: #eef2f7;
+  --muted-foreground: #64748b;
+  --accent: var(--csmju-primary-soft);
+  --accent-foreground: var(--csmju-primary);
+  --destructive: #b91c1c;
+  --success: #15803d;
+  --warning: #b45309;
+  --border: #dbe3ec;
+  --input: #cbd5e1;
+  --ring: var(--csmju-primary);
+  --chart-1: var(--csmju-primary);
+  --chart-2: #3b82f6;
+  --chart-3: #60a5fa;
+  --chart-4: #93c5fd;
+  --chart-5: #bfdbfe;
+  --radius: 0.625rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: var(--csmju-ink);
+  --sidebar-primary: var(--csmju-primary);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--csmju-primary-soft);
+  --sidebar-accent-foreground: var(--csmju-primary);
+  --sidebar-border: #dbe3ec;
+  --sidebar-ring: var(--csmju-primary);
+}
+
+/* โหมดมืด — น้ำเงินหลักต้องสว่างขึ้นเพื่อให้ contrast ผ่านบนพื้นเข้ม
+   #004C99 บนพื้นดำอ่านแทบไม่ออก จึงเลื่อนไปทาง #4D9BFF แต่ยังเป็นน้ำเงิน
+   ตัวเดียวกันในสายตา ไม่ใช่เปลี่ยนสีประจำองค์กร */
+.dark {
+  --csmju-primary: #4d9bff;
+  --csmju-primary-soft: #12233b;
+  --csmju-ink: #e2e8f0;
+  --csmju-surface: #0d141f;
+
+  --background: var(--csmju-surface);
+  --foreground: var(--csmju-ink);
+  --card: #141d2b;
+  --card-foreground: var(--csmju-ink);
+  --popover: #141d2b;
+  --popover-foreground: var(--csmju-ink);
+  --primary: var(--csmju-primary);
+  --primary-foreground: #06121f;
+  --secondary: var(--csmju-primary-soft);
+  --secondary-foreground: var(--csmju-primary);
+  --muted: #1b2635;
+  --muted-foreground: #93a3b8;
+  --accent: var(--csmju-primary-soft);
+  --accent-foreground: var(--csmju-primary);
+  --destructive: #f87171;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --border: #24303f;
+  --input: #2e3b4d;
+  --ring: var(--csmju-primary);
+  --chart-1: var(--csmju-primary);
+  --chart-2: #3b82f6;
+  --chart-3: #2563eb;
+  --chart-4: #1d4ed8;
+  --chart-5: #1e40af;
+  --sidebar: #101927;
+  --sidebar-foreground: var(--csmju-ink);
+  --sidebar-primary: var(--csmju-primary);
+  --sidebar-primary-foreground: #06121f;
+  --sidebar-accent: var(--csmju-primary-soft);
+  --sidebar-accent-foreground: var(--csmju-primary);
+  --sidebar-border: #24303f;
+  --sidebar-ring: var(--csmju-primary);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+/* เคารพการตั้งค่า "ลดการเคลื่อนไหว" ของระบบปฏิบัติการ
+ *
+ * ผู้ใช้ที่มีอาการเวียนศีรษะจากการเคลื่อนไหว (vestibular disorder) ตั้งค่านี้
+ * ไว้ที่ระบบ แล้วคาดหวังว่าทุกเว็บจะเคารพมัน — ก่อนหน้านี้ทั้งโปรเจกต์ไม่มี
+ * จุดไหนเคารพเลย ทั้งสปริงของ framer-motion จุดกะพริบของสายเรียกเข้า
+ * และแถบความคืบหน้าของสตอรี่
+ *
+ * ไม่ตั้งเป็น 0s เพราะ transitionend/animationend จะไม่ยิง แล้วโค้ดที่รอ
+ * event นั้นอยู่จะค้าง — 0.01ms สั้นจนมองไม่เห็นแต่ยังยิง event ตามปกติ
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,63 @@
+import type { Metadata } from "next";
+import { AlertCircle } from "lucide-react";
+import ReelsFeed from "@/components/reels/ReelsFeed";
+import { requireUser } from "@/lib/auth/require";
+
+export const metadata: Metadata = {
+  title: "CS Reels",
+  description: "ฟีดวิดีโอสั้นผลงานโปรเจกต์และความรู้โปรแกรมมิ่งประจำสาขา",
+};
+
+export default async function ReelsPage() {
+  const { email, profile } = await requireUser();
+
+  return (
+    <main className="min-h-screen bg-zinc-950 text-zinc-50">
+      <header className="flex items-center justify-between border-b border-zinc-800/60 px-6 py-3">
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-indigo-500" />
+          <span className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-indigo-400">
+            CS Reels
+          </span>
+        </div>
+        <div className="text-right text-xs">
+          <div className="font-medium text-zinc-200">
+            {profile?.name ?? email ?? "ไม่ทราบชื่อ"}
+          </div>
+          <div className="font-mono text-[11px] text-zinc-500">
+            {profile ? profile.studentId : "ยังไม่มีข้อมูลนักศึกษา"}
+          </div>
+        </div>
+      </header>
+
+      {!profile && (
+        <div className="mx-auto mt-4 flex max-w-md items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-300">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">ยังไม่มีโปรไฟล์ในฐานข้อมูล</p>
+            <p className="mt-0.5 text-amber-300/80">
+              บัญชีนี้มี session แล้วแต่ยังไม่มีแถวใน Profile — ต้องติดตั้ง trigger
+              ที่สร้างโปรไฟล์อัตโนมัติก่อน (ดู prisma/sql/001_profile_from_auth_users.sql)
+            </p>
+          </div>
+        </div>
+      )}
+
+      {profile && !profile.studentIdVerified && (
+        <div className="mx-auto mt-4 flex max-w-md items-start gap-2 rounded-lg border border-indigo-500/20 bg-indigo-500/10 p-3 text-xs text-indigo-300">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">รหัสนักศึกษายังไม่ได้รับการยืนยัน</p>
+            <p className="mt-0.5 text-indigo-300/80">
+              ดูฟีดได้ แต่ยังโพสต์ไม่ได้ — เชื่อมบัญชีกับระบบกลางของสาขาเพื่อยืนยันตัวตน
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="py-4">
+        <ReelsFeed />
+      </div>
+    </main>
+  );
+}

@@ -1,0 +1,160 @@
+# CI Gate ของระบบย่อย (Blueprint หน้า 15)
+#
+# ทุก PR ต้องผ่านทั้งหมดนี้ก่อน merge และต้องมี PL เป็นผู้อนุมัติ
+# (ตั้งค่าผู้อนุมัติที่ Settings → Branches → Branch protection rules
+#  เพราะ GitHub ไม่ให้ประกาศ required reviewer ในไฟล์ workflow)
+#
+# ลำดับของ job ตั้งใจให้ของที่พังบ่อยและตรวจเร็วอยู่ก่อน:
+#   lint/typecheck (วินาที) → frontend (jsdom ไม่ต้องมี DB) → compliance (มี DB)
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+# ยกเลิกรอบเก่าเมื่อ push ใหม่เข้ามาใน PR เดียวกัน — ไม่เผา runner ฟรีทิ้ง
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  static:
+    name: lint + typecheck + schema
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # ตรึงรุ่นไว้ ไม่อ่านจาก engines เพราะ ">=20.19.0" จะไปเอาตัวใหม่สุด
+          # ที่มีตอนนั้น แล้ว CI จะพังวันหนึ่งโดยที่ไม่มีใครแก้อะไรเลย
+          node-version: '22.x'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+
+      # generate ก่อน typecheck เพราะ Prisma Client เป็นโค้ดที่สร้างขึ้น
+      # ไม่ได้ commit ลง repo — ถ้าไม่ generate typecheck จะแดงทั้งไฟล์
+      - name: prisma generate
+        run: npx prisma generate
+
+      - name: prisma validate
+        run: npx prisma validate
+
+      - name: lint
+        run: npm run lint
+
+      - name: typecheck
+        run: npm run typecheck
+
+  compliance:
+    name: มาตรฐาน CSMJU2030 + openapi ตรงกับโค้ด
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: csnexus_social_reels
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:55432/csnexus_social_reels
+      NODE_ENV: test
+      # โหมดปลอม header ของ Gateway — ใช้ได้เฉพาะ CI และเครื่องพัฒนา
+      # main.ts ปฏิเสธการบูตถ้าเปิดไว้ตอน NODE_ENV=production
+      DEV_FAKE_GATEWAY: 'true'
+      DEV_FAKE_USERNAME: 6704101382-anuchat
+      DEV_FAKE_LAYER1_ROLE: student
+      DEV_FAKE_FACULTY: science
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # ตรึงรุ่นไว้ ไม่อ่านจาก engines เพราะ ">=20.19.0" จะไปเอาตัวใหม่สุด
+          # ที่มีตอนนั้น แล้ว CI จะพังวันหนึ่งโดยที่ไม่มีใครแก้อะไรเลย
+          node-version: '22.x'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+
+      - name: prisma generate
+        run: npx prisma generate
+
+      # deploy ไม่ใช่ dev — dev จะสร้าง migration ใหม่เองถ้า schema ไม่ตรง
+      # ซึ่งใน CI แปลว่าปัญหาถูกกลบ ส่วน deploy จะแดงถ้ามี migration ที่หายไป
+      - name: ลง migration
+        run: npx prisma migrate deploy
+
+      - name: build
+        run: npm run build
+
+      # ตัวนี้จับกรณีที่มีคนเพิ่ม endpoint แล้ว commit โดยไม่ได้บูตเซิร์ฟเวอร์
+      # ทำให้ openapi.json ใน repo เก่ากว่าโค้ด แล้วระบบย่อยอื่นที่อ่าน
+      # contract ของเราจะเขียนโค้ดผิดโดยไม่รู้ตัว (Blueprint หน้า 13)
+      - name: openapi.json ต้องตรงกับโค้ด
+        run: npm run openapi:check
+
+      # ชุดนี้คุมข้อที่พังเงียบที่สุด: รูป envelope, snake_case, สิทธิ์สองชั้น,
+      # การกันเข้าถึงข้ามคน (ค้นแชทห้องที่ไม่ได้เป็นสมาชิก, กดรีแอ็กชันข้ามห้อง,
+      # อ่าน audit log โดยไม่ใช่ผู้ดูแล)
+      - name: เทสต์มาตรฐานและความปลอดภัย
+        run: npm run test:e2e
+
+  frontend:
+    name: หน้าบ้าน — typecheck + เทสต์ component + build
+    runs-on: ubuntu-latest
+
+    # ไม่ต้องมีฐานข้อมูล เพราะเทสต์ชุดนี้รันในเบราว์เซอร์จำลอง (jsdom)
+    # แล้ว mock ชั้น fetch เอง — จึงเร็วและไม่พึ่ง service ภายนอก
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      # เทสต์ชุดนี้จับสิ่งที่เทสต์ฝั่ง HTTP จับไม่ได้เลย:
+      #   - setState ข้าม component ระหว่าง render
+      #   - effect ที่ทำงานซ้ำเพราะ dependency เปลี่ยนทุก render
+      #   - blob URL ที่รั่วเพราะสร้างใน state updater
+      #
+      # vitest.setup.ts ทำให้ console.error ของ React ทำให้เทสต์แดงทันที
+      # (การไล่ assert ทีละที่เชื่อถือไม่ได้ เพราะ React แจ้งคำเตือน
+      #  แต่ละแบบครั้งเดียว เทสต์ก่อนหน้าจะกินไปหมด)
+      - name: เทสต์ component
+        run: npm test
+
+      - name: typecheck
+        run: npx tsc --noEmit
+
+      - name: build
+        run: npm run build
+        env:
+          # build ไม่ต่อหลังบ้าน แต่ต้องมีค่าให้ครบไม่งั้นบางหน้าจะพัง
+          NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
