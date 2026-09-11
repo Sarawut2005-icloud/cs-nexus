@@ -75,13 +75,18 @@ export default function AppLayout({ children }: LayoutProps<'/'>) {
                   </Link>
                 ))}
 
-                <Link
-                  href="/mockup"
-                  className="mt-2 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent"
-                >
-                  <LayoutDashboard className="size-4 shrink-0" />
-                  <span className="flex-1">ตัวอย่างดีไซน์ (ข้อมูลปลอม)</span>
-                </Link>
+                {/* หน้าตัวอย่างดีไซน์ใช้ข้อมูลปลอม จึงต้องไม่โผล่ในของจริง
+                 * ตอนเดโมให้ PM ลิงก์นี้อยู่ในเมนูหลักคือภาระที่ไม่จำเป็น
+                 * และเสี่ยงที่คนดูจะเข้าใจว่าเลขในนั้นเป็นข้อมูลจริง */}
+                {process.env.NODE_ENV !== 'production' && (
+                  <Link
+                    href="/mockup"
+                    className="mt-2 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent"
+                  >
+                    <LayoutDashboard className="size-4 shrink-0" />
+                    <span className="flex-1">ตัวอย่างดีไซน์ (ข้อมูลปลอม)</span>
+                  </Link>
+                )}
               </nav>
 
               <div className="p-2">

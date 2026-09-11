@@ -153,6 +153,14 @@ jobs:
       - name: typecheck
         run: npx tsc --noEmit
 
+      # เพิ่งไล่จาก 546 เหลือ 0 — ถ้าไม่ตรึงไว้ที่นี่ มันจะไต่กลับขึ้นไปเงียบ ๆ
+      #
+      # กฎที่คุมจริงคือชุด react-hooks ของ React Compiler ซึ่งจับ setState
+      # ระหว่าง render, ref ที่อ่านตอน render และ effect ที่วนซ้ำ — บั๊กพวกนี้
+      # ไม่ทำให้เทสต์แดงและไม่ทำให้ build พัง แต่ทำให้หน้าจอกะพริบและวาดซ้ำ
+      - name: lint
+        run: npx eslint .
+
       - name: build
         run: npm run build
         env:

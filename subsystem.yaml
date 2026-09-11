@@ -8,7 +8,9 @@
 name: csmju-social-reels
 display_name: "CS Nexus — สังคมออนไลน์ วิดีโอสั้น และห้องคอลประจำสาขา"
 owner: 6704101382-anuchat # username ของ AIE เจ้าของระบบ
-repo: github.com/csmju2030/csmju-social-reels # TODO(PL): ยืนยัน org/ชื่อ repo กับ PM
+repo: github.com/Sarawut2005-icloud/cs-nexus # ที่อยู่จริงตอนนี้
+# TODO(PL): ถ้า PM ต้องการให้ย้ายเข้า org กลาง (เช่น github.com/csmju2030/...)
+# ให้ transfer repo แล้วแก้บรรทัดบนให้ตรง — อย่าปล่อยให้ไฟล์นี้ชี้ไปที่ที่ไม่มีอยู่จริง
 standards_version: "1.2.0"
 
 # Layer 1 → Layer 2 (Blueprint หน้า 11)
