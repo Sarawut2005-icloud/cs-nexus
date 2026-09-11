@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { AnimatedTooltip } from '@/components/ui/animated-tooltip';
 import { Avatar, UserName } from '@/components/csmju/user-name';
+import { ConnectivityCheck } from '@/components/csmju/connectivity-check';
 import { api, ApiError } from '@/lib/csmju/api';
 import { getIdentity } from '@/lib/csmju/identity';
 import {
@@ -455,6 +456,10 @@ export default function VoicePage() {
           รับได้ห้องละ 8 คน
         </p>
       </header>
+
+      {/* ตรวจก่อนโทร — WebRTC ล้มแบบเงียบที่สุด ถ้าไม่มีตัวนี้ผู้ใช้จะนั่งมอง
+        * คำว่า "กำลังเชื่อมต่อ" ค้างอยู่โดยไม่รู้ว่าเพราะอะไร */}
+      <ConnectivityCheck />
 
       {error && (
         <p className="mb-3 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">

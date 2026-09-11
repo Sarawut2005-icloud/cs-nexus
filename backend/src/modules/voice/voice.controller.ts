@@ -18,6 +18,7 @@ import {
   ApiEnvelopeList,
 } from '../../common/http/api-envelope.decorator.js';
 import {
+  IceServerDto,
   JoinVoiceDto,
   JoinVoiceResponseDto,
   ListVoiceSessionsQuery,
@@ -31,6 +32,23 @@ import { VoiceService } from './voice.service.js';
 @Controller('voice-sessions')
 export class VoiceController {
   constructor(private readonly voice: VoiceService) {}
+
+  /// รายการเซิร์ฟเวอร์ช่วยเจาะ NAT ที่การโทรจริงใช้
+  ///
+  /// แยกเป็น endpoint ของตัวเองเพื่อให้หน้าบ้าน "ตรวจก่อนโทร" ได้โดยไม่ต้อง
+  /// เข้าห้องเสียงจริง (ซึ่งจะจองที่นั่งและเปิด session ทิ้งไว้เปล่า ๆ)
+  ///
+  /// ไม่มีความลับในนี้: URL ของ STUN เป็นสาธารณะ ส่วน credential ของ TURN
+  /// เป็นค่าชั่วคราวที่ออกให้ผู้ใช้ที่ยืนยันตัวตนแล้วเท่านั้น ซึ่งเป็นสิ่งที่
+  /// เบราว์เซอร์ต้องได้รับอยู่แล้วตอนโทร
+  @Get('ice-servers')
+  @ApiOperation({
+    summary: 'เซิร์ฟเวอร์ช่วยเจาะ NAT — ใช้ตรวจว่าเครือข่ายนี้โทรได้ไหม',
+  })
+  @ApiEnvelope(IceServerDto)
+  iceServers() {
+    return this.voice.iceServers();
+  }
 
   @Get()
   @ApiOperation({

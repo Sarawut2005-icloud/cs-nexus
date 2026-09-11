@@ -3648,6 +3648,41 @@
         ]
       }
     },
+    "/api/v1/voice-sessions/ice-servers": {
+      "get": {
+        "operationId": "VoiceController_iceServers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "สำเร็จ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/IceServerDto"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "เซิร์ฟเวอร์ช่วยเจาะ NAT — ใช้ตรวจว่าเครือข่ายนี้โทรได้ไหม",
+        "tags": [
+          "voice-sessions"
+        ]
+      }
+    },
     "/api/v1/voice-sessions": {
       "get": {
         "operationId": "VoiceController_list",
@@ -7909,6 +7944,29 @@
           "content"
         ]
       },
+      "IceServerDto": {
+        "type": "object",
+        "properties": {
+          "urls": {
+            "example": [
+              "stun:stun.l.google.com:19302"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "username": {
+            "type": "string"
+          },
+          "credential": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "urls"
+        ]
+      },
       "VoiceParticipantDto": {
         "type": "object",
         "properties": {
@@ -7958,29 +8016,6 @@
           "participants",
           "max_seats",
           "seats_taken"
-        ]
-      },
-      "IceServerDto": {
-        "type": "object",
-        "properties": {
-          "urls": {
-            "example": [
-              "stun:stun.l.google.com:19302"
-            ],
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "username": {
-            "type": "string"
-          },
-          "credential": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "urls"
         ]
       },
       "JoinVoiceResponseDto": {
