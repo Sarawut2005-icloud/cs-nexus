@@ -48,6 +48,30 @@ const KIND_ICON: Record<ChannelKind, typeof Hash> = {
 /// สร้าง nonce ของฝั่ง client — ใช้กันส่งซ้ำตอนเน็ตกระตุก
 ///
 /// หลังบ้านมี unique(channelId, author, clientNonce) ถ้าเน็ตหลุดแล้ว client
+/// เอาข้อความจริงจากเซิร์ฟเวอร์ไปแทนที่ตัวชั่วคราวที่ nonce ตรงกัน
+///
+/// ต้องจับคู่ด้วย `client_nonce` ไม่ใช่ `id` เพราะตัวชั่วคราวยังไม่มี id จริง
+/// ถ้าไม่จับคู่ ข้อความจะขึ้นสองอัน: ตัวที่เราวาดเองกับตัวที่เซิร์ฟเวอร์ส่งมา
+///
+/// กันซ้ำด้วย id ต่อท้ายอีกชั้น เพราะคนส่งเองจะได้ทั้ง ack และ broadcast
+export function replacePending(current: Message[], incoming: Message): Message[] {
+  const byNonce = current.findIndex(
+    (row) => row.client_nonce === incoming.client_nonce,
+  );
+
+  if (byNonce !== -1) {
+    const next = [...current];
+
+    next[byNonce] = incoming;
+
+    return next;
+  }
+
+  return current.some((row) => row.id === incoming.id)
+    ? current
+    : [...current, incoming];
+}
+
 /// ส่งซ้ำด้วย nonce เดิม จะได้ข้อความเดิมกลับมา ไม่ใช่ข้อความใหม่สองอัน
 const newNonce = () =>
   `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -380,12 +404,8 @@ function ChannelView({
           bindSocket<Message>(socket, 'message:new', (message) => {
             if (message.channel_id !== channel.id) return;
 
-            setMessages((prev) =>
-              // กันซ้ำด้วย id เพราะคนส่งเองจะได้ทั้ง ack และ broadcast
-              prev.some((row) => row.id === message.id)
-                ? prev
-                : [...prev, message],
-            );
+            // แทนที่ตัวชั่วคราวของเราถ้ามี ไม่งั้นต่อท้ายตามปกติ
+            setMessages((prev) => replacePending(prev, message));
           }),
         );
 
@@ -586,21 +606,54 @@ function ChannelView({
       });
   }, [messages, reactions]);
 
+  /// ส่งข้อความแบบให้เห็นทันที ไม่ต้องรอเซิร์ฟเวอร์
+  ///
+  /// เดิมข้อความจะโผล่ก็ต่อเมื่อเซิร์ฟเวอร์ broadcast กลับมา ผู้ใช้จึงพิมพ์เสร็จ
+  /// กด Enter แล้วเห็นช่องว่างเปล่า ๆ จนกว่าจะวิ่งไปกลับเสร็จ บนเน็ตช้าหรือ
+  /// ตอนเซิร์ฟเวอร์เพิ่งตื่นจากการหลับ (ชั้นใช้ฟรี) อาจนานหลายวินาที —
+  /// ซึ่งผู้ใช้ตีความว่า "แอปค้าง" แล้วกดส่งซ้ำ
+  ///
+  /// วิธีจับคู่: `client_nonce` ที่เราสร้างเองเป็นกุญแจที่เดินทางไปกับข้อความ
+  /// และกลับมากับ broadcast ด้วย (หลังบ้านใช้มันกันส่งซ้ำอยู่แล้ว) พอของจริง
+  /// กลับมาก็เอาไปแทนที่ตัวชั่วคราวที่ nonce ตรงกัน จึงไม่มีทางขึ้นซ้ำสองอัน
   async function send() {
     const content = draft.trim();
 
     if (!content) return;
 
     const socket = socketRef.current;
+    const nonce = newNonce();
     const payload = {
       channel_id: channel.id,
       content,
-      client_nonce: newNonce(),
+      client_nonce: nonce,
       ...(threadOf ? { parent_id: threadOf.id } : {}),
     };
 
+    // ใส่ลงไทม์ไลน์ก่อนเลย แล้วค่อยส่งจริง
+    const pending: Message = {
+      id: `pending-${nonce}`,
+      seq: Number.MAX_SAFE_INTEGER, // ให้อยู่ท้ายสุดเสมอจนกว่าของจริงจะมา
+      client_nonce: nonce,
+      content,
+      channel_id: channel.id,
+      author_username: me.username,
+      parent_id: threadOf?.id ?? null,
+      reply_count: 0,
+      pinned_at: null,
+      pinned_by_username: null,
+      edited_at: null,
+      attachments: [],
+      embed: null,
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, pending]);
     setDraft('');
     setError(null);
+
+    const dropPending = () =>
+      setMessages((prev) => prev.filter((row) => row.id !== pending.id));
 
     try {
       if (socket?.connected) {
@@ -613,6 +666,7 @@ function ChannelView({
         if (!result.ok) {
           setError(result.error ?? 'ส่งไม่สำเร็จ');
           setDraft(content);
+          dropPending();
         }
 
         return;
@@ -624,12 +678,11 @@ function ChannelView({
         payload,
       );
 
-      setMessages((prev) =>
-        prev.some((row) => row.id === message.id) ? prev : [...prev, message],
-      );
+      setMessages((prev) => replacePending(prev, message));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'ส่งไม่สำเร็จ');
       setDraft(content);
+      dropPending();
     }
   }
 
@@ -737,8 +790,17 @@ function ChannelView({
           )}
 
           <ul className="space-y-3">
-            {timeline.map((message) => (
-              <li key={message.id} className="group flex items-start gap-2.5">
+            {timeline.map((message) => {
+              // ตัวชั่วคราวที่ยังไม่ได้รับการยืนยันจากเซิร์ฟเวอร์
+              const pending = message.id.startsWith('pending-');
+
+              return (
+              <li
+                key={message.id}
+                className={`group flex items-start gap-2.5 ${
+                  pending ? 'opacity-60' : ''
+                }`}
+              >
                 <Avatar username={message.author_username} size={32} />
 
                 <div className="min-w-0 flex-1">
@@ -753,6 +815,12 @@ function ChannelView({
                         minute: '2-digit',
                       })}
                     </span>
+                    {pending && (
+                      // บอกตรง ๆ ว่ายังไม่ถึงเซิร์ฟเวอร์ ไม่ใช่ปล่อยให้เดา
+                      <span className="text-[11px] text-muted-foreground">
+                        กำลังส่ง…
+                      </span>
+                    )}
                     {message.edited_at && (
                       <span className="text-[11px] text-muted-foreground">
                         (แก้ไขแล้ว)
@@ -802,7 +870,8 @@ function ChannelView({
                   </div>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
 
           <div ref={bottomRef} />
