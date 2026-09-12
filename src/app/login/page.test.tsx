@@ -61,33 +61,18 @@ describe('หน้าทางเข้าระบบ', () => {
     expect(screen.getByText(/ไม่รับรหัสผ่าน/)).toBeInTheDocument();
   });
 
-  it('ยังไม่ได้ตั้งปลายทางของ Core = ปุ่มกดไม่ได้ และบอกเหตุผล', async () => {
-    // ปุ่มที่กดแล้วพาไปหน้าตาย แย่กว่าปุ่มที่ปิดไว้พร้อมคำอธิบาย
+
+
+  it('หน้านี้ประกอบแถบสลับเข้าสู่ระบบ/สมัครสมาชิกเข้ามา', async () => {
+    // รายละเอียดของแถบทดสอบอยู่ที่ auth-switch.test.tsx — ตรงนี้ตรวจแค่ว่า
+    // หน้าเรียกใช้มันจริง ไม่ใช่วาดปุ่มเองซ้ำอีกชุด
     const { default: LoginPage } = await import('./page');
 
     render(<LoginPage />);
 
-    expect(
-      screen.getByRole('button', { name: /เข้าสู่ระบบด้วยบัญชี CSMJU2030/ }),
-    ).toBeDisabled();
-
-    expect(screen.getByRole('status')).toHaveTextContent(/รอ PM ยืนยันโดเมน/);
-  });
-
-  it('ตั้งปลายทางแล้ว ปุ่มกดได้', async () => {
-    vi.stubEnv('NEXT_PUBLIC_CORE_LOGIN_URL', 'https://core.example/login');
-
-    const { default: LoginPage } = await import('./page');
-
-    render(<LoginPage />);
-
-    expect(
-      screen.getByRole('button', { name: /เข้าสู่ระบบด้วยบัญชี CSMJU2030/ }),
-    ).toBeEnabled();
-
-    expect(screen.queryByRole('status')).toBeNull();
-
-    vi.unstubAllEnvs();
+    expect(screen.getByRole('tablist')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /เข้าสู่ระบบ/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /สมัครสมาชิก/ })).toBeInTheDocument();
   });
 
   it('โหมดพัฒนาเลือกตัวตนแล้วเข้าแอปได้', async () => {

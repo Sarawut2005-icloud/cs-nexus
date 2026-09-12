@@ -1,9 +1,8 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogIn, ShieldCheck, TriangleAlert, UserCog } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { UserCog } from 'lucide-react';
+import AuthSwitch from '@/components/ui/auth-switch';
 import {
   DEV_IDENTITIES,
   setIdentity,
@@ -26,26 +25,14 @@ import {
 /// พร้อมบอกเหตุผล แทนที่จะพาไปหน้าตาย
 
 const CORE_LOGIN_URL = process.env.NEXT_PUBLIC_CORE_LOGIN_URL ?? '';
+const CORE_SIGNUP_URL = process.env.NEXT_PUBLIC_CORE_SIGNUP_URL ?? '';
 
 /// โหมดพัฒนาเท่านั้น — ของจริงตัวตนมาจาก header ที่ Gateway แนบมา
 const IS_DEV = process.env.NODE_ENV !== 'production';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
 
-  function goToCore() {
-    setBusy(true);
-
-    // ส่ง callback กลับมาที่หน้านี้ของเราเอง Core จะพากลับมาหลังล็อกอินเสร็จ
-    const callback = `${window.location.origin}/auth/callback`;
-    const target = `${CORE_LOGIN_URL}?redirect_uri=${encodeURIComponent(callback)}`;
-
-    // ออกไปนอกแอปจริง ๆ (โดเมนของ CSMJU2030 Core) ไม่ใช่หน้าในแอปนี้
-    // router.push() พาไปไม่ได้เพราะมันเดินเฉพาะเส้นทางภายใน
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = target;
-  }
 
   function signInAsDevIdentity(identity: Identity) {
     setIdentity(identity);
@@ -66,53 +53,11 @@ export default function LoginPage() {
           </p>
         </header>
 
-        <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <h2 className="text-base font-semibold">เข้าสู่ระบบ</h2>
-
-          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-            ระบบนี้ใช้บัญชีเดียวกับ CSMJU2030 — กดปุ่มด้านล่างเพื่อไปยืนยันตัวตน
-            ที่ศูนย์กลาง แล้วระบบจะพากลับมาที่นี่เอง
-          </p>
-
-          <button
-            type="button"
-            onClick={goToCore}
-            disabled={!CORE_LOGIN_URL || busy}
-            className={cn(
-              'mt-5 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3',
-              'bg-primary text-sm font-medium text-primary-foreground',
-              'transition-opacity hover:opacity-90',
-              'disabled:cursor-not-allowed disabled:opacity-50',
-            )}
-          >
-            <LogIn className="size-4" />
-            {busy ? 'กำลังพาไปที่ CSMJU2030…' : 'เข้าสู่ระบบด้วยบัญชี CSMJU2030'}
-          </button>
-
-          {!CORE_LOGIN_URL && (
-            <p
-              // role=status เพื่อให้โปรแกรมอ่านหน้าจอรู้ว่าปุ่มปิดเพราะอะไร
-              // ไม่ใช่เจอปุ่มกดไม่ได้แล้วงง
-              role="status"
-              className="mt-3 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-xs leading-relaxed text-warning"
-            >
-              <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
-              <span>
-                ยังต่อกับ CSMJU2030 Core ไม่ได้ — รอ PM ยืนยันโดเมนของหน้า
-                ล็อกอินกลาง แล้วตั้งค่า <code>NEXT_PUBLIC_CORE_LOGIN_URL</code>
-              </span>
-            </p>
-          )}
-
-          <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
-            <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-primary" />
-            <span>
-              หน้านี้<strong className="font-medium">ไม่รับรหัสผ่าน</strong>{' '}
-              และระบบย่อยนี้ไม่เก็บรหัสผ่านของใครทั้งสิ้น — การยืนยันตัวตน
-              เกิดที่ CSMJU2030 ที่เดียว
-            </span>
-          </p>
-        </section>
+        <AuthSwitch
+          signInUrl={CORE_LOGIN_URL || undefined}
+          signUpUrl={CORE_SIGNUP_URL || undefined}
+          className="max-w-none"
+        />
 
         {IS_DEV && (
           <section className="mt-4 rounded-2xl border border-dashed border-border bg-card/60 p-5">
