@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Socket } from 'socket.io-client';
 import {
@@ -77,7 +78,10 @@ const newNonce = () =>
   `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
 export default function ChatPage() {
-  const [pickedId, setPickedId] = useState<string | null>(null);
+  // เปิดห้องที่ระบุมาทาง URL ได้ — การแจ้งเตือนพามาที่ห้องที่ถูกต้องเลย
+  // ไม่ใช่พามาหน้ารวมแล้วปล่อยให้ผู้ใช้ไปหาเอง
+  const requestedChannel = useSearchParams().get('channel');
+  const [pickedId, setPickedId] = useState<string | null>(requestedChannel);
   const queryClient = useQueryClient();
 
   const channelsKey = ['channels', 'mine'] as const;

@@ -106,6 +106,12 @@ vi.mock('@/lib/csmju/socket', () => ({
   onSocketReconnect: vi.fn(() => () => undefined),
 }));
 
+// หน้าแชทอ่าน ?channel= เพื่อเปิดห้องที่การแจ้งเตือนพามา
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/chat',
+}));
+
 vi.mock('@/lib/csmju/identity', () => ({
   getIdentity: () => ({
     username: '6704101382-anuchat',

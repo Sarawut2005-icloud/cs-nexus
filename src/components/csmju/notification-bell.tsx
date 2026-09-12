@@ -9,53 +9,12 @@ import {
   connectSocket,
   onSocketReconnect,
 } from '@/lib/csmju/socket';
+import {
+  describeNotification,
+  timeAgo,
+} from '@/lib/csmju/notifications';
 import type { Notification } from '@/lib/csmju/types';
 
-/// ข้อความของแจ้งเตือนแต่ละชนิด
-///
-/// หลังบ้านส่ง kind + actor_username + payload มาให้ครบในหนึ่ง query
-/// (นี่คือเหตุผลที่เพิ่มสองฟิลด์นั้นเข้าตาราง) หน้าบ้านจึงประกอบข้อความได้
-/// โดยไม่ต้องยิงถามเพิ่มทีละรายการ
-function describe(item: Notification): string {
-  const who = item.actor_username ?? 'มีคน';
-  const payload = item.payload ?? {};
-  const preview = typeof payload.preview === 'string' ? payload.preview : null;
-
-  switch (item.kind) {
-    case 'FOLLOW':
-      return `${who} เริ่มติดตามคุณ`;
-    case 'REEL_LIKE':
-      return `${who} ถูกใจคลิปของคุณ${preview ? ` · ${preview}` : ''}`;
-    case 'REEL_COMMENT':
-      return `${who} คอมเมนต์คลิปของคุณ${preview ? `: ${preview}` : ''}`;
-    case 'POST_COMMENT':
-      return `${who} ตอบกระทู้ของคุณ${preview ? `: ${preview}` : ''}`;
-    case 'REACTION':
-      return `${who} กด ${payload.emoji ?? 'รีแอ็กชัน'} ${preview ? `· ${preview}` : ''}`;
-    case 'MENTION':
-      return payload.broadcast
-        ? `${who} ประกาศถึงทุกคนในห้อง${preview ? `: ${preview}` : ''}`
-        : `${who} เรียกถึงคุณ${preview ? `: ${preview}` : ''}`;
-    case 'THREAD_REPLY':
-      return `${who} ตอบในเธรดของคุณ`;
-    case 'MEETING_INVITE':
-      return payload.cancelled
-        ? `${who} ยกเลิกนัด "${payload.title ?? ''}"`
-        : `${who} นัดประชุม "${payload.title ?? ''}"`;
-    default:
-      return `${who} · ${item.kind}`;
-  }
-}
-
-function timeAgo(iso: string): string {
-  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-
-  if (seconds < 60) return 'เมื่อครู่';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} นาทีที่แล้ว`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)} ชั่วโมงที่แล้ว`;
-
-  return `${Math.floor(seconds / 86400)} วันที่แล้ว`;
-}
 
 const NOTIFICATIONS_KEY = ['notifications', 'bell'] as const;
 
@@ -214,7 +173,7 @@ export function NotificationBell() {
                   }`}
                 >
                   <span className="block text-sm leading-snug">
-                    {describe(item)}
+                    {describeNotification(item)}
                   </span>
                   <span className="mt-0.5 block text-[11px] text-muted-foreground">
                     {timeAgo(item.created_at)}

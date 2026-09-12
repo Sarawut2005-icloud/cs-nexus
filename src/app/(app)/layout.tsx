@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import {
+  Bell,
   Bookmark,
   Compass,
   Film,
@@ -28,6 +29,7 @@ const NAV = [
   { href: '/feed', label: 'ฟีดชุมชน', icon: Compass, hint: 'Facebook' },
   { href: '/reels', label: 'คลิปสั้น', icon: Film, hint: 'Instagram' },
   { href: '/messages', label: 'ข้อความ', icon: Send, hint: 'Instagram' },
+  { href: '/notifications', label: 'การแจ้งเตือน', icon: Bell, hint: null },
   { href: '/chat', label: 'ห้องแชท', icon: Hash, hint: 'Discord' },
   { href: '/voice', label: 'ห้องเสียง', icon: Video, hint: 'Discord' },
   { href: '/meetings', label: 'นัดประชุม', icon: Users, hint: 'Teams' },
