@@ -1,0 +1,119 @@
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+/// เทสต์หน้าทางเข้าระบบ
+///
+/// สิ่งที่ต้องกันให้ได้ตลอดไปคือ **หน้านี้ต้องไม่มีช่องรับรหัสผ่าน**
+/// Blueprint หน้า 8 ห้ามระบบย่อยทำหน้า Login เอง และเหตุผลจริงหนักกว่ากฎ:
+/// ถ้า 36 ระบบย่อยต่างคนต่างรับรหัสผ่าน รหัสของนักศึกษาจะไปอยู่ 36 ที่
+///
+/// เทสต์นี้จะแดงทันทีถ้ามีใครเผลอเติม <input type="password"> เข้ามา
+
+const push = vi.fn();
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push }),
+}));
+
+const setIdentity = vi.fn();
+
+vi.mock('@/lib/csmju/identity', () => ({
+  setIdentity: (...args: unknown[]) => setIdentity(...args),
+  DEV_IDENTITIES: [
+    {
+      username: '6704101382-anuchat',
+      layer1Role: 'student',
+      faculty: 'science',
+      displayName: 'อนุชาติ (นักศึกษา)',
+    },
+    {
+      username: '6700000001-ajarn',
+      layer1Role: 'staff',
+      faculty: 'science',
+      displayName: 'อาจารย์ (บุคลากร)',
+    },
+  ],
+}));
+
+describe('หน้าทางเข้าระบบ', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it('ต้องไม่มีช่องรับรหัสผ่านเด็ดขาด', async () => {
+    const { default: LoginPage } = await import('./page');
+
+    const { container } = render(<LoginPage />);
+
+    expect(container.querySelector('input[type="password"]')).toBeNull();
+
+    // และต้องไม่มีช่องกรอกอะไรเลยที่รับตัวตน
+    expect(container.querySelectorAll('input')).toHaveLength(0);
+  });
+
+  it('บอกผู้ใช้ตรง ๆ ว่าไม่เก็บรหัสผ่าน', async () => {
+    const { default: LoginPage } = await import('./page');
+
+    render(<LoginPage />);
+
+    expect(screen.getByText(/ไม่รับรหัสผ่าน/)).toBeInTheDocument();
+  });
+
+  it('ยังไม่ได้ตั้งปลายทางของ Core = ปุ่มกดไม่ได้ และบอกเหตุผล', async () => {
+    // ปุ่มที่กดแล้วพาไปหน้าตาย แย่กว่าปุ่มที่ปิดไว้พร้อมคำอธิบาย
+    const { default: LoginPage } = await import('./page');
+
+    render(<LoginPage />);
+
+    expect(
+      screen.getByRole('button', { name: /เข้าสู่ระบบด้วยบัญชี CSMJU2030/ }),
+    ).toBeDisabled();
+
+    expect(screen.getByRole('status')).toHaveTextContent(/รอ PM ยืนยันโดเมน/);
+  });
+
+  it('ตั้งปลายทางแล้ว ปุ่มกดได้', async () => {
+    vi.stubEnv('NEXT_PUBLIC_CORE_LOGIN_URL', 'https://core.example/login');
+
+    const { default: LoginPage } = await import('./page');
+
+    render(<LoginPage />);
+
+    expect(
+      screen.getByRole('button', { name: /เข้าสู่ระบบด้วยบัญชี CSMJU2030/ }),
+    ).toBeEnabled();
+
+    expect(screen.queryByRole('status')).toBeNull();
+
+    vi.unstubAllEnvs();
+  });
+
+  it('โหมดพัฒนาเลือกตัวตนแล้วเข้าแอปได้', async () => {
+    // ระหว่างที่ยังไม่มี Gateway ต้องมีทางเข้าไปทดสอบระบบ
+    const { default: LoginPage } = await import('./page');
+
+    render(<LoginPage />);
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /อนุชาติ \(นักศึกษา\)/ }),
+    );
+
+    expect(setIdentity).toHaveBeenCalledWith(
+      expect.objectContaining({ username: '6704101382-anuchat' }),
+    );
+    expect(push).toHaveBeenCalledWith('/feed');
+  });
+
+  it('รายชื่อโหมดพัฒนาบอกสิทธิ์ระดับองค์กรของแต่ละคน', async () => {
+    // ต้องเห็นว่ากำลังทดสอบในฐานะนักศึกษาหรืออาจารย์ ไม่งั้นจะงงว่า
+    // ทำไมบางปุ่มกดไม่ได้
+    const { default: LoginPage } = await import('./page');
+
+    render(<LoginPage />);
+
+    expect(screen.getByText('student')).toBeInTheDocument();
+    expect(screen.getByText('staff')).toBeInTheDocument();
+  });
+});

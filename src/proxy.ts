@@ -21,7 +21,12 @@ import { NextResponse, type NextRequest } from 'next/server';
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === '/login' || pathname.startsWith('/auth/')) {
+  // /login เปิดให้เข้าได้แล้ว — เป็นหน้าที่ส่งต่อไปล็อกอินที่ Core
+  // ไม่ใช่หน้ารับรหัสผ่าน จึงไม่ขัด Blueprint หน้า 8
+  //
+  // ส่วน /auth/* ยังพากลับหน้าแรกไปก่อน เพราะปลายทางที่ Core จะเรียกกลับ
+  // ยังรอ PM ยืนยัน (ดู docs/คำถามถึง-PM.md ข้อ 3)
+  if (pathname.startsWith('/auth/')) {
     return NextResponse.redirect(new URL('/feed', request.url));
   }
 
@@ -31,5 +36,5 @@ export function proxy(request: NextRequest) {
 export const config = {
   // จับเฉพาะสองเส้นทางที่ต้องพาไปที่อื่น ไม่ต้องวิ่งทุก request
   // (proxy ที่ match ทุกอย่างแต่ไม่ทำอะไร คือค่าใช้จ่ายที่ไม่ได้อะไรกลับมา)
-  matcher: ['/login', '/auth/:path*'],
+  matcher: ['/auth/:path*'],
 };
