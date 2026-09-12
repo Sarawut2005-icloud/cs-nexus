@@ -726,13 +726,28 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     if (!active || !socket) return;
 
     if (presenting) {
-      for (const track of screenStream.current?.getTracks() ?? []) {
+      // ถอนแทร็กออกจากสายก่อน แล้วเจรจาใหม่
+      //
+      // แค่ track.stop() ไม่พอ — sender ยังอยู่ในสายและ SDP ยังบอกว่ามีช่อง
+      // วิดีโออยู่ ฝั่งผู้ชมจึงเห็นภาพค้างที่เฟรมสุดท้ายแทนที่จะหายไป
+      const tracks = screenStream.current?.getTracks() ?? [];
+      const trackIds = new Set(tracks.map((track) => track.id));
+
+      for (const sender of peer.current?.getSenders() ?? []) {
+        if (sender.track && trackIds.has(sender.track.id)) {
+          peer.current?.removeTrack(sender);
+        }
+      }
+
+      for (const track of tracks) {
         track.stop();
       }
 
       screenStream.current = null;
       socket.emit('screen:release', { session_id: active.sessionId });
       setPresenting(false);
+
+      await negotiate();
 
       return;
     }

@@ -73,8 +73,24 @@ class FakePeerConnection {
     FakePeerConnection.instances.push(this);
   }
 
+  readonly senders: { track: unknown }[] = [];
+  readonly removedSenders: { track: unknown }[] = [];
+
   addTrack(track: unknown) {
     this.addedTracks.push(track);
+    this.senders.push({ track });
+  }
+
+  getSenders() {
+    return this.senders;
+  }
+
+  removeTrack(sender: { track: unknown }) {
+    this.removedSenders.push(sender);
+
+    const index = this.senders.indexOf(sender);
+
+    if (index !== -1) this.senders.splice(index, 1);
   }
 
   close() {
@@ -190,8 +206,17 @@ function makeSession(overrides: Record<string, unknown> = {}) {
 
 /// track ปลอมหนึ่งเส้น — ต้องมีของจริง ไม่งั้นเทสต์ "ต่อไมค์เข้าสาย" จะเขียว
 /// ทั้งที่ไม่ได้ต่ออะไรเลย
+let trackSeq = 0;
+
 function makeMicStream() {
-  const track = { kind: 'audio', enabled: true, stop: vi.fn() };
+  // ต้องมี id ที่ไม่ซ้ำเหมือน MediaStreamTrack จริง — โค้ดจริงใช้ id
+  // จับคู่ตอนถอนแทร็กออกจากสาย ถ้าของปลอมไม่มี id จะถอนผิดตัว
+  const track = {
+    id: `track-${(trackSeq += 1)}`,
+    kind: 'audio',
+    enabled: true,
+    stop: vi.fn(),
+  };
 
   return {
     getTracks: () => [track],
@@ -832,6 +857,69 @@ describe('WebRTC', () => {
     });
 
     expect(screen.getByText(/กำลังโทรหา bbb-peer/)).toBeInTheDocument();
+  });
+
+  it('เริ่มแชร์หน้าจอแล้วต้องเปิดรอบเจรจาใหม่ ไม่ใช่แค่เพิ่มแทร็ก', async () => {
+    // **บั๊กที่ตัวนี้กัน:** addTrack เข้าสายที่ต่ออยู่แล้ว ไม่ทำให้ภาพวิ่งไปเอง
+    // ต้องมีรอบ offer/answer ใหม่เสมอ ถ้าลืม ผู้แชร์จะเห็นแถบ "กำลังแชร์"
+    // ของเบราว์เซอร์และ UI ขึ้นว่าแชร์อยู่ แต่ปลายทางไม่ได้รับอะไรเลย
+    // และไม่มี error ให้เห็นสักตัว
+    await renderProvider();
+    await callOut();
+
+    act(() => {
+      handlers.get('call:answered')?.({
+        accepted: true,
+        from_username: 'bbb-peer',
+      });
+    });
+
+    await waitFor(() => expect(offersSent()).toHaveLength(1));
+
+    await userEvent.click(screen.getByRole('button', { name: 'แชร์หน้าจอ' }));
+
+    // ต้องมี offer รอบที่สองหลังเพิ่มแทร็กหน้าจอ
+    await waitFor(() => expect(offersSent()).toHaveLength(2));
+
+    expect(FakePeerConnection.latest().addedTracks).toContain(
+      screenStream.track,
+    );
+  });
+
+  it('หยุดแชร์แล้วต้องถอนแทร็กออกจากสายและเจรจาใหม่', async () => {
+    // แค่ track.stop() ไม่พอ — sender ยังอยู่ในสายและ SDP ยังบอกว่ามีช่อง
+    // วิดีโออยู่ ฝั่งผู้ชมจะเห็นภาพค้างที่เฟรมสุดท้ายแทนที่จะหายไป
+    await renderProvider();
+    await callOut();
+
+    act(() => {
+      handlers.get('call:answered')?.({
+        accepted: true,
+        from_username: 'bbb-peer',
+      });
+    });
+
+    await waitFor(() => expect(offersSent()).toHaveLength(1));
+
+    await userEvent.click(screen.getByRole('button', { name: 'แชร์หน้าจอ' }));
+    await waitFor(() => expect(offersSent()).toHaveLength(2));
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'หยุดแชร์หน้าจอ' }),
+    );
+
+    const peer = FakePeerConnection.latest();
+
+    // ถอนออกจริง
+    expect(peer.removedSenders.map((sender) => sender.track)).toContain(
+      screenStream.track,
+    );
+
+    // และเจรจาใหม่ให้อีกฝั่งรู้ว่าช่องวิดีโอหายไปแล้ว
+    await waitFor(() => expect(offersSent()).toHaveLength(3));
+
+    // ปิดแทร็กด้วย ไม่งั้นไฟแสดงการแชร์ของเบราว์เซอร์ยังติดค้าง
+    expect(screenStream.track.stop).toHaveBeenCalled();
   });
 
   it('ต่อไม่ติดและไม่มี TURN = บอกสาเหตุจริง', async () => {

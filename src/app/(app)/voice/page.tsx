@@ -39,6 +39,11 @@ interface PeerState {
   username: string;
   connection: RTCPeerConnection;
   stream: MediaStream | null;
+  /// เราเป็นฝ่ายยื่นข้อเสนอของสายนี้ไหม (ตัดสินด้วยการเทียบชื่อตอนเปิดสาย)
+  ///
+  /// ต้องจำไว้ เพราะตอนเพิ่มแทร็กหน้าจอต้องรู้ว่าจะยื่น offer เองได้ไหม
+  /// หรือต้องขอให้อีกฝั่งยื่นให้ — ถ้าทั้งคู่ยื่นพร้อมกัน สายจะพังเงียบ ๆ
+  isOfferer: boolean;
 }
 
 export default function VoicePage() {
@@ -79,6 +84,76 @@ export default function VoicePage() {
   /// `polite` ตัดสินว่าใครเป็นฝ่ายยื่น offer เพื่อไม่ให้ทั้งสองฝ่ายยื่นพร้อมกัน
   /// (glare) — ใช้การเทียบชื่อผู้ใช้เป็นเกณฑ์ตายตัว ทำให้ทั้งสองฝั่งได้ผลเหมือนกัน
   /// โดยไม่ต้องคุยกันก่อน
+  /// เปิดรอบเจรจาใหม่กับสายหนึ่งเส้น
+  ///
+  /// **บั๊กที่ตัวนี้แก้: แชร์หน้าจอแล้วอีกฝั่งไม่เห็นอะไรเลย**
+  ///
+  /// การ addTrack เข้า RTCPeerConnection ที่ต่ออยู่แล้ว ไม่ทำให้ภาพวิ่งไปเอง
+  /// ต้องมีรอบ offer/answer ใหม่เสมอ ของเดิมเพิ่มแทร็กแล้วจบ ผู้แชร์จึงเห็น
+  /// แถบ "คุณกำลังแชร์หน้าจอ" ของเบราว์เซอร์และ UI ขึ้นว่าแชร์อยู่ แต่ปลายทาง
+  /// ไม่เคยได้รับอะไร — ไม่มี error ให้เห็นสักตัว
+  ///
+  /// ฝ่ายยื่นถูกตัดสินด้วยการเทียบชื่อตอนเปิดสาย ถ้าเราไม่ใช่ฝ่ายยื่น
+  /// ต้องขอให้อีกฝั่งเปิดรอบให้ ไม่ใช่ยื่นเองซ้อนกัน
+  const renegotiate = useCallback(async (peer: PeerState) => {
+    const socket = socketRef.current;
+
+    if (!socket) return;
+
+    if (!peer.isOfferer) {
+      socket.emit('rtc:signal', {
+        to_username: peer.username,
+        kind: 'renegotiate',
+        data: null,
+      });
+
+      return;
+    }
+
+    try {
+      const offer = await peer.connection.createOffer();
+
+      await peer.connection.setLocalDescription(offer);
+
+      socket.emit('rtc:signal', {
+        to_username: peer.username,
+        kind: 'offer',
+        data: offer,
+      });
+    } catch {
+      setError('เปิดรอบเชื่อมต่อใหม่ไม่สำเร็จ — ลองหยุดแล้วแชร์ใหม่');
+    }
+  }, []);
+
+  /// หยุดแชร์: ถอนแทร็กออกจากทุกสายแล้วเจรจาใหม่
+  ///
+  /// แค่ `track.stop()` ไม่พอ — ฝั่งผู้ชมจะเห็นภาพค้างที่เฟรมสุดท้าย
+  /// เพราะ sender ยังอยู่ในสายและ SDP ยังบอกว่ามีช่องวิดีโออยู่
+  /// ต้อง removeTrack แล้วเปิดรอบเจรจาใหม่ ถึงจะหายไปจริง
+  const stopSharing = useCallback(async () => {
+    const tracks = screenStream.current?.getTracks() ?? [];
+    const trackIds = new Set(tracks.map((track) => track.id));
+
+    // ถอนก่อนหยุด — หยุดก่อนแล้วค่อยถอนก็ได้ แต่ลำดับนี้อ่านแล้วตรงกับที่ตั้งใจ
+    for (const peer of Object.values(peersRef.current)) {
+      for (const sender of peer.connection.getSenders()) {
+        if (sender.track && trackIds.has(sender.track.id)) {
+          peer.connection.removeTrack(sender);
+        }
+      }
+    }
+
+    for (const track of tracks) {
+      track.stop();
+    }
+
+    screenStream.current = null;
+
+    for (const peer of Object.values(peersRef.current)) {
+      await renegotiate(peer);
+    }
+  }, [renegotiate]);
+
   const createPeer = useCallback(
     (username: string, shouldOffer: boolean) => {
       const existing = peersRef.current[username];
@@ -91,7 +166,12 @@ export default function VoicePage() {
         iceServers: iceServers.current,
       });
 
-      const state: PeerState = { username, connection, stream: null };
+      const state: PeerState = {
+        username,
+        connection,
+        stream: null,
+        isOfferer: shouldOffer,
+      };
 
       peersRef.current = { ...peersRef.current, [username]: state };
       setPeers({ ...peersRef.current });
@@ -221,7 +301,7 @@ export default function VoicePage() {
       unbindRef.current.push(
         bindSocket<{
           from_username: string;
-          kind: 'offer' | 'answer' | 'ice';
+          kind: 'offer' | 'answer' | 'ice' | 'renegotiate';
           data: unknown;
         }>(socket, 'rtc:signal', async (payload) => {
           // ฝั่งที่ได้ offer ไม่ต้องยื่น offer กลับ
@@ -249,6 +329,13 @@ export default function VoicePage() {
             await peer.connection.setRemoteDescription(
               payload.data as RTCSessionDescriptionInit,
             );
+
+            return;
+          }
+
+          if (payload.kind === 'renegotiate') {
+            // อีกฝั่งเพิ่มแทร็กแต่ยื่นข้อเสนอเองไม่ได้ — เราเปิดรอบให้
+            await renegotiate(peer);
 
             return;
           }
@@ -339,11 +426,7 @@ export default function VoicePage() {
     if (!socket) return;
 
     if (presenter === me.username) {
-      for (const track of screenStream.current?.getTracks() ?? []) {
-        track.stop();
-      }
-
-      screenStream.current = null;
+      await stopSharing();
       socket.emit('screen:release', { session_id: session.id });
       setPresenter(null);
 
@@ -370,19 +453,25 @@ export default function VoicePage() {
         audio: false,
       });
 
-      // ส่งภาพเข้าไปในทุกสายที่เปิดอยู่
+      // ส่งภาพเข้าไปในทุกสายที่เปิดอยู่ แล้ว **เปิดรอบเจรจาใหม่ทุกสาย**
+      //
+      // ถ้าไม่เจรจา ภาพจะไม่วิ่งไปไหนเลย แม้แทร็กจะถูกเพิ่มเข้า connection แล้ว
       for (const peer of Object.values(peersRef.current)) {
         for (const track of screenStream.current.getVideoTracks()) {
           peer.connection.addTrack(track, screenStream.current);
         }
+
+        await renegotiate(peer);
       }
 
       // ผู้ใช้กดหยุดแชร์จากแถบของเบราว์เซอร์เองได้ ต้องปล่อยสิทธิ์ตามด้วย
       const [video] = screenStream.current.getVideoTracks();
 
       video.onended = () => {
+        // ต้องเก็บให้เหมือนกดหยุดในแอปทุกประการ ไม่งั้นผู้ชมจะเห็นภาพค้าง
+        // เฉพาะตอนที่ผู้แชร์กดหยุดจากแถบของเบราว์เซอร์ ซึ่งหาสาเหตุยากมาก
+        void stopSharing();
         socket.emit('screen:release', { session_id: session.id });
-        screenStream.current = null;
         setPresenter(null);
       };
 
