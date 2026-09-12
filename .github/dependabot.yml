@@ -1,0 +1,88 @@
+# ให้ GitHub เฝ้าแพ็กเกจให้เอง — ฟรีทุกรีโป ไม่ต้องตั้งอะไรเพิ่ม
+#
+# ทำไมต้องมี: รอบที่แล้วเราเพิ่งไล่ปิดช่องโหว่ 16 ตัวด้วยมือ ซึ่งเจอเพราะ
+# บังเอิญนึกจะรัน `npm audit` ไม่ใช่เพราะมีอะไรเตือน ถ้าไม่มีตัวนี้ ช่องโหว่
+# ตัวถัดไปจะนอนอยู่เงียบ ๆ จนกว่าจะมีคนนึกขึ้นได้อีกที
+#
+# Dependabot จะเปิด PR ให้เองเมื่อมีรุ่นใหม่ แล้ว CI ที่มีอยู่จะรันเทสต์
+# ให้ทันที — ถ้าเขียวก็ merge ได้เลย ถ้าแดงก็รู้ว่ารุ่นใหม่ทำอะไรพัง
+#
+# ช่องโหว่ด้านความปลอดภัยจะถูกเปิด PR ทันทีเสมอ ไม่ต้องรอรอบรายสัปดาห์
+
+version: 2
+
+updates:
+  # ---- หน้าบ้าน ----
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Bangkok
+
+    # เปิดทีละมาก ๆ แล้วจะไม่มีใครอ่าน — จำกัดให้ตรวจไหว
+    open-pull-requests-limit: 5
+
+    groups:
+      # รวมรุ่นย่อยและรุ่นแก้บั๊กไว้ PR เดียว เพราะมันแทบไม่เคยพัง
+      # และการเปิดสิบ PR ต่อสัปดาห์ทำให้คนเลิกอ่านทั้งหมด
+      patch-and-minor:
+        update-types:
+          - minor
+          - patch
+
+    ignore:
+      # รุ่นใหญ่ของสี่ตัวนี้ต้องไล่ผลกระทบเอง ไม่ใช่กด merge
+      # (Next/React กระทบทั้งแอป · TypeScript กระทบทั้งสองฝั่งพร้อมกัน)
+      - dependency-name: next
+        update-types: [version-update:semver-major]
+      - dependency-name: react
+        update-types: [version-update:semver-major]
+      - dependency-name: react-dom
+        update-types: [version-update:semver-major]
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+
+    commit-message:
+      prefix: 'deps(หน้าบ้าน)'
+
+  # ---- หลังบ้าน ----
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Bangkok
+
+    open-pull-requests-limit: 5
+
+    groups:
+      patch-and-minor:
+        update-types:
+          - minor
+          - patch
+
+    ignore:
+      # Prisma รุ่นใหญ่เปลี่ยนวิธีใช้ทั้งหมด (เช่น 6 → 7 ที่เปลี่ยนเป็น
+      # driver adapter) ต้องอ่านคู่มือย้ายรุ่นก่อน ไม่ใช่กด merge
+      - dependency-name: prisma
+        update-types: [version-update:semver-major]
+      - dependency-name: '@prisma/client'
+        update-types: [version-update:semver-major]
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+
+    commit-message:
+      prefix: 'deps(หลังบ้าน)'
+
+  # ---- GitHub Actions เอง ----
+  # action ที่ค้างรุ่นเก่าคือช่องโหว่ที่คนลืมบ่อยที่สุด เพราะมันไม่โผล่ใน
+  # package.json และ `npm audit` มองไม่เห็น
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: 'ci'
