@@ -32,6 +32,13 @@ npm run dev
 
 เปิด **http://localhost:3000** — จะเด้งไปที่ฟีดชุมชน
 
+> **คำสั่งที่พิมพ์ผิดบ่อย:** เป็น `npm run dev` ไม่ใช่ `npm start dev`
+> — อย่างหลังจะกลายเป็น `next start dev` แล้ว Next จะหาโฟลเดอร์ชื่อ `dev`
+> ส่วนหลังบ้านคือ `npm run start:dev` (ต้องอยู่ในโฟลเดอร์ `backend`)
+>
+> ถ้าขึ้นว่า `Another next dev server is already running` แปลว่ามีตัวเดิม
+> เปิดค้างอยู่แล้ว เข้า http://localhost:3000 ได้เลย ไม่ต้องเปิดใหม่
+
 | ที่อยู่ | คืออะไร |
 |---|---|
 | http://localhost:3000 | หน้าบ้าน |
