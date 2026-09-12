@@ -49,14 +49,21 @@ services:
       - key: CORS_ORIGIN
         sync: false
 
+      # ระบบเชื่อ header ที่ส่งมา (Blueprint หน้า 9) จึงปลอดภัยก็ต่อเมื่อ
+      # พิสูจน์ได้ว่าคำขอมาจาก Gateway จริง — ถ้าไม่ตั้ง ใครก็ส่ง X-User-Id
+      # มาเป็นใครก็ได้ main.ts จะไม่ยอมบูตจนกว่าจะตั้งตัวนี้ หรือยืนยันว่า
+      # รู้ตัวด้วย ALLOW_UNPROTECTED_GATEWAY=true (เดโมวงปิดเท่านั้น)
+      - key: GATEWAY_SHARED_SECRET
+        sync: false
+      - key: ALLOW_UNPROTECTED_GATEWAY
+        sync: false
+
       # ---- ไม่บังคับ ----
       - key: TURN_URL
         sync: false
       - key: TURN_USERNAME
         sync: false
       - key: TURN_CREDENTIAL
-        sync: false
-      - key: GATEWAY_SHARED_SECRET
         sync: false
       - key: CSMJU_CORE_API_URL
         sync: false
