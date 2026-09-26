@@ -40,7 +40,13 @@ request/response ทั้งคู่ การทำแชทด้วยก�
 
 ฝั่งหน้าบ้านต้องใช้ `socket.io-client` คู่กัน (อยู่ในข้อ 1.2)
 
-## 1.2 หน้าบ้าน — runtime 14 ตัว
+> **อัปเดต 2026-09-26** — ตัด dependency ที่ไม่มีใครเรียกใช้ออกไปแล้ว 7 ตัว
+> (`@base-ui/react`, `@radix-ui/react-checkbox`, `@radix-ui/react-separator`,
+> `@radix-ui/react-tabs`, `supabase`, `source-map-support`,
+> `@vitest/coverage-v8`) พร้อมลบ component ที่ไม่มีใครนำเข้า 4 ไฟล์
+> **เหลือที่ขออนุมัติจริง 19 ตัว** ตามรายการด้านล่าง
+
+## 1.2 หน้าบ้าน — runtime 10 ตัว
 
 **สื่อสารเรียลไทม์**
 
@@ -52,9 +58,8 @@ request/response ทั้งคู่ การทำแชทด้วยก�
 
 | package | เหตุผล |
 | --- | --- |
-| `@radix-ui/react-tabs` `react-checkbox` `react-label` `react-separator` `react-slot` | component ที่รองรับคีย์บอร์ดและ screen reader ถูกต้องตาม WAI-ARIA |
-| `@base-ui/react` | รุ่นต่อของ Radix ใช้กับ component ที่ Radix ยังไม่มี |
-| `lucide-react` | ชุดไอคอน SVG |
+| `@radix-ui/react-label` · `@radix-ui/react-slot` | component ที่รองรับคีย์บอร์ดและ screen reader ถูกต้องตาม WAI-ARIA |
+| `lucide-react` | ชุดไอคอน SVG (ใช้อยู่ 33 ไฟล์) |
 
 > `ui-design-system.md` บังคับเรื่อง design token และความเข้าถึงได้ แต่ whitelist
 > ยังไม่มีชั้น component ให้ใช้เลย — `@csmju2030/design-system` ที่อ้างถึงใน
@@ -75,16 +80,14 @@ request/response ทั้งคู่ การทำแชทด้วยก�
 | --- | --- |
 | `framer-motion` | ใช้กับสตอรี่ วิดีโอสั้น และการเปลี่ยนหน้า · รองรับ `prefers-reduced-motion` ในตัว ซึ่งเขียนเองให้ถูกต้องได้ยาก |
 
-## 1.3 devDependencies 9 ตัว
+## 1.3 devDependencies 6 ตัว
 
 | package | เหตุผล |
 | --- | --- |
 | `@testing-library/jest-dom` · `@testing-library/user-event` | คู่กับ `@testing-library/react` ที่อยู่ใน whitelist แล้ว — แปลกที่ตัวหลักอนุญาตแต่ตัวประกอบไม่อนุญาต |
 | `@tailwindcss/postcss` | Tailwind v4 ต้องใช้ตัวนี้แทน plugin เดิม |
 | `eslint-config-next` | ชุดกฎ lint ของ Next.js |
-| `@vitest/coverage-v8` | รายงาน coverage ของ vitest (ซึ่งอยู่ใน whitelist แล้ว) |
-| `oxlint` · `source-map-support` | lint และ stack trace ฝั่งหลังบ้าน |
-| `supabase` | CLI ของที่เก็บไฟล์ |
+| `oxlint` | linter ฝั่งหลังบ้าน — **ถ้าไม่อนุมัติ เรายินดีย้ายไป `eslint`** ซึ่งอยู่ใน whitelist อยู่แล้ว ขอทราบความเห็น |
 
 ## 1.4 น่าจะเป็นช่องโหว่ของ whitelist เอง — `prisma`
 
@@ -161,6 +164,31 @@ README ของ repo นี้เขียนว่า *"ถ้าสองอ�
 เพราะวันที่มันแดงเพราะของจริง จะไม่มีใครสังเกต
 
 เสนอให้ข้ามไฟล์ที่ `git check-ignore` บอกว่าถูกละเว้น
+
+## 2.6 `run-all-checks.sh` ให้ผลผิดบน Windows
+
+`README` แนะนำให้ทุกคนรัน `./standards/scripts/run-all-checks.sh .` ก่อนเปิด PR
+แต่บน Windows (Git Bash) `ARC-02/03` ให้ผลที่เชื่อไม่ได้ **สองแบบ**:
+
+| สถานการณ์ | ผลที่ได้ |
+| --- | --- |
+| ไม่มี `jq` | ข้ามการตรวจ แล้วรายงานเป็น **PASS** |
+| มี `jq` | ฟ้อง dependency **ทุกตัว** รวมทั้ง `next`, `react`, `@nestjs/common` ที่อยู่ใน whitelist |
+
+สาเหตุของแบบที่สอง: `jq.exe` บน Windows ส่งออกบรรทัดเป็น **CRLF**
+ชื่อ dependency ที่อ่านด้วย `while IFS= read -r DEP` จึงมีอักขระ carriage return ติดท้าย
+แล้ว `index($d)` หาไม่เจอสักตัว — ยืนยันด้วย `xxd` แล้วว่าเป็น `0d 0a` จริง
+
+แบบแรกอันตรายกว่า เพราะ **รายงานเขียวทั้งที่ไม่ได้ตรวจอะไรเลย**
+คนที่รันในเครื่องจะเชื่อว่าผ่าน แล้วไปตกบน CI
+
+เสนอสองอย่าง:
+
+1. `check-authorized-deps.sh` — ตัดอักขระ carriage return ทิ้งก่อนเทียบ
+   (ใน bash ใช้ pattern removal กับ `$'\r'`)
+2. สคริปต์ที่ข้ามการตรวจเพราะไม่มีเครื่องมือ **ไม่ควรรายงานเป็น `✅ PASS`**
+   ควรเป็นสถานะที่สาม (เช่น `⏭️ SKIP`) และ `run-all-checks.sh` ควรสรุปแยก
+   ไม่งั้น "ผ่าน" กับ "ไม่ได้ตรวจ" หน้าตาเหมือนกันทุกประการ
 
 ---
 
