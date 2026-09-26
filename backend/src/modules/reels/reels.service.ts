@@ -61,7 +61,7 @@ export class ReelsService {
   ): Promise<Paginated<ReelResponseDto>> {
     const where = await this.feedWhere(user, query);
 
-    // มาตรฐานหน้า 7 บังคับ meta แบบ current_page/total_pages จึงต้องใช้
+    // contracts/vocabulary.json บังคับ meta แบบ { total, page, limit, totalPages }
     // offset pagination ที่นี่ ทั้งที่ฟีดแบบเลื่อนไม่สุดควรใช้ cursor
     // TODO(PL): เสนอ PM ขอเพิ่ม cursor endpoint สำหรับฟีดวิดีโอและแชท
     const [rows, total] = await Promise.all([

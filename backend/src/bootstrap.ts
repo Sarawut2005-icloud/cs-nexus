@@ -32,6 +32,21 @@ function corsOrigin(): string[] | RegExp | boolean {
   return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 }
 
+/// เส้นทางที่ต้องอยู่ **นอก** prefix /api/v1
+///
+///   /api/health     — ไม่มีเลขเวอร์ชัน เพราะตัวตรวจสถานะต้องเรียกได้เหมือนเดิม
+///                     ตลอดไปแม้ API ธุรกิจจะขึ้น v2 (vocabulary.json)
+///   /auth/callback  — ต้องตรงกับ callback_url ที่ลงทะเบียนไว้กับ Core Hub
+///
+/// **การเรียก `setGlobalPrefix` อยู่ที่ `main.ts` ไม่ใช่ที่นี่** ทั้งที่ของอื่น
+/// ที่ทำให้ response ตรงมาตรฐานอยู่ในไฟล์นี้หมด — เพราะสคริปต์ `API-02` ของ
+/// มาตรฐานอ่านเฉพาะ `backend/src/main.ts` ไฟล์เดียว ถ้าซ่อนไว้ที่นี่จะถูก
+/// ตีตกทั้งที่ตั้ง prefix ถูกต้อง (แจ้ง standards ไว้แล้วในร่าง issue ข้อ 2.4)
+///
+/// ชุดทดสอบ e2e จึงต้องเรียก setGlobalPrefix เองด้วย โดยใช้ค่าคงที่ชุดนี้
+/// ไม่ใช่พิมพ์ค่าซ้ำ — ถ้าค่าหลุดจากกัน เทสต์ที่ยิง /api/v1/... จะแดงทันที
+export const PREFIX_EXCLUDE = ['api/health', 'auth/callback'];
+
 export function configureApp(app: INestApplication): void {
   /// เปิด CORS ให้หน้าบ้านคนละพอร์ตยิงเข้ามาได้
   ///
@@ -58,9 +73,6 @@ export function configureApp(app: INestApplication): void {
     credentials: false,
     maxAge: 86400,
   });
-
-  // URL มาตรฐาน: /api/v1/<คำนามพหูพจน์แบบ kebab-case> (Blueprint หน้า 7)
-  app.setGlobalPrefix('api/v1', { exclude: ['health'] });
 
   app.useGlobalPipes(
     new ValidationPipe({

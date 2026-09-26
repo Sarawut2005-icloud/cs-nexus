@@ -27,7 +27,7 @@ fi
 
 if [ "$touched_backend" -gt 0 ]; then
   printf '\033[36m› ตรวจชนิดข้อมูลหลังบ้าน…\033[0m\n'
-  (cd backend && npx tsc --noEmit) || fail=1
+  (pnpm --filter backend typecheck --silent) || fail=1
 fi
 
 # ไฟล์ที่ไม่ควรหลุดขึ้น repo เด็ดขาด

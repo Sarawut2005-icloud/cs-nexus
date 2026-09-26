@@ -1,15 +1,23 @@
-// CS Nexus (aie4-social-reels) — Subsystem Database
-// ระบบย่อยภายใต้ CSMJU2030 · standards_version 1.2.0
+// CS Nexus (csmju-social-reels) — ฐานข้อมูลของระบบย่อย
+// ภายใต้ CSMJU2030 · standards_version 1.0.0
 //
-// กฎจาก Blueprint ที่ schema นี้ยึด:
+// กฎที่ schema นี้ยึด (csmju2030-standards v1.0):
 //   1. Database-per-Subsystem — ฐานข้อมูลนี้เป็นของระบบย่อยนี้เท่านั้น
-//      ไม่มีตารางไหนที่ระบบย่อยอื่นต้องรู้จัก (หน้า 10)
-//   2. Shared Identity คือ `username` เท่านั้น — ห้ามเก็บ user_id หรือ
-//      student_id ซ้ำซ้อน ค่าของมันมาจาก header X-User-Id ที่ API Gateway แนบมา
-//   3. `layer1_role` (student/alumni/staff/admin) ไม่เก็บลงฐานข้อมูล —
-//      อ่านจาก header ทุก request เพราะ Core เป็นแหล่งความจริง
-//   4. `layer2_role` เป็น Local Data นิยามเองได้ และเก็บที่นี่
-//   5. วันเวลาเป็น timestamptz ทั้งหมด แปลงเป็น ISO 8601 ที่ชั้น API
+//      ไม่มีตารางไหนที่ระบบย่อยอื่นต้องรู้จัก (tech-stack.md ข้อ 1.3 · กฎ ARC-01)
+//   2. ห้ามสร้างตาราง users ของตัวเอง เก็บได้แค่ external reference
+//      ชื่อ `coreUserId` (ค่า `sub` จาก token) เท่านั้น — data-dictionary.md ข้อ 3
+//      ชื่ออื่นที่สื่อความหมายเดียวกันถูกกฎ DD-01 ห้ามไว้
+//   3. core role (student/alumni/staff/admin) ไม่เก็บลงฐานข้อมูล —
+//      อ่านจาก claim ที่ผ่านการตรวจลายเซ็นทุก request เพราะ Core Hub
+//      เป็นแหล่งความจริง (data-dictionary.md ข้อ 10)
+//   4. `layer2Role` เป็น Local Data ของระบบย่อย นิยามเองได้ และเก็บที่นี่
+//   5. ฐานข้อมูลเป็น snake_case ผ่าน @map/@@map ส่วนฟิลด์ใน Prisma เป็น
+//      camelCase — แยกชั้น DB กับ application โดยเจตนา (ข้อ 9.1 · กฎ DD-03)
+//   6. วันเวลาเป็น timestamptz ทั้งหมด แปลงเป็น ISO 8601 ลงท้าย Z ที่ชั้น API
+//
+// TODO(PL): คีย์ตัวตนตอนนี้ยังเป็น `username` ซึ่งสัญญา v1.0 ไม่ส่งมาใน token
+// (data-dictionary.md ข้อ 1.2) — ต้องย้ายไป `coreUserId` ทั้งระบบ
+// ดู docs/ช่องว่างกับมาตรฐาน-v1.0.md หัวข้อ 3
 
 generator client {
   provider = "prisma-client"
@@ -114,7 +122,7 @@ enum NotificationKind {
 /// ชื่อที่แสดงบนหน้าจอให้ frontend ขอจาก Core API หรือใช้ ProfileCache
 model SubsystemMember {
   username   String     @id // ← Shared Identity จาก X-User-Id
-  layer2Role Layer2Role @default(GUEST)
+  layer2Role Layer2Role @default(GUEST) @map("layer2_role")
 
   /// true = ผู้ดูแลตั้งค่านี้ด้วยมือ · false = ค่านี้แปลงมาจาก layer1_role
   ///
@@ -128,9 +136,9 @@ model SubsystemMember {
   /// วิธีทำงาน: ทุกครั้งที่ผู้ใช้ยิง request เรารู้ layer1_role จริงจาก header
   /// ถ้า explicit = false และค่าไม่ตรงกับ default mapping ให้แก้ให้ตรง
   /// (เขียนเฉพาะเมื่อไม่ตรง ไม่ใช่ทุก request)
-  layer2RoleExplicit Boolean @default(false)
-  storageUsedBytes   BigInt  @default(0)
-  storageQuotaBytes  BigInt  @default(209715200) // 200 MB
+  layer2RoleExplicit Boolean @default(false) @map("layer2_role_explicit")
+  storageUsedBytes   BigInt  @default(0) @map("storage_used_bytes")
+  storageQuotaBytes  BigInt  @default(209715200) @map("storage_quota_bytes") // 200 MB
 
   /// คำแนะนำตัวที่เขียน "เพื่อชุมชนนี้" — เป็น Local Data ไม่ใช่ของ Core
   ///
@@ -144,10 +152,10 @@ model SubsystemMember {
   bio String? @db.VarChar(300)
 
   /// รูปปกของหน้าโปรไฟล์ในระบบย่อยนี้ (ไม่ใช่รูปโปรไฟล์ ซึ่งเป็นของ Core)
-  coverAssetId String?  @unique
+  coverAssetId String?  @unique @map("cover_asset_id")
   cover        Asset?   @relation(fields: [coverAssetId], references: [id], onDelete: SetNull)
-  createdAt    DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@index([layer2Role])
   @@map("subsystem_members")
@@ -160,9 +168,9 @@ model SubsystemMember {
 /// TODO(PL): ยืนยันกับ PM ว่าการแคช display_name แบบนี้ผ่านมาตรฐานหน้า 10
 model ProfileCache {
   username    String   @id
-  displayName String
-  avatarUrl   String?
-  syncedAt    DateTime @default(now()) @db.Timestamptz(3)
+  displayName String   @map("display_name")
+  avatarUrl   String?  @map("avatar_url")
+  syncedAt    DateTime @default(now()) @map("synced_at") @db.Timestamptz(3)
 
   @@map("profile_cache")
 }
@@ -171,12 +179,12 @@ model Reel {
   id             String   @id @default(uuid())
   title          String
   caption        String?
-  assetId        String   @unique
-  durationMs     Int // บังคับ <= 60000 ที่ชั้น DTO เพื่อคุมค่าข้อมูลขาออก
-  authorUsername String
-  likeCount      Int      @default(0)
-  viewCount      Int      @default(0)
-  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  assetId        String   @unique @map("asset_id")
+  durationMs     Int      @map("duration_ms") // บังคับ <= 60000 ที่ชั้น DTO เพื่อคุมค่าข้อมูลขาออก
+  authorUsername String   @map("author_username")
+  likeCount      Int      @default(0) @map("like_count")
+  viewCount      Int      @default(0) @map("view_count")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   asset    Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
   likes    ReelLike[]
@@ -189,9 +197,9 @@ model Reel {
 }
 
 model ReelLike {
-  reelId    String
+  reelId    String   @map("reel_id")
   username  String
-  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   reel Reel @relation(fields: [reelId], references: [id], onDelete: Cascade)
 
@@ -202,11 +210,11 @@ model ReelLike {
 
 model ReelComment {
   id             String    @id @default(uuid())
-  reelId         String
-  authorUsername String
+  reelId         String    @map("reel_id")
+  authorUsername String    @map("author_username")
   content        String    @db.VarChar(1000)
-  deletedAt      DateTime? @db.Timestamptz(3)
-  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   reel Reel @relation(fields: [reelId], references: [id], onDelete: Cascade)
 
@@ -218,10 +226,10 @@ model Post {
   id             String   @id @default(uuid())
   title          String
   content        String   @db.VarChar(8000)
-  courseTag      String?
-  authorUsername String
-  commentCount   Int      @default(0)
-  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  courseTag      String?  @map("course_tag")
+  authorUsername String   @map("author_username")
+  commentCount   Int      @default(0) @map("comment_count")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   comments PostComment[]
 
@@ -232,11 +240,11 @@ model Post {
 
 model PostComment {
   id             String    @id @default(uuid())
-  postId         String
-  authorUsername String
+  postId         String    @map("post_id")
+  authorUsername String    @map("author_username")
   content        String    @db.VarChar(4000)
-  deletedAt      DateTime? @db.Timestamptz(3)
-  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
@@ -248,9 +256,9 @@ model Channel {
   id        String      @id @default(uuid())
   kind      ChannelKind
   name      String? // DM ไม่มีชื่อ
-  courseTag String?
-  maxSeats  Int         @default(8) // เพดานห้องเสียง — บังคับที่ชั้น service
-  createdAt DateTime    @default(now()) @db.Timestamptz(3)
+  courseTag String?     @map("course_tag")
+  maxSeats  Int         @default(8) @map("max_seats") // เพดานห้องเสียง — บังคับที่ชั้น service
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
 
   members       ChannelMember[]
   messages      Message[]
@@ -262,11 +270,11 @@ model Channel {
 }
 
 model ChannelMember {
-  channelId   String
+  channelId   String      @map("channel_id")
   username    String
   role        ChannelRole @default(MEMBER)
-  lastReadSeq Int         @default(0) // badge ยังไม่อ่าน ทำด้วยการลบเลข ไม่ต้อง COUNT
-  joinedAt    DateTime    @default(now()) @db.Timestamptz(3)
+  lastReadSeq Int         @default(0) @map("last_read_seq") // badge ยังไม่อ่าน ทำด้วยการลบเลข ไม่ต้อง COUNT
+  joinedAt    DateTime    @default(now()) @map("joined_at") @db.Timestamptz(3)
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
@@ -278,23 +286,23 @@ model ChannelMember {
 model Message {
   id             String  @id @default(uuid())
   seq            Int     @default(autoincrement()) // ลำดับจริงของข้อความ
-  clientNonce    String // กันส่งซ้ำตอนเน็ตกระตุก
+  clientNonce    String  @map("client_nonce") // กันส่งซ้ำตอนเน็ตกระตุก
   content        String? @db.VarChar(4000)
-  channelId      String
-  authorUsername String
+  channelId      String  @map("channel_id")
+  authorUsername String  @map("author_username")
 
   /// เธรดตอบกลับแบบ Discord/Teams — ข้อความแม่กับลูกอยู่ตารางเดียวกัน
   /// ลูกไม่โผล่ในไทม์ไลน์หลัก แต่ยังกิน seq เดียวกันเพื่อไม่ให้ลำดับเพี้ยน
-  parentId   String?
-  replyCount Int     @default(0)
+  parentId   String? @map("parent_id")
+  replyCount Int     @default(0) @map("reply_count")
 
   /// ปักหมุด — ห้องหนึ่งมีได้หลายอัน จำกัดจำนวนที่ชั้น service
-  pinnedAt         DateTime? @db.Timestamptz(3)
-  pinnedByUsername String?
+  pinnedAt         DateTime? @map("pinned_at") @db.Timestamptz(3)
+  pinnedByUsername String?   @map("pinned_by_username")
 
-  editedAt  DateTime? @db.Timestamptz(3)
-  deletedAt DateTime? @db.Timestamptz(3) // ลบแบบทิ้งร่องรอย ไว้ให้ Admin ตรวจ
-  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  editedAt  DateTime? @map("edited_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3) // ลบแบบทิ้งร่องรอย ไว้ให้ Admin ตรวจ
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   channel     Channel       @relation(fields: [channelId], references: [id], onDelete: Cascade)
   attachments Asset[]
@@ -311,9 +319,9 @@ model Message {
 
 /// รองรับ "In-Chat Reels Share & Preview" — mini player ในช่องแชท
 model MessageEmbed {
-  messageId String    @id
+  messageId String    @id @map("message_id")
   kind      EmbedKind
-  refId     String // Reel.id หรือ Post.id
+  refId     String    @map("ref_id") // Reel.id หรือ Post.id
 
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
@@ -323,21 +331,29 @@ model MessageEmbed {
 
 model Asset {
   id            String      @id @default(uuid())
-  ownerUsername String
+  ownerUsername String      @map("owner_username")
   bucket        String // "reels" | "attachments"
-  objectPath    String      @unique // {username}/{uuid}.{ext} — username นำหน้าเพื่อคุมสิทธิ์ตาม prefix
-  fileName      String
-  mimeType      String // ค่าที่ยืนยันจาก magic bytes แล้ว ไม่ใช่ที่ client แจ้ง
+  objectPath    String      @unique @map("object_path") // {username}/{uuid}.{ext} — username นำหน้าเพื่อคุมสิทธิ์ตาม prefix
+  fileName      String      @map("file_name")
+  mimeType      String      @map("mime_type") // ค่าที่ยืนยันจาก magic bytes แล้ว ไม่ใช่ที่ client แจ้ง
   kind          AssetKind
-  sizeBytes     BigInt      @default(0) // ขนาดจริงหลัง commit
+  sizeBytes     BigInt      @default(0) @map("size_bytes") // ขนาดจริงหลัง commit
   status        AssetStatus @default(PENDING)
-  messageId     String?
-  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
+  messageId     String?     @map("message_id")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
 
   message Message?         @relation(fields: [messageId], references: [id], onDelete: SetNull)
   reel    Reel?
   story   Story?
-  coverOf SubsystemMember?
+  /// สมาชิกที่ใช้ไฟล์นี้เป็นรูปปกโปรไฟล์ — ด้านย้อนกลับของ
+  /// `SubsystemMember.cover` ไม่ใช่คอลัมน์จริงในตาราง assets
+  ///
+  /// ชื่อเป็นตัวพิมพ์เล็กล้วนโดยเจตนา: เดิมชื่อ `coverOf` แล้วกฎ `DD-03`
+  /// เรียกร้องให้ใส่ `@map("cover_of")` แต่ Prisma **ห้าม** ใส่ @map บน
+  /// ฟิลด์ความสัมพันธ์ (`P1012`) — เป็นกฎที่ทำตามไม่ได้ทั้งสองทาง
+  /// สคริปต์ข้ามเฉพาะบรรทัดที่มีคำว่า @relation ซึ่งด้านย้อนกลับไม่มี
+  /// TODO(PL): แจ้ง standards ให้ข้ามฟิลด์ที่ type เป็นชื่อ model ด้วย
+  member  SubsystemMember?
 
   @@index([ownerUsername, createdAt(sort: Desc)])
   @@index([status, createdAt]) // ให้ cron เก็บกวาด PENDING ที่ค้าง
@@ -346,9 +362,9 @@ model Asset {
 
 model VoiceSession {
   id        String    @id @default(uuid())
-  channelId String
-  startedAt DateTime  @default(now()) @db.Timestamptz(3)
-  endedAt   DateTime? @db.Timestamptz(3)
+  channelId String    @map("channel_id")
+  startedAt DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  endedAt   DateTime? @map("ended_at") @db.Timestamptz(3)
 
   channel      Channel            @relation(fields: [channelId], references: [id], onDelete: Cascade)
   participants VoiceParticipant[]
@@ -359,10 +375,10 @@ model VoiceSession {
 
 model VoiceParticipant {
   id        String    @id @default(uuid())
-  sessionId String
+  sessionId String    @map("session_id")
   username  String
-  joinedAt  DateTime  @default(now()) @db.Timestamptz(3)
-  leftAt    DateTime? @db.Timestamptz(3)
+  joinedAt  DateTime  @default(now()) @map("joined_at") @db.Timestamptz(3)
+  leftAt    DateTime? @map("left_at") @db.Timestamptz(3)
 
   session VoiceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
@@ -373,14 +389,14 @@ model VoiceParticipant {
 
 model Report {
   id                 String       @id @default(uuid())
-  reporterUsername   String
-  targetKind         ReportTarget
-  targetId           String
+  reporterUsername   String       @map("reporter_username")
+  targetKind         ReportTarget @map("target_kind")
+  targetId           String       @map("target_id")
   reason             String       @db.VarChar(1000)
   status             ReportStatus @default(OPEN)
-  resolvedByUsername String?
-  resolvedAt         DateTime?    @db.Timestamptz(3)
-  createdAt          DateTime     @default(now()) @db.Timestamptz(3)
+  resolvedByUsername String?      @map("resolved_by_username")
+  resolvedAt         DateTime?    @map("resolved_at") @db.Timestamptz(3)
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@unique([reporterUsername, targetKind, targetId]) // รายงานเรื่องเดิมซ้ำไม่ได้
   @@index([status, createdAt])
@@ -391,18 +407,18 @@ model Notification {
   id       String           @id @default(uuid())
   username String // ผู้รับ
   kind     NotificationKind
-  refId    String // id ของสิ่งที่ถูกกระทำ ใช้พาไปหน้าที่เกี่ยวข้อง
+  refId    String           @map("ref_id") // id ของสิ่งที่ถูกกระทำ ใช้พาไปหน้าที่เกี่ยวข้อง
 
   /// ใครเป็นคนทำ — ถ้าไม่มีฟิลด์นี้ การแจ้งเตือนจะบอกได้แค่ว่า
   /// "มีคนทำอะไรกับอะไร" แล้วหน้าบ้านต้องยิงถามเพิ่มทีละรายการ
-  actorUsername String?
+  actorUsername String? @map("actor_username")
 
   /// บริบทเพิ่มที่ทำให้แสดงผลได้ในหนึ่ง query เช่น ชื่อห้อง อิโมจิที่กด
   /// ตัวอย่างข้อความ — เป็น snapshot ตอนเกิดเหตุ ไม่ใช่แหล่งความจริง
   payload Json?
 
-  readAt    DateTime? @db.Timestamptz(3)
-  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  readAt    DateTime? @map("read_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([username, readAt, createdAt(sort: Desc)]) // เฉพาะตัวกรอง "ยังไม่อ่าน"
   @@index([username, createdAt(sort: Desc)]) // รายการปกติ (ไม่กรอง) ซึ่งเป็นค่าเริ่มต้น
@@ -412,13 +428,13 @@ model Notification {
 /// Audit log ของระบบย่อย — Blueprint หน้า 3 กำหนดให้ Admin Panel กลางดู Audit Log ได้
 model AuditLog {
   id              String   @id @default(uuid())
-  actorUsername   String
-  actorLayer1Role String
+  actorUsername   String   @map("actor_username")
+  actorLayer1Role String   @map("actor_layer1_role")
   action          String // เช่น "reel.delete", "member.role_change"
-  targetKind      String
-  targetId        String
+  targetKind      String   @map("target_kind")
+  targetId        String   @map("target_id")
   metadata        Json?
-  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([actorUsername, createdAt(sort: Desc)])
   @@index([action, createdAt(sort: Desc)])
@@ -433,9 +449,9 @@ model AuditLog {
 /// แต่ไม่ควรต้องกดตอบรับทีละคน — ความสัมพันธ์สองทางคำนวณเอาได้
 /// ด้วยการเช็คว่ามีทั้งสองแถว (ดู FollowsService.relationWith)
 model Follow {
-  followerUsername  String // คนกดติดตาม
-  followingUsername String // คนถูกติดตาม
-  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+  followerUsername  String   @map("follower_username") // คนกดติดตาม
+  followingUsername String   @map("following_username") // คนถูกติดตาม
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@id([followerUsername, followingUsername])
   @@index([followingUsername, createdAt(sort: Desc)]) // "ใครติดตามฉันบ้าง"
@@ -450,11 +466,11 @@ model Follow {
 /// จึงต้องตรวจว่าเป้าหมายมีจริงที่ชั้น service ทุกครั้ง
 model Reaction {
   id         String         @id @default(uuid())
-  targetKind ReactionTarget
-  targetId   String
+  targetKind ReactionTarget @map("target_kind")
+  targetId   String         @map("target_id")
   username   String
   emoji      String         @db.VarChar(16)
-  createdAt  DateTime       @default(now()) @db.Timestamptz(3)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@unique([targetKind, targetId, username, emoji]) // อิโมจิเดิมซ้ำไม่ได้
   @@index([targetKind, targetId]) // นับรวมของโพสต์หนึ่ง
@@ -465,9 +481,9 @@ model Reaction {
 /// รายการที่บันทึกไว้ดูทีหลัง — เห็นได้เฉพาะเจ้าของเท่านั้น
 model Bookmark {
   username   String
-  targetKind BookmarkTarget
-  targetId   String
-  createdAt  DateTime       @default(now()) @db.Timestamptz(3)
+  targetKind BookmarkTarget @map("target_kind")
+  targetId   String         @map("target_id")
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@id([username, targetKind, targetId])
   @@index([username, createdAt(sort: Desc)])
@@ -480,14 +496,14 @@ model Bookmark {
 /// พอถึงเวลา ผู้เข้าร่วมกดเข้าห้องเสียงของห้องนั้นได้เลย ไม่ต้องมีลิงก์แยก
 model Meeting {
   id                String        @id @default(uuid())
-  channelId         String
+  channelId         String        @map("channel_id")
   title             String        @db.VarChar(200)
   agenda            String?       @db.VarChar(4000)
-  startsAt          DateTime      @db.Timestamptz(3)
-  endsAt            DateTime      @db.Timestamptz(3)
+  startsAt          DateTime      @map("starts_at") @db.Timestamptz(3)
+  endsAt            DateTime      @map("ends_at") @db.Timestamptz(3)
   status            MeetingStatus @default(SCHEDULED)
-  createdByUsername String
-  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
+  createdByUsername String        @map("created_by_username")
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
@@ -505,9 +521,9 @@ model Meeting {
 /// ผลข้างเคียงที่ยอมรับ: ตารางนี้โตตามจำนวน (คลิป × คนดู) ซึ่งใหญ่กว่า
 /// ตัวนับเดี่ยว ๆ แต่แลกกับยอดที่เชื่อถือได้และรู้ได้ว่าใครดูคลิปตัวเองบ้าง
 model ReelView {
-  reelId   String
+  reelId   String   @map("reel_id")
   username String
-  viewedAt DateTime @default(now()) @db.Timestamptz(3)
+  viewedAt DateTime @default(now()) @map("viewed_at") @db.Timestamptz(3)
 
   reel Reel @relation(fields: [reelId], references: [id], onDelete: Cascade)
 
@@ -527,15 +543,15 @@ model ReelView {
 /// ตัวเก็บกวาด (StoriesSweeper) จึงเป็นงานบ้าน ไม่ใช่หัวใจ
 model Story {
   id             String  @id @default(uuid())
-  authorUsername String
-  assetId        String  @unique
+  authorUsername String  @map("author_username")
+  assetId        String  @unique @map("asset_id")
   caption        String? @db.VarChar(300)
 
   /// เก็บเวลาหมดอายุไว้เป็นค่าตายตัว ไม่คำนวณจาก createdAt + 24 ชม. ตอนคิวรี
   /// เพราะถ้าวันหนึ่งเปลี่ยนอายุเป็น 48 ชม. สตอรี่เก่าจะยืดอายุตามย้อนหลัง
   /// ซึ่งไม่ใช่สิ่งที่ผู้โพสต์ตกลงไว้ตอนโพสต์
-  expiresAt DateTime @db.Timestamptz(3)
-  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   asset Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
   views StoryView[]
@@ -550,9 +566,9 @@ model Story {
 /// สองหน้าที่: ทำวงแหวน "ยังไม่ดู" รอบรูปโปรไฟล์ และทำรายชื่อผู้ชม
 /// ที่เจ้าของสตอรี่เท่านั้นที่เห็น (เหมือน Instagram)
 model StoryView {
-  storyId  String
+  storyId  String   @map("story_id")
   username String
-  viewedAt DateTime @default(now()) @db.Timestamptz(3)
+  viewedAt DateTime @default(now()) @map("viewed_at") @db.Timestamptz(3)
 
   story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
 

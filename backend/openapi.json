@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.0",
   "paths": {
-    "/api/v1/notifications": {
+    "/notifications": {
       "get": {
         "operationId": "NotificationsController_list",
         "parameters": [
@@ -17,7 +17,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -77,7 +77,7 @@
         ]
       }
     },
-    "/api/v1/notifications/unread-count": {
+    "/notifications/unread-count": {
       "get": {
         "description": "แยกเป็น endpoint ของตัวเองเพราะหน้าบ้านต้องการแค่เลขเดียวทุกครั้งที่เปลี่ยนหน้า ไม่ควรต้องโหลดรายการทั้งหน้ามาเพื่อนับ",
         "operationId": "NotificationsController_unreadCount",
@@ -113,7 +113,7 @@
         ]
       }
     },
-    "/api/v1/notifications/read-all": {
+    "/notifications/read-all": {
       "patch": {
         "operationId": "NotificationsController_markAllRead",
         "parameters": [],
@@ -128,7 +128,7 @@
         ]
       }
     },
-    "/api/v1/notifications/{id}/read": {
+    "/notifications/{id}/read": {
       "patch": {
         "operationId": "NotificationsController_markRead",
         "parameters": [
@@ -189,7 +189,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -215,7 +215,22 @@
         ]
       }
     },
-    "/health": {
+    "/me": {
+      "get": {
+        "operationId": "MeController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "ตัวตนของผู้ใช้ปัจจุบันจาก token ที่ตรวจแล้ว",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/health": {
       "get": {
         "operationId": "HealthController_check",
         "parameters": [],
@@ -230,7 +245,7 @@
         ]
       }
     },
-    "/api/v1/subsystem-members/me": {
+    "/subsystem-members/me": {
       "get": {
         "operationId": "MembersController_me",
         "parameters": [],
@@ -265,7 +280,7 @@
         ]
       }
     },
-    "/api/v1/profiles": {
+    "/profiles": {
       "get": {
         "description": "ไม่มี endpoint นี้ หน้าบ้านจะต้องยิงทีละคนตอนเรนเดอร์ฟีด = 20 คำขอต่อหนึ่งหน้า",
         "operationId": "ProfilesController_resolve",
@@ -292,7 +307,7 @@
         ]
       }
     },
-    "/api/v1/profiles/me": {
+    "/profiles/me": {
       "get": {
         "description": "managed_by_core บอกว่า field ไหนแก้ที่ระบบย่อยนี้ไม่ได้ เพราะ Core เป็นแหล่งความจริง (Blueprint หน้า 10)",
         "operationId": "ProfilesController_me",
@@ -389,7 +404,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -432,7 +447,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -458,7 +473,7 @@
         ]
       }
     },
-    "/api/v1/profiles/{username}": {
+    "/profiles/{username}": {
       "get": {
         "operationId": "ProfilesController_detail",
         "parameters": [
@@ -519,7 +534,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -545,7 +560,7 @@
         ]
       }
     },
-    "/api/v1/profiles/{username}/followers": {
+    "/profiles/{username}/followers": {
       "get": {
         "operationId": "ProfilesController_followers",
         "parameters": [
@@ -569,7 +584,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -592,7 +607,7 @@
         ]
       }
     },
-    "/api/v1/profiles/{username}/following": {
+    "/profiles/{username}/following": {
       "get": {
         "operationId": "ProfilesController_following",
         "parameters": [
@@ -616,7 +631,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -639,7 +654,7 @@
         ]
       }
     },
-    "/api/v1/follows/followers": {
+    "/follows/followers": {
       "get": {
         "operationId": "FollowsController_myFollowers",
         "parameters": [
@@ -655,7 +670,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -705,7 +720,7 @@
         ]
       }
     },
-    "/api/v1/follows/following": {
+    "/follows/following": {
       "get": {
         "operationId": "FollowsController_myFollowing",
         "parameters": [
@@ -721,7 +736,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -771,7 +786,7 @@
         ]
       }
     },
-    "/api/v1/follows/suggestions": {
+    "/follows/suggestions": {
       "get": {
         "description": "คืนอาเรย์ว่างถ้าผู้ใช้ยังไม่ได้ติดตามใครเลย — ตั้งใจไม่ตกไปหาอันดับยอดนิยม เพราะจะทำให้ผู้ใช้ใหม่ทุกคนเห็นรายชื่อเดียวกันหมด",
         "operationId": "FollowsController_suggestions",
@@ -787,7 +802,7 @@
         ]
       }
     },
-    "/api/v1/follows": {
+    "/follows": {
       "post": {
         "operationId": "FollowsController_follow",
         "parameters": [],
@@ -849,7 +864,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -875,7 +890,7 @@
         ]
       }
     },
-    "/api/v1/follows/{username}": {
+    "/follows/{username}": {
       "delete": {
         "operationId": "FollowsController_unfollow",
         "parameters": [
@@ -919,7 +934,7 @@
         ]
       }
     },
-    "/api/v1/assets": {
+    "/assets": {
       "get": {
         "operationId": "AssetsController_list",
         "parameters": [
@@ -935,7 +950,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -985,7 +1000,7 @@
         ]
       }
     },
-    "/api/v1/assets/maintenance/sweeps": {
+    "/assets/maintenance/sweeps": {
       "post": {
         "description": "ปกติตัวกวาดทำงานเองทุก 30 นาที — endpoint นี้มีไว้ให้กวาดทันทีตอนตรวจปัญหาพื้นที่เก็บไฟล์เต็ม",
         "operationId": "AssetsController_sweep",
@@ -1015,7 +1030,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -1041,7 +1056,7 @@
         ]
       }
     },
-    "/api/v1/assets/upload-intents": {
+    "/assets/upload-intents": {
       "post": {
         "operationId": "AssetsController_createUploadIntent",
         "parameters": [],
@@ -1103,7 +1118,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -1146,7 +1161,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -1172,7 +1187,7 @@
         ]
       }
     },
-    "/api/v1/assets/{id}/commit": {
+    "/assets/{id}/commit": {
       "post": {
         "operationId": "AssetsController_commit",
         "parameters": [
@@ -1233,7 +1248,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -1276,7 +1291,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -1302,7 +1317,7 @@
         ]
       }
     },
-    "/api/v1/assets/{id}/download-url": {
+    "/assets/{id}/download-url": {
       "get": {
         "operationId": "AssetsController_downloadUrl",
         "parameters": [
@@ -1363,7 +1378,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -1389,7 +1404,7 @@
         ]
       }
     },
-    "/api/v1/assets/{id}": {
+    "/assets/{id}": {
       "delete": {
         "operationId": "AssetsController_remove",
         "parameters": [
@@ -1427,7 +1442,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -1453,7 +1468,7 @@
         ]
       }
     },
-    "/api/v1/reels": {
+    "/reels": {
       "get": {
         "description": "feed=following = เฉพาะคนที่ติดตาม · author_username = หน้าโปรไฟล์ของคนนั้น",
         "operationId": "ReelsController_list",
@@ -1470,7 +1485,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -1604,7 +1619,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -1647,7 +1662,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -1673,7 +1688,7 @@
         ]
       }
     },
-    "/api/v1/reels/{id}": {
+    "/reels/{id}": {
       "get": {
         "operationId": "ReelsController_findOne",
         "parameters": [
@@ -1734,7 +1749,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -1796,7 +1811,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -1822,7 +1837,7 @@
         ]
       }
     },
-    "/api/v1/reels/{id}/likes": {
+    "/reels/{id}/likes": {
       "post": {
         "operationId": "ReelsController_like",
         "parameters": [
@@ -1908,7 +1923,7 @@
         ]
       }
     },
-    "/api/v1/reels/{id}/views": {
+    "/reels/{id}/views": {
       "post": {
         "description": "นับคนที่เคยดู ไม่ใช่จำนวนครั้งที่เล่น — คนเดิมเรียกซ้ำยอดไม่ขยับ จึงปั่นด้วยการรีเฟรชไม่ได้",
         "operationId": "ReelsController_markViewed",
@@ -1970,7 +1985,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -1996,7 +2011,7 @@
         ]
       }
     },
-    "/api/v1/reels/{id}/comments": {
+    "/reels/{id}/comments": {
       "get": {
         "operationId": "ReelsController_listComments",
         "parameters": [
@@ -2020,7 +2035,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -2139,7 +2154,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -2165,7 +2180,7 @@
         ]
       }
     },
-    "/api/v1/reels/{id}/comments/{commentId}": {
+    "/reels/{id}/comments/{commentId}": {
       "delete": {
         "operationId": "ReelsController_removeComment",
         "parameters": [
@@ -2211,7 +2226,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -2237,7 +2252,7 @@
         ]
       }
     },
-    "/api/v1/realtime-tickets": {
+    "/realtime-tickets": {
       "post": {
         "operationId": "RealtimeTicketsController_issue",
         "parameters": [],
@@ -2272,7 +2287,7 @@
         ]
       }
     },
-    "/api/v1/presence": {
+    "/presence": {
       "get": {
         "operationId": "PresenceController_get",
         "parameters": [
@@ -2318,7 +2333,7 @@
         ]
       }
     },
-    "/api/v1/channels": {
+    "/channels": {
       "get": {
         "operationId": "ChannelsController_list",
         "parameters": [
@@ -2334,7 +2349,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -2444,7 +2459,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -2470,7 +2485,7 @@
         ]
       }
     },
-    "/api/v1/channels/{id}": {
+    "/channels/{id}": {
       "get": {
         "operationId": "ChannelsController_findOne",
         "parameters": [
@@ -2531,7 +2546,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -2557,7 +2572,7 @@
         ]
       }
     },
-    "/api/v1/channels/{id}/members": {
+    "/channels/{id}/members": {
       "post": {
         "operationId": "ChannelsController_addMembers",
         "parameters": [
@@ -2611,7 +2626,7 @@
         ]
       }
     },
-    "/api/v1/channels/{id}/members/me": {
+    "/channels/{id}/members/me": {
       "delete": {
         "operationId": "ChannelsController_leave",
         "parameters": [
@@ -2635,7 +2650,7 @@
         ]
       }
     },
-    "/api/v1/channels/{id}/read-markers": {
+    "/channels/{id}/read-markers": {
       "post": {
         "operationId": "ChannelsController_markRead",
         "parameters": [
@@ -2689,7 +2704,7 @@
         ]
       }
     },
-    "/api/v1/direct-channels": {
+    "/direct-channels": {
       "post": {
         "operationId": "DirectChannelsController_create",
         "parameters": [],
@@ -2751,7 +2766,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -2777,7 +2792,7 @@
         ]
       }
     },
-    "/api/v1/channels/{channelId}/messages": {
+    "/channels/{channelId}/messages": {
       "get": {
         "operationId": "MessagesController_list",
         "parameters": [
@@ -2801,7 +2816,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -2878,7 +2893,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -2973,7 +2988,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -3016,7 +3031,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -3042,7 +3057,7 @@
         ]
       }
     },
-    "/api/v1/channels/{channelId}/messages/pinned": {
+    "/channels/{channelId}/messages/pinned": {
       "get": {
         "operationId": "MessagesController_listPinned",
         "parameters": [
@@ -3066,7 +3081,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -3116,7 +3131,7 @@
         ]
       }
     },
-    "/api/v1/channels/{channelId}/messages/{messageId}/thread": {
+    "/channels/{channelId}/messages/{messageId}/thread": {
       "get": {
         "operationId": "MessagesController_listThread",
         "parameters": [
@@ -3148,7 +3163,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -3215,7 +3230,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -3241,7 +3256,7 @@
         ]
       }
     },
-    "/api/v1/channels/{channelId}/messages/{messageId}": {
+    "/channels/{channelId}/messages/{messageId}": {
       "patch": {
         "description": "ผู้ดูแลห้องแก้ข้อความคนอื่นไม่ได้โดยตั้งใจ — ลบได้ แต่แก้ไม่ได้ เพราะการแก้คำพูดของคนอื่นแล้วยังแสดงชื่อเขาเป็นผู้เขียนคือการปลอมคำพูด",
         "operationId": "MessagesController_edit",
@@ -3321,7 +3336,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -3364,7 +3379,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -3434,7 +3449,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -3460,7 +3475,7 @@
         ]
       }
     },
-    "/api/v1/channels/{channelId}/messages/{messageId}/pin": {
+    "/channels/{channelId}/messages/{messageId}/pin": {
       "put": {
         "operationId": "MessagesController_pin",
         "parameters": [
@@ -3529,7 +3544,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -3572,7 +3587,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -3648,7 +3663,7 @@
         ]
       }
     },
-    "/api/v1/voice-sessions/ice-servers": {
+    "/voice-sessions/ice-servers": {
       "get": {
         "operationId": "VoiceController_iceServers",
         "parameters": [],
@@ -3683,7 +3698,7 @@
         ]
       }
     },
-    "/api/v1/voice-sessions": {
+    "/voice-sessions": {
       "get": {
         "operationId": "VoiceController_list",
         "parameters": [
@@ -3795,7 +3810,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -3838,7 +3853,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -3864,7 +3879,7 @@
         ]
       }
     },
-    "/api/v1/voice-sessions/{id}/participants/me": {
+    "/voice-sessions/{id}/participants/me": {
       "delete": {
         "operationId": "VoiceController_leave",
         "parameters": [
@@ -3888,7 +3903,7 @@
         ]
       }
     },
-    "/api/v1/posts": {
+    "/posts": {
       "get": {
         "operationId": "PostsController_list",
         "parameters": [
@@ -3904,7 +3919,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -4030,7 +4045,7 @@
         ]
       }
     },
-    "/api/v1/posts/{id}": {
+    "/posts/{id}": {
       "get": {
         "operationId": "PostsController_findOne",
         "parameters": [
@@ -4091,7 +4106,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -4153,7 +4168,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -4179,7 +4194,7 @@
         ]
       }
     },
-    "/api/v1/posts/{id}/comments": {
+    "/posts/{id}/comments": {
       "get": {
         "operationId": "PostsController_listComments",
         "parameters": [
@@ -4203,7 +4218,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -4305,7 +4320,7 @@
         ]
       }
     },
-    "/api/v1/posts/{id}/comments/{commentId}": {
+    "/posts/{id}/comments/{commentId}": {
       "delete": {
         "operationId": "PostsController_removeComment",
         "parameters": [
@@ -4351,7 +4366,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -4377,7 +4392,7 @@
         ]
       }
     },
-    "/api/v1/reactions": {
+    "/reactions": {
       "get": {
         "operationId": "ReactionsController_summary",
         "parameters": [
@@ -4496,7 +4511,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -4539,7 +4554,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -4645,7 +4660,7 @@
         ]
       }
     },
-    "/api/v1/reactions/summaries": {
+    "/reactions/summaries": {
       "get": {
         "description": "แก้ N+1 ของหน้าจอแชท — เดิมต้องยิงหนึ่งคำขอต่อหนึ่งข้อความ · หลังบ้านทำงานสองคิวรีไม่ว่าจะขอกี่ id",
         "operationId": "ReactionsController_summaries",
@@ -4723,7 +4738,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -4749,7 +4764,7 @@
         ]
       }
     },
-    "/api/v1/bookmarks": {
+    "/bookmarks": {
       "get": {
         "operationId": "BookmarksController_list",
         "parameters": [
@@ -4765,7 +4780,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -4887,7 +4902,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -4949,7 +4964,7 @@
         ]
       }
     },
-    "/api/v1/meetings": {
+    "/meetings": {
       "get": {
         "operationId": "MeetingsController_list",
         "parameters": [
@@ -4965,7 +4980,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -5094,7 +5109,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -5137,7 +5152,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -5163,7 +5178,7 @@
         ]
       }
     },
-    "/api/v1/meetings/{id}": {
+    "/meetings/{id}": {
       "get": {
         "operationId": "MeetingsController_findOne",
         "parameters": [
@@ -5224,7 +5239,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -5310,7 +5325,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -5336,7 +5351,7 @@
         ]
       }
     },
-    "/api/v1/reports": {
+    "/reports": {
       "post": {
         "operationId": "ReportsController_create",
         "parameters": [],
@@ -5398,7 +5413,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -5441,7 +5456,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -5482,7 +5497,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -5578,7 +5593,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -5604,7 +5619,7 @@
         ]
       }
     },
-    "/api/v1/reports/mine": {
+    "/reports/mine": {
       "get": {
         "operationId": "ReportsController_listMine",
         "parameters": [
@@ -5620,7 +5635,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -5699,7 +5714,7 @@
         ]
       }
     },
-    "/api/v1/reports/{id}": {
+    "/reports/{id}": {
       "patch": {
         "operationId": "ReportsController_resolve",
         "parameters": [
@@ -5770,7 +5785,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -5813,7 +5828,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -5839,7 +5854,7 @@
         ]
       }
     },
-    "/api/v1/search": {
+    "/search": {
       "get": {
         "description": "kind=all คืนตัวอย่างทุกหมวดพร้อมยอดรวม (ไม่แบ่งหน้า) · ระบุหมวดเดียวจะแบ่งหน้าปกติ · ข้อความแชทค้นได้เฉพาะห้องที่ผู้เรียกเป็นสมาชิก",
         "operationId": "SearchController_run",
@@ -5856,7 +5871,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -5926,7 +5941,7 @@
         ]
       }
     },
-    "/api/v1/stories": {
+    "/stories": {
       "get": {
         "description": "เห็นของตัวเองและของคนที่ติดตาม · สตอรี่ที่หมดอายุถูกกรองออกตอนอ่าน จึงหายตรงเวลาแม้ตัวเก็บกวาดไม่ได้รัน · ของตัวเองอยู่ซ้ายสุด แล้วเรียงคนที่ยังมีของไม่ได้ดูขึ้นก่อน",
         "operationId": "StoriesController_tray",
@@ -6022,7 +6037,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -6065,7 +6080,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -6091,7 +6106,7 @@
         ]
       }
     },
-    "/api/v1/stories/{id}/views": {
+    "/stories/{id}/views": {
       "post": {
         "description": "กดซ้ำไม่เพิ่มยอด · ยอดผู้ชมที่คืนมาเป็น 0 ถ้าผู้เรียกไม่ใช่เจ้าของ เพราะคนอื่นไม่ควรรู้ว่าสตอรี่นี้มีคนดูกี่คน",
         "operationId": "StoriesController_markViewed",
@@ -6130,7 +6145,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -6156,7 +6171,7 @@
         ]
       }
     },
-    "/api/v1/stories/{id}/viewers": {
+    "/stories/{id}/viewers": {
       "get": {
         "operationId": "StoriesController_viewers",
         "parameters": [
@@ -6217,7 +6232,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -6243,7 +6258,7 @@
         ]
       }
     },
-    "/api/v1/stories/{id}": {
+    "/stories/{id}": {
       "delete": {
         "operationId": "StoriesController_remove",
         "parameters": [
@@ -6281,7 +6296,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -6307,7 +6322,7 @@
         ]
       }
     },
-    "/api/v1/stories/maintenance/sweeps": {
+    "/stories/maintenance/sweeps": {
       "post": {
         "description": "ปกติทำงานเองทุก 30 นาที · ไม่ใช่สิ่งที่ทำให้ฟีเจอร์ถูกต้อง (การหมดอายุบังคับตอนอ่านไปแล้ว) แต่เป็นการคืนพื้นที่เก็บไฟล์ให้เจ้าของ",
         "operationId": "StoriesController_sweep",
@@ -6337,7 +6352,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -6363,7 +6378,7 @@
         ]
       }
     },
-    "/api/v1/audit-logs": {
+    "/audit-logs": {
       "get": {
         "description": "กรองได้ตามผู้กระทำ การกระทำ และช่วงเวลา · การกระทำที่บันทึกไว้: reel.delete, post.delete, message.delete, report.resolved, report.rejected, member.role_change, member.quota_change",
         "operationId": "AuditLogsController_list",
@@ -6380,7 +6395,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -6486,7 +6501,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -6512,7 +6527,7 @@
         ]
       }
     },
-    "/api/v1/subsystem-members": {
+    "/subsystem-members": {
       "get": {
         "operationId": "MembersAdminController_list",
         "parameters": [
@@ -6528,7 +6543,7 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "limit",
             "required": false,
             "in": "query",
             "schema": {
@@ -6618,7 +6633,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -6644,7 +6659,7 @@
         ]
       }
     },
-    "/api/v1/subsystem-members/{username}/role": {
+    "/subsystem-members/{username}/role": {
       "patch": {
         "description": "แก้ได้เฉพาะสิทธิ์ในระบบย่อยนี้ (Layer 2) เพราะเป็น Local Data ตาม Blueprint หน้า 11 · สิทธิ์ระดับองค์กร (Layer 1) ต้องไปแก้ที่ Admin Panel กลาง",
         "operationId": "MembersAdminController_updateRole",
@@ -6716,7 +6731,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -6742,7 +6757,7 @@
         ]
       }
     },
-    "/api/v1/subsystem-members/{username}/storage-quota": {
+    "/subsystem-members/{username}/storage-quota": {
       "patch": {
         "description": "ค่าเริ่มต้น 200 MB พอสำหรับนักศึกษา แต่ไม่พอสำหรับอาจารย์ที่อัปคลิปสอน · เพดานที่ตั้งได้คือ 5 GB · ตั้งล่วงหน้าก่อนเจ้าตัวเข้าระบบครั้งแรกได้ เพื่อเตรียมไว้ก่อนเปิดเทอม",
         "operationId": "MembersAdminController_updateQuota",
@@ -6814,7 +6829,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -6840,7 +6855,7 @@
         ]
       }
     },
-    "/api/v1/admin-overview": {
+    "/admin-overview": {
       "get": {
         "operationId": "AdminOverviewController_overview",
         "parameters": [],
@@ -6869,7 +6884,7 @@
                       "properties": {
                         "code": {
                           "type": "string",
-                          "example": "not_found"
+                          "example": "NOT_FOUND"
                         },
                         "message": {
                           "type": "string",
@@ -6955,28 +6970,28 @@
       "PaginationMeta": {
         "type": "object",
         "properties": {
-          "current_page": {
+          "total": {
+            "type": "number",
+            "example": 2480
+          },
+          "page": {
             "type": "number",
             "example": 2
           },
-          "per_page": {
+          "limit": {
             "type": "number",
             "example": 50
           },
-          "total_pages": {
+          "totalPages": {
             "type": "number",
             "example": 50
-          },
-          "total_items": {
-            "type": "number",
-            "example": 2480
           }
         },
         "required": [
-          "current_page",
-          "per_page",
-          "total_pages",
-          "total_items"
+          "total",
+          "page",
+          "limit",
+          "totalPages"
         ]
       },
       "UnreadCountDto": {

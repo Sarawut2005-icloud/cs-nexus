@@ -9,22 +9,23 @@ import { map, Observable } from 'rxjs';
 
 /// Standard Envelope (Blueprint หน้า 7) — ทุก response ต้องมีรูปนี้เท่านั้น
 ///
-///   { "success": true, "data": [...], "meta": { current_page, per_page, total_pages } }
+///   { "success": true, "data": [...], "meta": { total, page, limit, totalPages } }
 ///
-/// field ทุกตัวเป็น snake_case ตามมาตรฐาน
+/// ชื่อฟิลด์ของ meta ถูกล็อกไว้ที่ contracts/vocabulary.json (`collectionMeta`)
+/// ห้ามเพิ่ม ห้ามเปลี่ยนชื่อ เพราะระบบย่อยอื่นอ่าน contract เดียวกันนี้
 
 export class PaginationMeta {
-  @ApiProperty({ example: 2 })
-  current_page!: number;
-
-  @ApiProperty({ example: 50 })
-  per_page!: number;
-
-  @ApiProperty({ example: 50 })
-  total_pages!: number;
-
   @ApiProperty({ example: 2480 })
-  total_items!: number;
+  total!: number;
+
+  @ApiProperty({ example: 2 })
+  page!: number;
+
+  @ApiProperty({ example: 50 })
+  limit!: number;
+
+  @ApiProperty({ example: 50 })
+  totalPages!: number;
 }
 
 export interface Envelope<T> {

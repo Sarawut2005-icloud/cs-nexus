@@ -9,7 +9,7 @@ export type Layer1Role = (typeof LAYER1_ROLES)[number];
 /// Shared Identity ที่ API Gateway แนบมาให้ (Blueprint หน้า 8, 10)
 ///
 /// สามค่านี้เท่านั้นที่เป็นข้อมูลกลาง — ห้ามเก็บซ้ำลงฐานข้อมูลระบบย่อย
-/// และห้ามใช้ user_id หรือ student_id เป็นคีย์ตัวตนแทน `username`
+/// และห้ามใช้ชื่ออื่นที่กฎ DD-01 ห้ามไว้เป็นคีย์ตัวตนแทน `username`
 export interface GatewayUser {
   username: string;
   layer1Role: Layer1Role;

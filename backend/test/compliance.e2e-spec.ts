@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
-import { configureApp } from '../src/bootstrap.js';
+import { configureApp, PREFIX_EXCLUDE } from '../src/bootstrap.js';
 import {
   RealtimeBus,
   type RoomEviction,
@@ -27,6 +27,8 @@ describe('มาตรฐาน API ของ CSMJU2030 (e2e)', () => {
     app = moduleFixture.createNestApplication();
 
     // ใช้การตั้งค่าชุดเดียวกับ main.ts เพื่อให้ที่ทดสอบคือของจริง
+    // prefix ต้องตั้งแยกเพราะ main.ts ถือบรรทัดนั้นไว้เอง (ดู bootstrap.ts)
+    app.setGlobalPrefix('api/v1', { exclude: PREFIX_EXCLUDE });
     configureApp(app);
 
     await app.init();
@@ -36,26 +38,51 @@ describe('มาตรฐาน API ของ CSMJU2030 (e2e)', () => {
     await app.close();
   });
 
-  it('GET /health ต้องมีและตอบสถานะได้ (บังคับตามหน้า 7)', async () => {
-    const response = await request(app.getHttpServer()).get('/health').expect(200);
+  /// เส้นทางบังคับตาม contracts/vocabulary.json (`requiredRoutes.health`)
+  /// และ conformance L1-01/02/03
+  ///
+  /// สามอย่างที่ต้องตรงพร้อมกัน ไม่ใช่แค่ "มี endpoint":
+  ///   1. อยู่ที่ `/api/health` — **ไม่มีเลขเวอร์ชัน** และไม่ใช่ `/health` เฉย ๆ
+  ///   2. หุ้มด้วย success envelope เหมือน endpoint อื่น
+  ///   3. ฟิลด์ชื่อ `service` (ไม่ใช่ `subsystem`) และค่าต้องตรงกับ
+  ///      `name:` ใน subsystem.yaml เพราะ conformance เอาไปเทียบกับทะเบียน
+  it('GET /api/health ต้องมี หุ้ม envelope และบอกชื่อระบบย่อยที่ลงทะเบียนไว้', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/health')
+      .expect(200);
 
     expect(response.body.success).toBe(true);
-    expect(response.body.data.subsystem).toBe('aie4-social-reels');
+    expect(response.body.data.service).toBe('csmju-social-reels');
     expect(['ok', 'degraded']).toContain(response.body.data.status);
   });
 
-  it('list endpoint ต้องคืน envelope พร้อม meta แบบ snake_case', async () => {
+  /// เส้นทางเดิมต้องหายไปจริง ไม่ใช่ยังตอบอยู่ทั้งสองทาง
+  ///
+  /// ถ้าปล่อยให้ `/health` ยังตอบได้ ตัวตรวจสถานะภายนอก (Render, uptime
+  /// monitor) จะชี้ไปที่เส้นทางที่มาตรฐานไม่รู้จัก แล้ววันที่มันถูกลบจริง
+  /// จะกลายเป็นระบบล่มโดยไม่มีใครรู้สาเหตุ
+  it('เส้นทางเดิม /health ต้องไม่ตอบแล้ว', async () => {
+    await request(app.getHttpServer()).get('/health').expect(404);
+  });
+
+  /// meta ของคอลเลกชัน — ชื่อฟิลด์ล็อกไว้ที่ contracts/vocabulary.json
+  /// (`collectionMeta`) และ conformance L2-03 อ่านสี่ตัวนี้ตรง ๆ
+  ///
+  /// **JSON เป็น camelCase ส่วนฐานข้อมูลเป็น snake_case** — แยกคนละชั้นกัน
+  /// โดยเจตนา (data-dictionary.md ข้อ 9.1) เดิมเทสต์นี้ชื่อว่า "แบบ snake_case"
+  /// ซึ่งตรงกับสัญญาฉบับที่ถูกยกเลิกไปแล้ว
+  it('list endpoint ต้องคืน envelope พร้อม meta สี่ฟิลด์แบบ camelCase', async () => {
     const response = await request(app.getHttpServer())
-      .get('/api/v1/reels?page=1&per_page=5')
+      .get('/api/v1/reels?page=1&limit=5')
       .expect(200);
 
     expect(response.body.success).toBe(true);
     expect(Array.isArray(response.body.data)).toBe(true);
     expect(Object.keys(response.body.meta).sort()).toEqual([
-      'current_page',
-      'per_page',
-      'total_items',
-      'total_pages',
+      'limit',
+      'page',
+      'total',
+      'totalPages',
     ]);
   });
 
@@ -65,7 +92,7 @@ describe('มาตรฐาน API ของ CSMJU2030 (e2e)', () => {
       .expect(400);
 
     expect(response.body.success).toBe(false);
-    expect(response.body.error.code).toBe('validation_failed');
+    expect(response.body.error.code).toBe('VALIDATION_ERROR');
     expect(typeof response.body.error.message).toBe('string');
   });
 
@@ -93,7 +120,7 @@ describe('มาตรฐาน API ของ CSMJU2030 (e2e)', () => {
       .get('/api/v1/channels/00000000-0000-4000-8000-000000000000/messages')
       .expect(404);
 
-    expect(response.body.error.code).toBe('not_found');
+    expect(response.body.error.code).toBe('NOT_FOUND');
   });
 
   it('นักศึกษาสร้างห้องประจำวิชาไม่ได้ (Layer 1 RBAC)', async () => {
@@ -102,7 +129,7 @@ describe('มาตรฐาน API ของ CSMJU2030 (e2e)', () => {
       .send({ kind: 'COURSE', name: 'CS999' })
       .expect(403);
 
-    expect(response.body.error.code).toBe('forbidden');
+    expect(response.body.error.code).toBe('FORBIDDEN');
   });
 
   it('บังคับรูปแบบแท็กวิชาให้ตรงกันทั้งระบบ', async () => {
@@ -131,7 +158,7 @@ describe('มาตรฐาน API ของ CSMJU2030 (e2e)', () => {
       })
       .expect(400);
 
-    expect(response.body.error.code).toBe('validation_failed');
+    expect(response.body.error.code).toBe('VALIDATION_ERROR');
   });
 
   it('กดรีแอ็กชันใส่ข้อความที่เข้าถึงไม่ได้ต้องได้ 404 เหมือนกับข้อความที่ไม่มีจริง', async () => {
@@ -156,7 +183,7 @@ describe('มาตรฐาน API ของ CSMJU2030 (e2e)', () => {
       .set('x-layer1-role', 'student')
       .expect(200);
 
-    expect(response.body.meta.total_items).toBe(0);
+    expect(response.body.meta.total).toBe(0);
   });
 
   it('ทำเครื่องหมายอ่านแล้วบนการแจ้งเตือนของคนอื่นไม่ได้', async () => {
@@ -200,7 +227,7 @@ describe('มาตรฐาน API ของ CSMJU2030 (e2e)', () => {
       .expect(403);
 
     expect(response.body.success).toBe(false);
-    expect(response.body.error.code).toBe('forbidden');
+    expect(response.body.error.code).toBe('FORBIDDEN');
   });
 
   it('แดชบอร์ดผู้ดูแลไม่เปิดให้นักศึกษา', async () => {
@@ -302,7 +329,7 @@ describe('มาตรฐาน API ของ CSMJU2030 (e2e)', () => {
       .send({ display_name: 'ชื่อที่ผมตั้งเอง' })
       .expect(400);
 
-    expect(response.body.error.code).toBe('validation_failed');
+    expect(response.body.error.code).toBe('VALIDATION_ERROR');
   });
 
   it('แก้รูปโปรไฟล์ผ่านระบบย่อยไม่ได้', async () => {
@@ -495,7 +522,7 @@ describe('มาตรฐาน API ของ CSMJU2030 (e2e)', () => {
     // เดิมนับด้วย COUNT ต่อห้อง (2+N คิวรี) ตอนนี้เป็น groupBy ครั้งเดียว
     // เทสต์นี้กันไม่ให้การเปลี่ยนวิธีนับทำให้บางห้องขาดค่าไป
     const response = await request(app.getHttpServer())
-      .get('/api/v1/channels?per_page=100')
+      .get('/api/v1/channels?limit=100')
       .expect(200);
 
     for (const channel of response.body.data) {
@@ -529,7 +556,7 @@ describe('มาตรฐาน API ของ CSMJU2030 (e2e)', () => {
 
   it('คำขอจริงจากหน้าบ้านต้องได้ Access-Control-Allow-Origin กลับมา', async () => {
     const response = await request(app.getHttpServer())
-      .get('/api/v1/posts?per_page=1')
+      .get('/api/v1/posts?limit=1')
       .set('Origin', 'http://localhost:3000')
       .expect(200);
 
@@ -541,7 +568,7 @@ describe('มาตรฐาน API ของ CSMJU2030 (e2e)', () => {
   it('โดเมนนอกรายการต้องไม่ได้รับอนุญาต', async () => {
     // ถ้าหลุดเป็น * เมื่อไหร่ เว็บไหนก็อ่าน API ในนามผู้ใช้ที่ล็อกอินอยู่ได้
     const response = await request(app.getHttpServer())
-      .get('/api/v1/posts?per_page=1')
+      .get('/api/v1/posts?limit=1')
       .set('Origin', 'https://evil.example.com');
 
     expect(response.headers['access-control-allow-origin']).toBeUndefined();

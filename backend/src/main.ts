@@ -3,7 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { SwaggerModule } from '@nestjs/swagger';
 import { writeFile } from 'node:fs/promises';
 import { AppModule } from './app.module.js';
-import { configureApp } from './bootstrap.js';
+import { configureApp, PREFIX_EXCLUDE } from './bootstrap.js';
 import { buildOpenApiDocument, OPENAPI_FILE } from './openapi.js';
 
 async function bootstrap(): Promise<void> {
@@ -51,6 +51,10 @@ async function bootstrap(): Promise<void> {
   }
 
   const app = await NestFactory.create(AppModule);
+
+  // URL มาตรฐาน: /api/v1/<คำนามพหูพจน์แบบ kebab-case>
+  // (api-conventions.md ข้อ 1 · contracts/vocabulary.json `naming.api.prefix`)
+  app.setGlobalPrefix('api/v1', { exclude: PREFIX_EXCLUDE });
 
   configureApp(app);
 

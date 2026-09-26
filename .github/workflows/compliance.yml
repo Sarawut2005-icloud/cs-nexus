@@ -1,0 +1,29 @@
+# .github/workflows/compliance.yml
+#
+# คัดลอกมาจาก standards/templates/ci.yml แบบไม่แก้ตรรกะ
+# ตัวนี้เรียก reusable workflow ของ csmju2030-standards ซึ่งรัน 8 job
+# ตามที่ README ของมาตรฐานกำหนด — เป็นด่านที่ PM ใช้ตัดสินว่า merge ได้ไหม
+#
+# ต่างจาก ci.yml ของเราตรงหน้าที่:
+#   compliance.yml = "เขียนถูกกฎกลางไหม"   (มาตรฐานเป็นคนตรวจ)
+#   ci.yml         = "โค้ดเราทำงานถูกไหม"   (เทสต์ของเราเอง)
+# ทั้งสองตัวต้องเขียว ไม่ใช่เลือกอย่างใดอย่างหนึ่ง
+#
+# ⚠️ TODO(PL): เทมเพลตตั้ง trigger ไว้ที่ branch `main` แต่ repo นี้ยังใช้
+# `master` เป็น branch หลัก **workflow นี้จะไม่ทำงานเลยจนกว่าจะเปลี่ยนชื่อ**
+# ต้องตัดสินใจร่วมกับ PL ว่าจะเปลี่ยน default branch เป็น main (ตามมาตรฐาน)
+# หรือขอยกเว้น — อย่าแก้ไฟล์นี้เอง เพราะ CODEOWNERS ของมาตรฐานคุมไว้
+# (standards/templates/CODEOWNERS)
+
+name: Compliance
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  compliance:
+    uses: CSMJU2030/csmju2030-standards/.github/workflows/subsystem-compliance.yml@v1.0.0
+    with:
+      subsystem_name: csmju-social-reels
+    secrets: inherit

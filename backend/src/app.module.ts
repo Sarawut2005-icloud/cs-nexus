@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './common/prisma/prisma.module.js';
 import { RealtimeBusModule } from './common/realtime/realtime-bus.js';
 import { StorageModule } from './common/storage/storage.module.js';
+import { AuthModule } from './auth/auth.module.js';
 import { HealthModule } from './health/health.module.js';
 import { AdminModule } from './modules/admin/admin.module.js';
 import { AssetsModule } from './modules/assets/assets.module.js';
@@ -31,6 +32,7 @@ import { VoiceModule } from './modules/voice/voice.module.js';
     // ซึ่งจำเป็นเพราะเกือบทุกฟีเจอร์ต้องยิงแจ้งเตือนหรือผลักเหตุการณ์ออก socket
     RealtimeBusModule,
     NotificationsModule,
+    AuthModule,
     HealthModule,
     MembersModule,
     ProfilesModule,
