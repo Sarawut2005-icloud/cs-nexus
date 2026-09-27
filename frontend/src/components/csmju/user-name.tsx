@@ -12,7 +12,7 @@ import type { ProfileSummary } from '@/lib/csmju/types';
 /// คำขอของตัวเอง จะได้ 20 คำขอที่ถามเรื่องเดิมซ้ำ ๆ
 ///
 /// วิธีแก้: ทุกตัวที่ mount ในเฟรมเดียวกันจะถูกรวบเป็นคำขอเดียว
-/// (`GET /profiles?usernames=a,b,c`) ด้วยการหน่วง 20 มิลลิวินาที ซึ่งสั้นพอ
+/// (`GET /profiles?coreUserIds=a,b,c`) ด้วยการหน่วง 20 มิลลิวินาที ซึ่งสั้นพอ
 /// ที่ผู้ใช้ไม่รู้สึก แต่นานพอให้ทุกตัวใน render รอบเดียวกันมารวมกันทัน
 const cache = new Map<string, ProfileSummary>();
 const waiting = new Set<string>();
@@ -36,11 +36,11 @@ function scheduleFlush() {
 
     void api
       .get<ProfileSummary[]>(
-        `/profiles?usernames=${batch.map(encodeURIComponent).join(',')}`,
+        `/profiles?coreUserIds=${batch.map(encodeURIComponent).join(',')}`,
       )
       .then((rows) => {
         for (const row of rows) {
-          cache.set(row.username, row);
+          cache.set(row.coreUserId, row);
         }
 
         for (const notify of listeners) {
@@ -48,10 +48,10 @@ function scheduleFlush() {
         }
       })
       .catch(() => {
-        // ถ้าดึงไม่ได้ ปล่อยให้แสดง username ไปก่อน — ดีกว่าช่องว่าง
+        // ถ้าดึงไม่ได้ ปล่อยให้แสดง coreUserId ไปก่อน — ดีกว่าช่องว่าง
         for (const name of batch) {
           cache.set(name, {
-            username: name,
+            coreUserId: name,
             display_name: name,
             avatar_url: null,
             synced_at: null,
@@ -66,13 +66,13 @@ function scheduleFlush() {
   }, 20);
 }
 
-function useProfile(username: string): ProfileSummary {
+function useProfile(coreUserId: string): ProfileSummary {
   const [, force] = useState(0);
 
   useEffect(() => {
-    if (cache.has(username)) return;
+    if (cache.has(coreUserId)) return;
 
-    waiting.add(username);
+    waiting.add(coreUserId);
     scheduleFlush();
 
     const notify = () => force((n) => n + 1);
@@ -82,12 +82,12 @@ function useProfile(username: string): ProfileSummary {
     return () => {
       listeners.delete(notify);
     };
-  }, [username]);
+  }, [coreUserId]);
 
   return (
-    cache.get(username) ?? {
-      username,
-      display_name: username,
+    cache.get(coreUserId) ?? {
+      coreUserId,
+      display_name: coreUserId,
       avatar_url: null,
       synced_at: null,
       badge: null,
@@ -97,19 +97,19 @@ function useProfile(username: string): ProfileSummary {
 
 /// ชื่อผู้ใช้ที่กดไปหน้าโปรไฟล์ได้
 export function UserName({
-  username,
+  coreUserId,
   className = '',
 }: {
-  username: string;
+  coreUserId: string;
   className?: string;
 }) {
-  const profile = useProfile(username);
+  const profile = useProfile(coreUserId);
 
   return (
     <Link
-      href={`/profile/${encodeURIComponent(username)}`}
+      href={`/profile/${encodeURIComponent(coreUserId)}`}
       className={`inline-flex items-center gap-1 font-medium hover:underline ${className}`}
-      title={username}
+      title={coreUserId}
     >
       {profile.display_name}
       <VerifiedBadge badge={profile.badge} className="size-3.5" />
@@ -122,19 +122,19 @@ export function UserName({
 /// ห่อ UserAvatar เพื่อให้ที่เรียกไม่ต้องส่ง displayName/badge เอง —
 /// hook แคชด้านบนรู้อยู่แล้วจากการแปลงชื่อเป็นชุด
 export function Avatar({
-  username,
+  coreUserId,
   size = 36,
   showOnline = true,
 }: {
-  username: string;
+  coreUserId: string;
   size?: number;
   showOnline?: boolean;
 }) {
-  const profile = useProfile(username);
+  const profile = useProfile(coreUserId);
 
   return (
     <UserAvatar
-      username={username}
+      coreUserId={coreUserId}
       displayName={profile.display_name}
       avatarUrl={profile.avatar_url}
       badge={profile.badge}

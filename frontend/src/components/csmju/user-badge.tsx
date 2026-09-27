@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 /// ที่มีคนเปิด-ปิดแท็บ
 const onlineUsers = new Set<string>();
 
-/// ผู้ฟังแยกตาม username + ผู้ฟังที่สนใจทั้งชุด
+/// ผู้ฟังแยกตาม coreUserId + ผู้ฟังที่สนใจทั้งชุด
 ///
 /// เดิมมีชุดเดียวแล้วเรียกทุกตัวเมื่อมีใครเปิด-ปิดแท็บ — หน้าที่มี 100 avatar
 /// จะ re-render ทั้ง 100 ตัวทุกครั้งที่ใครสักคนออนไลน์ ทั้งที่มีตัวเดียว
@@ -29,9 +29,9 @@ const globalListeners = new Set<() => void>();
 
 let started = false;
 
-function notify(username?: string) {
-  if (username) {
-    for (const listener of perUser.get(username) ?? []) {
+function notify(coreUserId?: string) {
+  if (coreUserId) {
+    for (const listener of perUser.get(coreUserId) ?? []) {
       listener();
     }
   } else {
@@ -67,7 +67,7 @@ async function refreshPresence(): Promise<void> {
 
   try {
     const data = await api.get<{
-      online_usernames: string[];
+      online_core_user_ids: string[];
       total_online: number;
     }>('/presence');
 
@@ -78,16 +78,16 @@ async function refreshPresence(): Promise<void> {
     // จะยังค้างเป็นจุดเขียวอยู่ถ้าเติมทับอย่างเดียว
     onlineUsers.clear();
 
-    for (const username of data.online_usernames) {
-      onlineUsers.add(username);
+    for (const coreUserId of data.online_core_user_ids) {
+      onlineUsers.add(coreUserId);
     }
 
     // แล้วค่อยทับด้วย event ที่เข้ามาระหว่างรอ เพราะมันใหม่กว่า snapshot
-    for (const [username, online] of edits) {
+    for (const [coreUserId, online] of edits) {
       if (online) {
-        onlineUsers.add(username);
+        onlineUsers.add(coreUserId);
       } else {
-        onlineUsers.delete(username);
+        onlineUsers.delete(coreUserId);
       }
     }
 
@@ -115,21 +115,21 @@ function startPresence() {
       // การต่อใหม่สร้าง Socket ตัวใหม่ ผู้ฟังที่ผูกกับตัวเก่าจึงตายไปด้วย
       // และ `started` ที่ล็อกไว้ตลอดกาลทำให้ไม่มีใครมาผูกใหม่ —
       // จุดออนไลน์ทั้งหน้าจะค้างแช่อยู่อย่างนั้นจนกว่าผู้ใช้จะรีเฟรชเอง
-      bindSocket<{ username: string; online: boolean }>(
+      bindSocket<{ coreUserId: string; online: boolean }>(
         socket,
         'presence:changed',
         (payload) => {
           if (payload.online) {
-            onlineUsers.add(payload.username);
+            onlineUsers.add(payload.coreUserId);
           } else {
-            onlineUsers.delete(payload.username);
+            onlineUsers.delete(payload.coreUserId);
           }
 
           // จดไว้ด้วยถ้ากำลังรอ snapshot อยู่ — ไม่งั้นมันจะถูกทับหาย
-          pendingEdits?.set(payload.username, payload.online);
+          pendingEdits?.set(payload.coreUserId, payload.online);
 
           // แจ้งเฉพาะ avatar ของคนที่สถานะเปลี่ยน
-          notify(payload.username);
+          notify(payload.coreUserId);
         },
       );
 
@@ -139,28 +139,28 @@ function startPresence() {
     .catch(() => undefined);
 }
 
-export function useOnline(username: string): boolean {
+export function useOnline(coreUserId: string): boolean {
   const [, force] = useState(0);
 
   useEffect(() => {
     startPresence();
 
     const listener = () => force((value) => value + 1);
-    const set = perUser.get(username) ?? new Set<() => void>();
+    const set = perUser.get(coreUserId) ?? new Set<() => void>();
 
     set.add(listener);
-    perUser.set(username, set);
+    perUser.set(coreUserId, set);
 
     return () => {
       set.delete(listener);
 
       if (set.size === 0) {
-        perUser.delete(username);
+        perUser.delete(coreUserId);
       }
     };
-  }, [username]);
+  }, [coreUserId]);
 
-  return onlineUsers.has(username);
+  return onlineUsers.has(coreUserId);
 }
 
 /// สำหรับหน้าจอที่ต้องรู้ทั้งชุด (เช่นรายชื่อสมาชิก) — วาดใหม่เมื่อมีใครเปลี่ยน
@@ -186,8 +186,8 @@ export type Badge = 'ADMIN' | 'STAFF' | null;
 
 /// เครื่องหมายยืนยันข้างชื่อ
 ///
-/// **มาจาก layer2_role ของระบบย่อย ไม่ใช่ layer1_role** เพราะ Blueprint
-/// หน้า 10 ห้ามเราเก็บ layer1_role — เรารู้ role ของผู้เรียกเองจาก header
+/// **มาจาก layer2_role ของระบบย่อย ไม่ใช่ core_role** เพราะ Blueprint
+/// หน้า 10 ห้ามเราเก็บ core_role — เรารู้ role ของผู้เรียกเองจาก header
 /// แต่ไม่มีทางรู้ของคนอื่น ส่วน layer2_role เป็น Local Data ที่เรานิยามเองได้
 /// (หน้า 11) และตรงกับความหมายที่เครื่องหมายถูกควรสื่อในชุมชนนี้อยู่แล้ว
 ///
@@ -237,7 +237,7 @@ export function VerifiedBadge({
 /// รวมสามอย่างไว้ใน component เดียวเพราะทั้งสามผูกกับคนคนเดียวกัน
 /// ถ้าแยกกัน ทุกที่ที่แสดงรูปคนจะต้องประกอบเองสามชิ้น แล้วบางที่จะลืมชิ้นใดชิ้นหนึ่ง
 export function UserAvatar({
-  username,
+  coreUserId,
   displayName,
   avatarUrl,
   badge = null,
@@ -245,7 +245,7 @@ export function UserAvatar({
   showOnline = true,
   className,
 }: {
-  username: string;
+  coreUserId: string;
   displayName?: string;
   avatarUrl?: string | null;
   badge?: Badge;
@@ -253,8 +253,8 @@ export function UserAvatar({
   showOnline?: boolean;
   className?: string;
 }) {
-  const online = useOnline(username);
-  const name = displayName ?? username;
+  const online = useOnline(coreUserId);
+  const name = displayName ?? coreUserId;
 
   return (
     <span className={cn('relative inline-block shrink-0', className)}>

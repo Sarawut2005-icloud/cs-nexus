@@ -52,7 +52,7 @@ export function NotificationBell() {
     await queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
   }, [queryClient]);
 
-  // ฟังการแจ้งเตือนสด — หลังบ้านส่งเข้าห้องส่วนตัว user:<username>
+  // ฟังการแจ้งเตือนสด — หลังบ้านส่งเข้าห้องส่วนตัว user:<coreUserId>
   // ซึ่ง socket เข้าให้อัตโนมัติตอนต่อ จึงไม่ต้อง subscribe อะไรเพิ่ม
   useEffect(() => {
     let cancelled = false;

@@ -14,7 +14,7 @@ import { ReactionBar } from '@/components/csmju/reaction-bar';
 import { StoryRow } from '@/components/csmju/story-row';
 import { Avatar, UserName } from '@/components/csmju/user-name';
 import { api, ApiError, qs } from '@/lib/csmju/api';
-import { getIdentity } from '@/lib/csmju/identity';
+import { useMe } from '@/lib/csmju/session';
 import type {
   Bookmark as BookmarkRow,
   Post,
@@ -32,7 +32,7 @@ type Feed = 'all' | 'following';
 export default function FeedPage() {
   const [feed, setFeed] = useState<Feed>('all');
   const [courseTag, setCourseTag] = useState('');
-  const me = getIdentity();
+  const me = useMe();
   const queryClient = useQueryClient();
 
   // แท็บและแท็กวิชาเป็นส่วนหนึ่งของคีย์ — สลับกลับมาแท็บเดิมจึงเห็นของเดิม
@@ -126,7 +126,7 @@ export default function FeedPage() {
     setPosts((prev) => prev.filter((row) => row.id !== post.id));
   }
 
-  const canModerate = me.layer1Role === 'staff' || me.layer1Role === 'admin';
+  const canModerate = me.coreRole === 'staff' || me.coreRole === 'admin';
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
@@ -195,11 +195,11 @@ export default function FeedPage() {
             className="rounded-xl border border-border bg-card p-4"
           >
             <div className="flex items-start gap-3">
-              <Avatar username={post.author_username} />
+              <Avatar coreUserId={post.author_core_user_id} />
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-2">
-                  <UserName username={post.author_username} />
+                  <UserName coreUserId={post.author_core_user_id} />
                   <span className="text-xs text-muted-foreground">
                     {new Date(post.created_at).toLocaleString('th-TH')}
                   </span>
@@ -232,7 +232,7 @@ export default function FeedPage() {
                   )}
                 </button>
 
-                {(post.author_username === me.username || canModerate) && (
+                {(post.author_core_user_id === me.id || canModerate) && (
                   <button
                     type="button"
                     onClick={() => void remove(post)}
@@ -354,7 +354,7 @@ function Comments({
   const [items, setItems] = useState<PostComment[]>([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
-  const me = getIdentity();
+  const me = useMe();
 
   async function toggle() {
     const next = !open;
@@ -414,12 +414,12 @@ function Comments({
               key={comment.id}
               className="flex items-start gap-2 rounded-lg bg-muted/50 px-3 py-2"
             >
-              <Avatar username={comment.author_username} size={24} />
+              <Avatar coreUserId={comment.author_core_user_id} size={24} />
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-2">
                   <UserName
-                    username={comment.author_username}
+                    coreUserId={comment.author_core_user_id}
                     className="text-sm"
                   />
                   <span className="text-[11px] text-muted-foreground">
@@ -429,7 +429,7 @@ function Comments({
                 <p className="whitespace-pre-wrap text-sm">{comment.content}</p>
               </div>
 
-              {comment.author_username === me.username && (
+              {comment.author_core_user_id === me.id && (
                 <button
                   type="button"
                   onClick={() => void remove(comment)}

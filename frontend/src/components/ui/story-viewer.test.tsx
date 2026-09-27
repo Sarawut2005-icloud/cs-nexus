@@ -24,7 +24,7 @@ function open() {
 
 describe('StoryViewer', () => {
   it('เปิดแล้วแสดงสตอรี่ชิ้นแรก', async () => {
-    render(<StoryViewer stories={stories} username="อนุชาติ" />);
+    render(<StoryViewer stories={stories} coreUserId="อนุชาติ" />);
 
     await open();
 
@@ -36,7 +36,7 @@ describe('StoryViewer', () => {
   });
 
   it('กดฝั่งขวาแล้วไปชิ้นถัดไป', async () => {
-    render(<StoryViewer stories={stories} username="อนุชาติ" />);
+    render(<StoryViewer stories={stories} coreUserId="อนุชาติ" />);
 
     await open();
     await userEvent.click(screen.getByRole('button', { name: 'ไปต่อ' }));
@@ -53,7 +53,7 @@ describe('StoryViewer', () => {
     render(
       <StoryViewer
         stories={stories}
-        username="อนุชาติ"
+        coreUserId="อนุชาติ"
         onAllStoriesViewed={onAllStoriesViewed}
       />,
     );
@@ -86,7 +86,7 @@ describe('StoryViewer', () => {
     const { rerender } = render(
       <StoryViewer
         stories={stories}
-        username="อนุชาติ"
+        coreUserId="อนุชาติ"
         onStoryView={onStoryView}
       />,
     );
@@ -99,7 +99,7 @@ describe('StoryViewer', () => {
     rerender(
       <StoryViewer
         stories={stories}
-        username="อนุชาติ"
+        coreUserId="อนุชาติ"
         onStoryView={(story, index) => onStoryView(story, index)}
       />,
     );
@@ -107,7 +107,7 @@ describe('StoryViewer', () => {
     rerender(
       <StoryViewer
         stories={stories}
-        username="อนุชาติ"
+        coreUserId="อนุชาติ"
         onStoryView={(story, index) => onStoryView(story, index)}
       />,
     );
@@ -116,7 +116,7 @@ describe('StoryViewer', () => {
   });
 
   it('ปุ่มลูกศรและ Escape ใช้ได้', async () => {
-    render(<StoryViewer stories={stories} username="อนุชาติ" />);
+    render(<StoryViewer stories={stories} coreUserId="อนุชาติ" />);
 
     await open();
 
@@ -144,7 +144,7 @@ describe('StoryViewer', () => {
     render(
       <StoryViewer
         stories={stories}
-        username="อนุชาติ"
+        coreUserId="อนุชาติ"
         onMediaError={onMediaError}
       />,
     );
@@ -162,7 +162,7 @@ describe('StoryViewer', () => {
   });
 
   it('ไม่มีสตอรี่ = กดปุ่มไม่ได้', () => {
-    render(<StoryViewer stories={[]} username="อนุชาติ" />);
+    render(<StoryViewer stories={[]} coreUserId="อนุชาติ" />);
 
     expect(screen.getByRole('button', { name: /ดูสตอรี่ของ/ })).toBeDisabled();
   });

@@ -16,7 +16,7 @@ export class CreateReportDto {
 
   @ApiProperty({
     example: '9f1c2b3a-0000-4000-8000-000000000000',
-    description: 'id ของสิ่งที่รายงาน · ถ้าเป็น USER ให้ใส่ username',
+    description: 'id ของสิ่งที่รายงาน · ถ้าเป็น USER ให้ใส่ coreUserId',
   })
   @IsString()
   @Length(1, 128)
@@ -70,9 +70,9 @@ export class ReportResponseDto {
     description:
       'ผู้รายงาน — ผู้ดูแลเห็นได้ เพราะการรายงานเท็จซ้ำ ๆ ต้องตามตัวได้',
   })
-  reporter_username!: string;
+  reporter_core_user_id!: string;
 
-  @ApiProperty({ nullable: true }) resolved_by_username!: string | null;
+  @ApiProperty({ nullable: true }) resolved_by_core_user_id!: string | null;
   @ApiProperty({ nullable: true }) resolved_at!: string | null;
   @ApiProperty() created_at!: string;
 }
@@ -84,8 +84,8 @@ export function toReportResponse(row: ReportModel): ReportResponseDto {
     target_id: row.targetId,
     reason: row.reason,
     status: row.status,
-    reporter_username: row.reporterUsername,
-    resolved_by_username: row.resolvedByUsername,
+    reporter_core_user_id: row.reporterCoreUserId,
+    resolved_by_core_user_id: row.resolvedByCoreUserId,
     resolved_at: row.resolvedAt?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),
   };

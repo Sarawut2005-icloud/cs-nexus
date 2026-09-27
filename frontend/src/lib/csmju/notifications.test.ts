@@ -19,7 +19,7 @@ function make(overrides: Partial<Notification>): Notification {
     id: 'n1',
     kind: 'FOLLOW',
     ref_id: 'r1',
-    actor_username: '6704101999-somchai',
+    actor_core_user_id: '6704101999-somchai',
     payload: null,
     read_at: null,
     created_at: '2026-09-12T00:00:00.000Z',
@@ -62,7 +62,7 @@ describe('describeNotification', () => {
   });
 
   it('ไม่รู้ว่าใครทำก็ยังอ่านออก', () => {
-    expect(describeNotification(make({ actor_username: null }))).toContain(
+    expect(describeNotification(make({ actor_core_user_id: null }))).toContain(
       'มีคน',
     );
   });
@@ -98,7 +98,7 @@ describe('notificationLink', () => {
   it('เข้ารหัส id ที่มีอักขระพิเศษ', () => {
     // ชื่อผู้ใช้หรือ id ที่มี / หรือ ? จะทำให้ URL เพี้ยนถ้าไม่เข้ารหัส
     const link = notificationLink(
-      make({ kind: 'FOLLOW', actor_username: 'a/b?c' }),
+      make({ kind: 'FOLLOW', actor_core_user_id: 'a/b?c' }),
     );
 
     expect(link).toBe('/profile/a%2Fb%3Fc');

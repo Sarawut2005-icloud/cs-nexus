@@ -16,7 +16,7 @@ export interface TooltipItem {
   name: string;
   designation: string;
   image?: string | null;
-  /// เครื่องหมายยืนยัน — มาจาก layer2_role ของระบบย่อย ไม่ใช่ layer1_role
+  /// เครื่องหมายยืนยัน — มาจาก layer2_role ของระบบย่อย ไม่ใช่ core_role
   badge?: 'ADMIN' | 'STAFF' | null;
   online?: boolean;
 }

@@ -17,11 +17,11 @@ function make(overrides: Partial<Message>): Message {
     client_nonce: 'nonce-1',
     content: 'สวัสดี',
     channel_id: 'ch-1',
-    author_username: 'aaa',
+    author_core_user_id: 'aaa',
     parent_id: null,
     reply_count: 0,
     pinned_at: null,
-    pinned_by_username: null,
+    pinned_by_core_user_id: null,
     edited_at: null,
     attachments: [],
     embed: null,
@@ -61,7 +61,7 @@ describe('replacePending', () => {
     const theirs = make({
       id: 'm-2',
       client_nonce: 'nonce-ของเขา',
-      author_username: 'bbb',
+      author_core_user_id: 'bbb',
     });
 
     const next = replacePending([mine], theirs);

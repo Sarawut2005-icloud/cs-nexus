@@ -14,7 +14,7 @@ import { Phone, PhoneOff } from 'lucide-react';
 import { VoiceChat, type VoiceParticipant } from '@/components/ui/audio-chat';
 import { useModalFocus } from '@/components/ui/use-modal-focus';
 import { api, ApiError } from '@/lib/csmju/api';
-import { getIdentity } from '@/lib/csmju/identity';
+import { useMe } from '@/lib/csmju/session';
 import {
   bindSocket,
   connectSocket,
@@ -34,20 +34,20 @@ import type { JoinVoiceResponse } from '@/lib/csmju/types';
 interface IncomingCall {
   sessionId: string;
   channelId: string;
-  fromUsername: string;
+  fromCoreUserId: string;
 }
 
 interface ActiveCall {
   sessionId: string;
   channelId: string;
-  peerUsername: string;
+  peerCoreUserId: string;
   session: JoinVoiceResponse;
   /// true = เราเป็นฝ่ายโทรออก และยังรออีกฝ่ายรับ
   ringing: boolean;
 }
 
 interface CallContextValue {
-  startCall: (channelId: string, peerUsername: string) => Promise<void>;
+  startCall: (channelId: string, peerCoreUserId: string) => Promise<void>;
   inCall: boolean;
   error: string | null;
 }
@@ -103,7 +103,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   /// ฝั่งไหนเป็นคนยื่นข้อเสนอ — ตัดสินครั้งเดียวตอนเปิดสาย
   const isOfferer = useRef(false);
   const unbindRef = useRef<(() => void)[]>([]);
-  const me = getIdentity();
+  const me = useMe();
 
   const teardown = useCallback(() => {
     peer.current?.close();
@@ -173,7 +173,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     if (!isOfferer.current) {
       // เราไม่ใช่ฝ่ายยื่น — ขอให้อีกฝั่งเปิดรอบใหม่แทน
       socket.emit('rtc:signal', {
-        to_username: current.peerUsername,
+        to_core_user_id: current.peerCoreUserId,
         kind: 'renegotiate',
         data: null,
       });
@@ -193,7 +193,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         socket,
         'rtc:signal',
         {
-          to_username: current.peerUsername,
+          to_core_user_id: current.peerCoreUserId,
           kind: 'offer',
           data: offer,
         },
@@ -215,13 +215,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     (
       socket: Socket,
       session: JoinVoiceResponse,
-      peerUsername: string,
+      peerCoreUserId: string,
       shouldOffer: boolean,
     ) => {
       const connectionInstance = new RTCPeerConnection({
         iceServers: session.ice_servers.map((server) => ({
           urls: server.urls,
-          username: server.username,
+          coreUserId: server.coreUserId,
           credential: server.credential,
         })),
       });
@@ -237,7 +237,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         if (!event.candidate) return;
 
         socket.emit('rtc:signal', {
-          to_username: peerUsername,
+          to_core_user_id: peerCoreUserId,
           kind: 'ice',
           data: event.candidate.toJSON(),
         });
@@ -292,7 +292,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   );
 
   const startCall = useCallback(
-    async (channelId: string, peerUsername: string) => {
+    async (channelId: string, peerCoreUserId: string) => {
       // กันโทรซ้อนสายที่คุยอยู่ — ไม่งั้น peer connection ตัวเก่าถูกทับทิ้ง
       // โดยไม่ถูกปิด และห้องเสียงเดิมก็ไม่ถูกออก
       if (activeRef.current) {
@@ -318,17 +318,17 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         setActive({
           sessionId: session.id,
           channelId,
-          peerUsername,
+          peerCoreUserId,
           session,
           ringing: true,
         });
 
-        openPeer(socket, session, peerUsername, me.username < peerUsername);
+        openPeer(socket, session, peerCoreUserId, me.id < peerCoreUserId);
 
         const ring = await emitWithAck<{ ok: boolean; error?: string }>(
           socket,
           'call:ring',
-          { session_id: session.id, to_username: peerUsername },
+          { session_id: session.id, to_core_user_id: peerCoreUserId },
         );
 
         if (!ring.ok) {
@@ -354,7 +354,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         }
       }
     },
-    [enterSession, openPeer, teardown, leaveSession, me.username],
+    [enterSession, openPeer, teardown, leaveSession, me.id],
   );
 
   const hangUp = useCallback(async () => {
@@ -371,7 +371,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       // นั่งมองแผงสายที่ตายไปแล้ว
       socket.emit(current.ringing ? 'call:cancel' : 'call:end', {
         session_id: current.sessionId,
-        to_username: current.peerUsername,
+        to_core_user_id: current.peerCoreUserId,
       });
 
       // แชร์หน้าจออยู่ต้องคืนสิทธิ์ด้วย ไม่งั้นห้องจะล็อกไว้ให้คนที่ออกไปแล้ว
@@ -406,7 +406,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         previous.ringing ? 'call:cancel' : 'call:end',
         {
           session_id: previous.sessionId,
-          to_username: previous.peerUsername,
+          to_core_user_id: previous.peerCoreUserId,
         },
       );
 
@@ -429,7 +429,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       setActive({
         sessionId: session.id,
         channelId: call.channelId,
-        peerUsername: call.fromUsername,
+        peerCoreUserId: call.fromCoreUserId,
         session,
         ringing: false,
       });
@@ -437,8 +437,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       openPeer(
         socket,
         session,
-        call.fromUsername,
-        me.username < call.fromUsername,
+        call.fromCoreUserId,
+        me.id < call.fromCoreUserId,
       );
 
       // ผู้โทรอยู่ในห้องมาตั้งแต่ก่อนส่งกริ่ง และเราเพิ่งเข้ามา = ครบสองฝ่าย
@@ -446,7 +446,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
       socket.emit('call:answer', {
         session_id: call.sessionId,
-        to_username: call.fromUsername,
+        to_core_user_id: call.fromCoreUserId,
         accepted: true,
       });
     } catch (caught) {
@@ -471,7 +471,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     openPeer,
     teardown,
     leaveSession,
-    me.username,
+    me.id,
   ]);
 
   const decline = useCallback(() => {
@@ -481,7 +481,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     socketRef.current?.emit('call:answer', {
       session_id: call.sessionId,
-      to_username: call.fromUsername,
+      to_core_user_id: call.fromCoreUserId,
       accepted: false,
     });
 
@@ -504,12 +504,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           bindSocket<{
             session_id: string;
             channel_id: string;
-            from_username: string;
+            from_core_user_id: string;
           }>(socket, 'call:incoming', (payload) => {
             setIncoming({
               sessionId: payload.session_id,
               channelId: payload.channel_id,
-              fromUsername: payload.from_username,
+              fromCoreUserId: payload.from_core_user_id,
             });
           }),
         );
@@ -517,7 +517,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         unbindRef.current.push(
           bindSocket<{
             accepted: boolean;
-            from_username: string;
+            from_core_user_id: string;
             session_id?: string;
           }>(
             socket,
@@ -530,7 +530,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
               // โทรหา ต้องไม่ทำให้สายปัจจุบันถูกวาง
               if (!activeRef.current) return;
 
-              if (payload.from_username !== activeRef.current.peerUsername) {
+              if (payload.from_core_user_id !== activeRef.current.peerCoreUserId) {
                 return;
               }
 
@@ -544,7 +544,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
               if (!payload.accepted) {
                 const sessionId = activeRef.current?.sessionId;
 
-                setError(`${payload.from_username} ปฏิเสธสาย`);
+                setError(`${payload.from_core_user_id} ปฏิเสธสาย`);
                 teardown();
                 setActive(null);
 
@@ -568,7 +568,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         );
 
         unbindRef.current.push(
-          bindSocket<{ session_id?: string; from_username?: string }>(
+          bindSocket<{ session_id?: string; from_core_user_id?: string }>(
             socket,
             'call:cancelled',
             (payload) =>
@@ -577,8 +577,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                 if (!current) return current;
 
                 if (
-                  payload.from_username &&
-                  payload.from_username !== current.fromUsername
+                  payload.from_core_user_id &&
+                  payload.from_core_user_id !== current.fromCoreUserId
                 ) {
                   return current;
                 }
@@ -596,7 +596,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         );
 
         unbindRef.current.push(
-          bindSocket<{ session_id?: string; from_username?: string }>(
+          bindSocket<{ session_id?: string; from_core_user_id?: string }>(
             socket,
             'call:ended',
             (payload) => {
@@ -605,8 +605,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
               if (!current) return;
 
               if (
-                payload.from_username &&
-                payload.from_username !== current.peerUsername
+                payload.from_core_user_id &&
+                payload.from_core_user_id !== current.peerCoreUserId
               ) {
                 return;
               }
@@ -627,7 +627,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
         unbindRef.current.push(
           bindSocket<{
-            from_username: string;
+            from_core_user_id: string;
             kind: 'offer' | 'answer' | 'ice' | 'renegotiate';
             data: unknown;
           }>(socket, 'rtc:signal', async (payload) => {
@@ -645,7 +645,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
               await connectionInstance.setLocalDescription(answer);
 
               socket.emit('rtc:signal', {
-                to_username: payload.from_username,
+                to_core_user_id: payload.from_core_user_id,
                 kind: 'answer',
                 data: answer,
               });
@@ -797,14 +797,14 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const participants: VoiceParticipant[] = active
     ? [
         {
-          username: me.username,
+          coreUserId: me.id,
           isMe: true,
           isMuted: muted,
           isPresenting: presenting,
           connection: 'connected',
         },
         {
-          username: active.peerUsername,
+          coreUserId: active.peerCoreUserId,
           stream: remoteStream,
           connection: active.ringing ? 'connecting' : connection,
         },
@@ -827,7 +827,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
       {incoming && (
         <IncomingCallSheet
-          from={incoming.fromUsername}
+          from={incoming.fromCoreUserId}
           onAccept={() => void accept()}
           onDecline={decline}
         />
@@ -837,7 +837,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         <div className="fixed bottom-4 right-4 z-90 w-[min(24rem,calc(100vw-2rem))]">
           {active.ringing && (
             <p className="mb-2 rounded-lg bg-card px-3 py-2 text-center text-sm text-muted-foreground shadow-sm">
-              กำลังโทรหา {active.peerUsername}…
+              กำลังโทรหา {active.peerCoreUserId}…
             </p>
           )}
 

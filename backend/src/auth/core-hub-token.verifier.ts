@@ -13,7 +13,7 @@ export type CoreRole = (typeof CORE_ROLES)[number];
 /// `coreUserId` คือค่า `sub` จาก token (data-dictionary.md ข้อ 1.1)
 /// ชื่ออื่นที่สื่อความหมายเดียวกันถูกกฎ DD-01 ห้ามไว้ทั้งหมด
 ///
-/// สังเกตว่าไม่มี `username` และไม่มี `faculty` — สองค่านั้น **ไม่ได้อยู่ใน
+/// สังเกตว่าไม่มี `coreUserId` และไม่มี `faculty` — สองค่านั้น **ไม่ได้อยู่ใน
 /// token** (data-dictionary.md ข้อ 1.2 และ 1.3) ใครอยากได้ต้องไปถาม Core Hub
 /// เป็นรายครั้ง ไม่ใช่สมมติว่ามีติดมากับตัวตน
 export interface CoreHubUser {

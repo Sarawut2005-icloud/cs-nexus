@@ -22,7 +22,7 @@ import { AnimatedTooltip } from '@/components/ui/animated-tooltip';
 import { ReactionBar } from '@/components/csmju/reaction-bar';
 import { Avatar, UserName } from '@/components/csmju/user-name';
 import { api, ApiError, qs } from '@/lib/csmju/api';
-import { getIdentity } from '@/lib/csmju/identity';
+import { useMe } from '@/lib/csmju/session';
 import {
   bindSocket,
   connectSocket,
@@ -233,7 +233,7 @@ function CreateChannel({
   const [kind, setKind] = useState<ChannelKind>('GROUP');
   const [courseTag, setCourseTag] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const me = getIdentity();
+  const me = useMe();
 
   async function submit() {
     setError(null);
@@ -277,7 +277,7 @@ function CreateChannel({
           >
             <option value="GROUP">ห้องกลุ่ม</option>
             <option value="COURSE">
-              ห้องประจำวิชา {me.layer1Role === 'student' ? '(ต้องเป็นอาจารย์)' : ''}
+              ห้องประจำวิชา {me.coreRole === 'student' ? '(ต้องเป็นอาจารย์)' : ''}
             </option>
             <option value="VOICE">ห้องเสียง</option>
           </select>
@@ -342,7 +342,7 @@ function ChannelView({
 
   const socketRef = useRef<Socket | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const me = getIdentity();
+  const me = useMe();
 
   // โหลดประวัติ + รายการปักหมุด
   useEffect(() => {
@@ -468,34 +468,34 @@ function ChannelView({
         );
 
         unbind.push(
-          bindSocket<{ channel_id: string; online_usernames: string[] }>(
+          bindSocket<{ channel_id: string; online_core_user_ids: string[] }>(
             socket,
             'presence:sync',
             (payload) => {
               if (payload.channel_id !== channel.id) return;
 
-              setOnline(payload.online_usernames);
+              setOnline(payload.online_core_user_ids);
             },
           ),
         );
 
         unbind.push(
-          bindSocket<{ channel_id: string; username: string }>(
+          bindSocket<{ channel_id: string; coreUserId: string }>(
             socket,
             'typing:sync',
             (payload) => {
               if (payload.channel_id !== channel.id) return;
 
               setTyping((prev) =>
-                prev.includes(payload.username)
+                prev.includes(payload.coreUserId)
                   ? prev
-                  : [...prev, payload.username],
+                  : [...prev, payload.coreUserId],
               );
 
               setTimeout(
                 () =>
                   setTyping((prev) =>
-                    prev.filter((name) => name !== payload.username),
+                    prev.filter((name) => name !== payload.coreUserId),
                   ),
                 2500,
               );
@@ -641,11 +641,11 @@ function ChannelView({
       client_nonce: nonce,
       content,
       channel_id: channel.id,
-      author_username: me.username,
+      author_core_user_id: me.id,
       parent_id: threadOf?.id ?? null,
       reply_count: 0,
       pinned_at: null,
-      pinned_by_username: null,
+      pinned_by_core_user_id: null,
       edited_at: null,
       attachments: [],
       embed: null,
@@ -701,8 +701,8 @@ function ChannelView({
 
   const canPin =
     channel.my_role === 'MODERATOR' ||
-    me.layer1Role === 'staff' ||
-    me.layer1Role === 'admin';
+    me.coreRole === 'staff' ||
+    me.coreRole === 'admin';
 
   return (
     <div
@@ -738,9 +738,9 @@ function ChannelView({
               <AnimatedTooltip
                 size={28}
                 max={5}
-                items={online.map((username) => ({
-                  id: username,
-                  name: username,
+                items={online.map((coreUserId) => ({
+                  id: coreUserId,
+                  name: coreUserId,
                   designation: 'อยู่ในห้องนี้',
                   online: true,
                 }))}
@@ -772,7 +772,7 @@ function ChannelView({
               {pinned.slice(0, 3).map((message) => (
                 <p key={message.id} className="truncate text-xs">
                   <span className="text-muted-foreground">
-                    {message.author_username}:
+                    {message.author_core_user_id}:
                   </span>{' '}
                   {message.content}
                 </p>
@@ -805,12 +805,12 @@ function ChannelView({
                   pending ? 'opacity-60' : ''
                 }`}
               >
-                <Avatar username={message.author_username} size={32} />
+                <Avatar coreUserId={message.author_core_user_id} size={32} />
 
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-2">
                     <UserName
-                      username={message.author_username}
+                      coreUserId={message.author_core_user_id}
                       className="text-sm"
                     />
                     <span className="text-[11px] text-muted-foreground">
@@ -864,11 +864,11 @@ function ChannelView({
                       channelId={channel.id}
                       message={message}
                       canPin={canPin}
-                      isMine={message.author_username === me.username}
+                      isMine={message.author_core_user_id === me.id}
                       canDelete={
-                        message.author_username === me.username ||
+                        message.author_core_user_id === me.id ||
                         channel.my_role === 'MODERATOR' ||
-                        me.layer1Role === 'admin'
+                        me.coreRole === 'admin'
                       }
                     />
                   </div>
@@ -892,7 +892,7 @@ function ChannelView({
             <div className="mb-2 flex items-center gap-2 rounded-lg bg-secondary/50 px-2.5 py-1.5 text-xs">
               <MessagesSquare className="size-3.5 shrink-0 text-primary" />
               <span className="min-w-0 flex-1 truncate">
-                ตอบในเธรดของ {threadOf.author_username}: {threadOf.content}
+                ตอบในเธรดของ {threadOf.author_core_user_id}: {threadOf.content}
               </span>
               <button
                 type="button"
@@ -1139,7 +1139,7 @@ function ThreadPanel({
 
       <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
         <div className="rounded-lg bg-secondary/40 p-2.5">
-          <UserName username={parent.author_username} className="text-sm" />
+          <UserName coreUserId={parent.author_core_user_id} className="text-sm" />
           <p className="whitespace-pre-wrap text-sm">{parent.content}</p>
         </div>
 
@@ -1155,10 +1155,10 @@ function ThreadPanel({
         ) : (
           replies.map((reply) => (
             <div key={reply.id} className="flex items-start gap-2">
-              <Avatar username={reply.author_username} size={24} />
+              <Avatar coreUserId={reply.author_core_user_id} size={24} />
               <div className="min-w-0 flex-1">
                 <UserName
-                  username={reply.author_username}
+                  coreUserId={reply.author_core_user_id}
                   className="text-xs"
                 />
                 <p className="whitespace-pre-wrap break-words text-sm">

@@ -6,7 +6,7 @@ import { Eye, Heart, Loader2, UserMinus, UserPlus } from 'lucide-react';
 import { EditProfileDialog } from '@/components/csmju/edit-profile-dialog';
 import { Avatar, UserName } from '@/components/csmju/user-name';
 import { api, ApiError, qs } from '@/lib/csmju/api';
-import { getIdentity } from '@/lib/csmju/identity';
+import { useMe } from '@/lib/csmju/session';
 import type {
   FollowEdge,
   MyProfile,
@@ -19,7 +19,7 @@ import type {
 /// หน้าโปรไฟล์ — สถิติ ปุ่มติดตาม และผลงานของคนนั้น
 ///
 /// `params` เป็น Promise ใน Next 16 จึงต้องแกะด้วย React `use()`
-/// (เขียนแบบเดิม `params.username` จะได้ Promise ไม่ใช่ string)
+/// (เขียนแบบเดิม `params.coreUserId` จะได้ Promise ไม่ใช่ string)
 ///
 /// ติดตามเป็นทิศทางเดียวแบบ Instagram ไม่ใช่ขอเป็นเพื่อนแบบ Facebook
 /// ความเป็นเพื่อนสองทาง (`mutual`) คำนวณจากการมีทั้งสองด้าน จึงไม่มี
@@ -28,15 +28,15 @@ import type {
 export default function ProfilePage({
   params,
 }: {
-  params: Promise<{ username: string }>;
+  params: Promise<{ coreUserId: string }>;
 }) {
-  const { username } = use(params);
-  const target = decodeURIComponent(username);
+  const { coreUserId } = use(params);
+  const target = decodeURIComponent(coreUserId);
 
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const me = getIdentity();
-  const isMe = target === me.username;
+  const me = useMe();
+  const isMe = target === me.id;
   const queryClient = useQueryClient();
 
   const profileKey = ['profile', target] as const;
@@ -65,8 +65,8 @@ export default function ProfilePage({
         isMe
           ? api.get<MyProfile>('/profiles/me')
           : api.get<ProfileDetail>(`/profiles/${encodeURIComponent(target)}`),
-        api.list<Post>(`/posts${qs({ author_username: target, limit: 10 })}`),
-        api.list<Reel>(`/reels${qs({ author_username: target, limit: 10 })}`),
+        api.list<Post>(`/posts${qs({ author_core_user_id: target, limit: 10 })}`),
+        api.list<Reel>(`/reels${qs({ author_core_user_id: target, limit: 10 })}`),
         api.list<FollowEdge>(
           `/profiles/${encodeURIComponent(target)}/followers?limit=12`,
         ),
@@ -118,7 +118,7 @@ export default function ProfilePage({
     try {
       const relation = profile.relation.following
         ? await api.del<Relation>(`/follows/${encodeURIComponent(target)}`)
-        : await api.post<Relation>('/follows', { username: target });
+        : await api.post<Relation>('/follows', { coreUserId: target });
 
       setProfile({
         ...profile,
@@ -173,19 +173,19 @@ export default function ProfilePage({
       )}
 
       <header className="flex flex-wrap items-start gap-4 rounded-xl border border-border bg-card p-4">
-        <Avatar username={profile.username} size={64} />
+        <Avatar coreUserId={profile.coreUserId} size={64} />
 
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-semibold">
             {profile.display_name}
           </h1>
           <p className="truncate font-mono text-xs text-muted-foreground">
-            {profile.username}
+            {profile.coreUserId}
           </p>
 
           {profile.synced_at === null && (
             <p className="mt-1 text-[11px] text-muted-foreground">
-              ยังไม่เคยซิงก์ชื่อจริงจาก Core — แสดง username ไปก่อน
+              ยังไม่เคยซิงก์ชื่อจริงจาก Core — แสดง coreUserId ไปก่อน
             </p>
           )}
 
@@ -264,11 +264,11 @@ export default function ProfilePage({
           <ul className="flex flex-wrap gap-2">
             {followers.map((edge) => (
               <li
-                key={edge.username}
+                key={edge.coreUserId}
                 className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2 py-1"
               >
-                <Avatar username={edge.username} size={20} />
-                <UserName username={edge.username} className="text-xs" />
+                <Avatar coreUserId={edge.coreUserId} size={20} />
+                <UserName coreUserId={edge.coreUserId} className="text-xs" />
               </li>
             ))}
           </ul>

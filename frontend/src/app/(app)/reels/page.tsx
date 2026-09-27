@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Avatar, UserName } from '@/components/csmju/user-name';
 import { api, ApiError, qs } from '@/lib/csmju/api';
-import { getIdentity } from '@/lib/csmju/identity';
+import { useMe } from '@/lib/csmju/session';
 import type {
   Bookmark as BookmarkRow,
   Reel,
@@ -24,7 +24,7 @@ import type {
 /// ฟีดคลิปสั้น — ไลก์ คอมเมนต์ บันทึก และนับผู้ชม
 ///
 /// ยอดผู้ชมนับ "คนที่เคยดู" ไม่ใช่ "จำนวนครั้งที่เล่น" หลังบ้านมีคีย์
-/// (reel_id, username) จึงกดซ้ำไม่เพิ่มยอด — หน้านี้ยิงบันทึกการดูครั้งเดียว
+/// (reel_id, coreUserId) จึงกดซ้ำไม่เพิ่มยอด — หน้านี้ยิงบันทึกการดูครั้งเดียว
 /// ต่อคลิปต่อรอบการโหลด ไม่ยิงทุกครั้งที่เลื่อนผ่าน
 
 export default function ReelsPage() {
@@ -196,9 +196,9 @@ export default function ReelsPage() {
             className="overflow-hidden rounded-xl border border-border bg-card"
           >
             <div className="flex items-center gap-2.5 px-3 py-2.5">
-              <Avatar username={reel.author_username} size={32} />
+              <Avatar coreUserId={reel.author_core_user_id} size={32} />
               <div className="min-w-0 flex-1">
-                <UserName username={reel.author_username} className="text-sm" />
+                <UserName coreUserId={reel.author_core_user_id} className="text-sm" />
                 <p className="text-[11px] text-muted-foreground">
                   {new Date(reel.created_at).toLocaleString('th-TH')} ·{' '}
                   {Math.round(reel.duration_ms / 1000)} วินาที
@@ -406,10 +406,10 @@ function ReelComments({ reel }: { reel: Reel }) {
 
           {items.map((comment) => (
             <div key={comment.id} className="flex items-start gap-2">
-              <Avatar username={comment.author_username} size={22} />
+              <Avatar coreUserId={comment.author_core_user_id} size={22} />
               <div className="min-w-0 flex-1">
                 <UserName
-                  username={comment.author_username}
+                  coreUserId={comment.author_core_user_id}
                   className="text-xs"
                 />
                 <p className="break-words text-sm">{comment.content}</p>
@@ -437,7 +437,7 @@ function ReelUploader({ onCreated }: { onCreated: (reel: Reel) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [step, setStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const me = getIdentity();
+  const me = useMe();
 
   async function upload() {
     if (!file || !title.trim()) return;
@@ -539,7 +539,7 @@ function ReelUploader({ onCreated }: { onCreated: (reel: Reel) => void }) {
           />
 
           <p className="text-[11px] leading-snug text-muted-foreground">
-            โควตาของ {me.username} ดูได้ที่แผงผู้ดูแล · ไฟล์ถูกตรวจ magic bytes
+            โควตาของ {me.id} ดูได้ที่แผงผู้ดูแล · ไฟล์ถูกตรวจ magic bytes
             ที่จังหวะยืนยัน จึงเปลี่ยนนามสกุลหลอกไม่ได้
           </p>
 

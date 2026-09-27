@@ -8,7 +8,7 @@ import {
   PayloadTooLargeException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import type { GatewayUser } from '../../common/auth/gateway-user.js';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { RolesGuard } from '../../common/auth/roles.guard.js';
 import { Paginated } from '../../common/http/envelope.js';
 import { PaginationQuery } from '../../common/http/pagination.dto.js';
@@ -53,7 +53,7 @@ export class AssetsService {
   /// เช็คโควตา "ก่อน" ออก URL เพื่อให้ผู้ใช้รู้ตัวก่อนเสียเวลาอัปไฟล์ 40 MB
   /// แล้วค่อยถูกปฏิเสธ
   async createUploadIntent(
-    user: GatewayUser,
+    user: CoreHubUser,
     dto: CreateUploadIntentDto,
   ): Promise<UploadIntentResponseDto> {
     const member = await this.ensureMember(user);
@@ -81,12 +81,12 @@ export class AssetsService {
     }
 
     const extension = extensionOf(dto.file_name);
-    // username นำหน้า path เพื่อให้เขียนกฎสิทธิ์ตาม prefix ได้ที่ชั้นที่เก็บไฟล์
-    const objectPath = `${user.username}/${randomUUID()}${extension ? `.${extension}` : ''}`;
+    // coreUserId นำหน้า path เพื่อให้เขียนกฎสิทธิ์ตาม prefix ได้ที่ชั้นที่เก็บไฟล์
+    const objectPath = `${user.coreUserId}/${randomUUID()}${extension ? `.${extension}` : ''}`;
 
     const asset = await this.prisma.asset.create({
       data: {
-        ownerUsername: user.username,
+        ownerCoreUserId: user.coreUserId,
         bucket: dto.bucket,
         objectPath,
         fileName: dto.file_name,
@@ -119,14 +119,14 @@ export class AssetsService {
   ///   - โควตาโกงได้ด้วยการแจ้ง 1 KB แล้วอัป 40 MB
   ///   - .svg ที่ข้างในเป็นสคริปต์จะเข้ามาในระบบได้
   ///   - ฐานข้อมูลจะเต็มไปด้วยแถวกำพร้าของคนที่กด intent แล้วปิดแท็บ
-  async commit(user: GatewayUser, assetId: string): Promise<AssetResponseDto> {
+  async commit(user: CoreHubUser, assetId: string): Promise<AssetResponseDto> {
     const asset = await this.prisma.asset.findUnique({ where: { id: assetId } });
 
     if (!asset) {
       throw new NotFoundException('ไม่พบรายการอัปโหลดนี้');
     }
 
-    if (asset.ownerUsername !== user.username) {
+    if (asset.ownerCoreUserId !== user.coreUserId) {
       throw new ForbiddenException('รายการอัปโหลดนี้ไม่ใช่ของคุณ');
     }
 
@@ -197,7 +197,7 @@ export class AssetsService {
     const updated = await this.prisma.$transaction(async (tx) => {
       const claimed = await tx.subsystemMember.updateMany({
         where: {
-          username: user.username,
+          coreUserId: user.coreUserId,
           storageUsedBytes: { lte: member.storageQuotaBytes - info.sizeBytes },
         },
         data: { storageUsedBytes: { increment: info.sizeBytes } },
@@ -225,10 +225,10 @@ export class AssetsService {
   }
 
   async listMine(
-    user: GatewayUser,
+    user: CoreHubUser,
     query: PaginationQuery,
   ): Promise<Paginated<AssetResponseDto>> {
-    const where = { ownerUsername: user.username, status: 'READY' as const };
+    const where = { ownerCoreUserId: user.coreUserId, status: 'READY' as const };
 
     const [rows, total] = await Promise.all([
       this.prisma.asset.findMany({
@@ -248,7 +248,7 @@ export class AssetsService {
   /// ทุกอย่างที่ไม่ใช่ภาพหรือวิดีโอถูกบังคับดาวน์โหลด เพื่อไม่ให้เบราว์เซอร์
   /// เรนเดอร์ไฟล์ของผู้ใช้เป็นหน้าเว็บบนโดเมนของเรา
   async createDownloadUrl(
-    user: GatewayUser,
+    user: CoreHubUser,
     assetId: string,
   ): Promise<DownloadUrlResponseDto> {
     const asset = await this.prisma.asset.findUnique({ where: { id: assetId } });
@@ -257,7 +257,7 @@ export class AssetsService {
       throw new NotFoundException('ไม่พบไฟล์นี้');
     }
 
-    const canRead = await this.canRead(user, asset.id, asset.ownerUsername);
+    const canRead = await this.canRead(user, asset.id, asset.ownerCoreUserId);
 
     if (!canRead) {
       throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงไฟล์นี้');
@@ -282,7 +282,7 @@ export class AssetsService {
     };
   }
 
-  async remove(user: GatewayUser, assetId: string): Promise<void> {
+  async remove(user: CoreHubUser, assetId: string): Promise<void> {
     const asset = await this.prisma.asset.findUnique({
       where: { id: assetId },
       include: { reel: { select: { id: true } } },
@@ -292,9 +292,9 @@ export class AssetsService {
       throw new NotFoundException('ไม่พบไฟล์นี้');
     }
 
-    const isOwner = asset.ownerUsername === user.username;
+    const isOwner = asset.ownerCoreUserId === user.coreUserId;
 
-    if (!isOwner && user.layer1Role !== 'admin') {
+    if (!isOwner && user.coreRole !== 'admin') {
       throw new ForbiddenException('ลบได้เฉพาะไฟล์ของตัวเอง');
     }
 
@@ -311,19 +311,19 @@ export class AssetsService {
 
       await tx.auditLog.create({
         data: {
-          actorUsername: user.username,
-          actorLayer1Role: user.layer1Role,
+          actorCoreUserId: user.coreUserId,
+          actorCoreRole: user.coreRole,
           action: 'asset.delete',
           targetKind: 'ASSET',
           targetId: assetId,
-          metadata: { owner_username: asset.ownerUsername, by_admin: !isOwner },
+          metadata: { owner_core_user_id: asset.ownerCoreUserId, by_admin: !isOwner },
         },
       });
 
       // คืนพื้นที่ให้เจ้าของ ไม่ใช่ให้คนที่กดลบ
       if (asset.status === 'READY' && asset.sizeBytes > 0n) {
         await tx.subsystemMember.update({
-          where: { username: asset.ownerUsername },
+          where: { coreUserId: asset.ownerCoreUserId },
           data: { storageUsedBytes: { decrement: asset.sizeBytes } },
         });
       }
@@ -378,11 +378,11 @@ export class AssetsService {
   /// เจ้าของอ่านได้เสมอ · admin องค์กรอ่านได้เพื่อจัดการเนื้อหา ·
   /// คนอื่นอ่านได้เมื่อไฟล์ถูกแนบในห้องแชทที่ตัวเองเป็นสมาชิก
   private async canRead(
-    user: GatewayUser,
+    user: CoreHubUser,
     assetId: string,
-    ownerUsername: string,
+    ownerCoreUserId: string,
   ): Promise<boolean> {
-    if (ownerUsername === user.username || user.layer1Role === 'admin') {
+    if (ownerCoreUserId === user.coreUserId || user.coreRole === 'admin') {
       return true;
     }
 
@@ -392,7 +392,7 @@ export class AssetsService {
         OR: [
           {
             message: {
-              channel: { members: { some: { username: user.username } } },
+              channel: { members: { some: { coreUserId: user.coreUserId } } },
             },
           },
           // ไฟล์ที่เป็นคลิป Reels เปิดให้ทุกคนในสาขาดูได้
@@ -417,9 +417,9 @@ export class AssetsService {
     });
   }
 
-  private async ensureMember(user: GatewayUser) {
+  private async ensureMember(user: CoreHubUser) {
     const existing = await this.prisma.subsystemMember.findUnique({
-      where: { username: user.username },
+      where: { coreUserId: user.coreUserId },
     });
 
     if (existing) {
@@ -428,8 +428,8 @@ export class AssetsService {
 
     return this.prisma.subsystemMember.create({
       data: {
-        username: user.username,
-        layer2Role: RolesGuard.defaultLayer2Role(user.layer1Role),
+        coreUserId: user.coreUserId,
+        layer2Role: RolesGuard.defaultLayer2Role(user.coreRole),
       },
     });
   }

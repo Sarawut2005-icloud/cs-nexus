@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Loader2, Plus, User } from 'lucide-react';
 import { StoryViewer, type Story } from '@/components/ui/story-viewer';
 import { api, ApiError } from '@/lib/csmju/api';
-import { getIdentity } from '@/lib/csmju/identity';
+import { useMe } from '@/lib/csmju/session';
 import type { StoryTray } from '@/lib/csmju/types';
 
 /// แถวสตอรี่บนสุดของฟีด
@@ -17,7 +17,7 @@ import type { StoryTray } from '@/lib/csmju/types';
 /// แล้วกดดู รูปจะโหลดไม่ขึ้น — onMediaError จึงดึงแถวใหม่ให้อัตโนมัติ
 
 export function StoryRow() {
-  const me = getIdentity();
+  const me = useMe();
   const refreshing = useRef(false);
 
   const {
@@ -77,7 +77,7 @@ export function StoryRow() {
         {mine ? (
           <StoryViewer
             stories={toStories(mine)}
-            username={me.username}
+            coreUserId={me.id}
             timestamp={mine.stories.at(-1)?.created_at}
             hasUnseen={mine.has_unseen}
             label="สตอรี่ของคุณ"
@@ -93,9 +93,9 @@ export function StoryRow() {
           .filter((tray) => !tray.is_me)
           .map((tray) => (
             <StoryViewer
-              key={tray.author_username}
+              key={tray.author_core_user_id}
               stories={toStories(tray)}
-              username={tray.author_username}
+              coreUserId={tray.author_core_user_id}
               timestamp={tray.stories.at(-1)?.created_at}
               hasUnseen={tray.has_unseen}
               onStoryView={(story) => void markViewed(story.id)}

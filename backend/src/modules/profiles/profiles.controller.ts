@@ -2,8 +2,8 @@ import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CurrentUser,
-  type GatewayUser,
-} from '../../common/auth/gateway-user.js';
+  type CoreHubUser,
+} from '../../common/auth/core-user.js';
 import {
   ApiEnvelope,
   ApiEnvelopeError,
@@ -28,17 +28,17 @@ export class ProfilesController {
 
   @Get()
   @ApiOperation({
-    summary: 'แปลง username หลายตัวเป็นชื่อที่แสดง ในคำขอเดียว',
+    summary: 'แปลง coreUserId หลายตัวเป็นชื่อที่แสดง ในคำขอเดียว',
     description:
       'ไม่มี endpoint นี้ หน้าบ้านจะต้องยิงทีละคนตอนเรนเดอร์ฟีด = 20 คำขอต่อหนึ่งหน้า',
   })
   resolve(@Query() query: ResolveProfilesQuery) {
-    const usernames = (query.usernames ?? '')
+    const coreUserIds = (query.coreUserIds ?? '')
       .split(',')
       .map((name) => name.trim())
       .filter(Boolean);
 
-    return this.profiles.resolveMany(usernames);
+    return this.profiles.resolveMany(coreUserIds);
   }
 
   @Get('me')
@@ -48,7 +48,7 @@ export class ProfilesController {
       'managed_by_core บอกว่า field ไหนแก้ที่ระบบย่อยนี้ไม่ได้ เพราะ Core เป็นแหล่งความจริง (Blueprint หน้า 10)',
   })
   @ApiEnvelope(MyProfileDto)
-  me(@CurrentUser() user: GatewayUser) {
+  me(@CurrentUser() user: CoreHubUser) {
     return this.profiles.me(user);
   }
 
@@ -62,40 +62,40 @@ export class ProfilesController {
   @ApiEnvelopeError(400, 'รูปปกไม่ใช่ไฟล์รูป หรือยังไม่ commit')
   @ApiEnvelopeError(403, 'ใช้ไฟล์ของคนอื่นเป็นรูปปกไม่ได้')
   updateMine(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Body() dto: UpdateMyProfileDto,
   ) {
     return this.profiles.updateMine(user, dto);
   }
 
-  @Get(':username')
+  @Get(':coreUserId')
   @ApiOperation({
     summary: 'โปรไฟล์ของคนหนึ่ง พร้อมสถิติและความสัมพันธ์กับผู้เรียก',
   })
   @ApiEnvelope(ProfileDetailDto)
-  @ApiEnvelopeError(400, 'รูปแบบ username ไม่ถูกต้อง')
+  @ApiEnvelopeError(400, 'รูปแบบ coreUserId ไม่ถูกต้อง')
   detail(
-    @CurrentUser() user: GatewayUser,
-    @Param('username') username: string,
+    @CurrentUser() user: CoreHubUser,
+    @Param('coreUserId') coreUserId: string,
   ) {
-    return this.profiles.detail(user, username);
+    return this.profiles.detail(user, coreUserId);
   }
 
-  @Get(':username/followers')
+  @Get(':coreUserId/followers')
   @ApiOperation({ summary: 'คนที่ติดตามผู้ใช้คนนี้' })
   followers(
-    @Param('username') username: string,
+    @Param('coreUserId') coreUserId: string,
     @Query() query: PaginationQuery,
   ) {
-    return this.follows.followers(username, query);
+    return this.follows.followers(coreUserId, query);
   }
 
-  @Get(':username/following')
+  @Get(':coreUserId/following')
   @ApiOperation({ summary: 'คนที่ผู้ใช้คนนี้ติดตาม' })
   following(
-    @Param('username') username: string,
+    @Param('coreUserId') coreUserId: string,
     @Query() query: PaginationQuery,
   ) {
-    return this.follows.following(username, query);
+    return this.follows.following(coreUserId, query);
   }
 }

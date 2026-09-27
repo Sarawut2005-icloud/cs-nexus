@@ -22,7 +22,7 @@ const registry = new Map<string, Handler>();
 vi.mock('@/lib/csmju/api', () => ({
   api: {
     get: vi.fn().mockResolvedValue({
-      online_usernames: ['6700000001-ajarn'],
+      online_core_user_ids: ['6700000001-ajarn'],
       total_online: 1,
     }),
   },
@@ -73,9 +73,9 @@ function fireReconnect() {
 /// ต้องห่อด้วย act() เพราะ handler ไปเรียก setState ของ component ที่ mount อยู่
 /// — ถ้าไม่ห่อ React จะเตือน "not wrapped in act(...)" ซึ่งหมายความว่า
 /// การ assert หลังจากนั้นอาจอ่านค่าก่อนที่ React จะวาดเสร็จ
-function emitPresence(username: string, online: boolean) {
+function emitPresence(coreUserId: string, online: boolean) {
   act(() => {
-    handlers.get('presence:changed')?.({ username, online });
+    handlers.get('presence:changed')?.({ coreUserId, online });
   });
 }
 
@@ -96,7 +96,7 @@ describe('UserAvatar และ presence', () => {
     // REST จึงต้องให้ภาพตั้งต้นด้วย
     const { UserAvatar } = await import('./user-badge');
 
-    render(<UserAvatar username="6700000001-ajarn" />);
+    render(<UserAvatar coreUserId="6700000001-ajarn" />);
 
     expect(await screen.findByText('ออนไลน์')).toBeInTheDocument();
   });
@@ -104,7 +104,7 @@ describe('UserAvatar และ presence', () => {
   it('คนที่ไม่ได้ออนไลน์ไม่มีจุด', async () => {
     const { UserAvatar } = await import('./user-badge');
 
-    render(<UserAvatar username="6704101382-anuchat" />);
+    render(<UserAvatar coreUserId="6704101382-anuchat" />);
 
     await waitFor(() => expect(screen.queryByText('ออนไลน์')).toBeNull());
   });
@@ -112,7 +112,7 @@ describe('UserAvatar และ presence', () => {
   it('event ทำให้จุดขึ้นและดับตามจริง', async () => {
     const { UserAvatar } = await import('./user-badge');
 
-    render(<UserAvatar username="6704101999-somchai" />);
+    render(<UserAvatar coreUserId="6704101999-somchai" />);
 
     await waitFor(() => expect(handlers.has('presence:changed')).toBe(true));
 
@@ -132,7 +132,7 @@ describe('UserAvatar และ presence', () => {
   it('สถานะของคนอื่นเปลี่ยน ไม่ทำให้ avatar ของเราขึ้นจุด', async () => {
     const { UserAvatar } = await import('./user-badge');
 
-    render(<UserAvatar username="6704101777-malee" />);
+    render(<UserAvatar coreUserId="6704101777-malee" />);
 
     await waitFor(() => expect(handlers.has('presence:changed')).toBe(true));
 
@@ -144,14 +144,14 @@ describe('UserAvatar และ presence', () => {
   });
 
   it('avatar สองตัวของคนเดียวกันขึ้นจุดพร้อมกัน', async () => {
-    // ผู้ฟังแยกตาม username เก็บใน Set เดียวกัน — ถ้า cleanup ของตัวหนึ่ง
+    // ผู้ฟังแยกตาม coreUserId เก็บใน Set เดียวกัน — ถ้า cleanup ของตัวหนึ่ง
     // ลบทั้ง Set อีกตัวจะหยุดอัปเดตเงียบ ๆ
     const { UserAvatar } = await import('./user-badge');
 
     render(
       <>
-        <UserAvatar username="6704101999-somchai" />
-        <UserAvatar username="6704101999-somchai" />
+        <UserAvatar coreUserId="6704101999-somchai" />
+        <UserAvatar coreUserId="6704101999-somchai" />
       </>,
     );
 
@@ -167,8 +167,8 @@ describe('UserAvatar และ presence', () => {
 
     const { rerender } = render(
       <>
-        <UserAvatar username="6704101999-somchai" />
-        <UserAvatar username="6704101999-somchai" />
+        <UserAvatar coreUserId="6704101999-somchai" />
+        <UserAvatar coreUserId="6704101999-somchai" />
       </>,
     );
 
@@ -176,7 +176,7 @@ describe('UserAvatar และ presence', () => {
 
     rerender(
       <>
-        <UserAvatar username="6704101999-somchai" />
+        <UserAvatar coreUserId="6704101999-somchai" />
       </>,
     );
 
@@ -191,7 +191,7 @@ describe('UserAvatar และ presence', () => {
     // จุดออนไลน์ทั้งหน้าค้างแช่จนกว่าผู้ใช้จะรีเฟรชเอง
     const { UserAvatar } = await import('./user-badge');
 
-    render(<UserAvatar username="6704101999-somchai" />);
+    render(<UserAvatar coreUserId="6704101999-somchai" />);
 
     await waitFor(() => expect(handlers.has('presence:changed')).toBe(true));
     await waitFor(() => expect(reconnectHandlers.size).toBeGreaterThan(0));
@@ -209,14 +209,14 @@ describe('UserAvatar และ presence', () => {
     const { api } = await import('@/lib/csmju/api');
     const { UserAvatar } = await import('./user-badge');
 
-    render(<UserAvatar username="6700000001-ajarn" />);
+    render(<UserAvatar coreUserId="6700000001-ajarn" />);
 
     await screen.findByText('ออนไลน์');
     await waitFor(() => expect(reconnectHandlers.size).toBeGreaterThan(0));
 
     // คราวนี้หลังบ้านบอกว่าเขาออฟไลน์ไปแล้ว
     vi.mocked(api.get).mockResolvedValueOnce({
-      online_usernames: [],
+      online_core_user_ids: [],
       total_online: 0,
     });
 
@@ -244,7 +244,7 @@ describe('UserAvatar และ presence', () => {
   it('showOnline=false ปิดจุดได้ (สำหรับที่ที่ไม่ต้องการ)', async () => {
     const { UserAvatar } = await import('./user-badge');
 
-    render(<UserAvatar username="6700000001-ajarn" showOnline={false} />);
+    render(<UserAvatar coreUserId="6700000001-ajarn" showOnline={false} />);
 
     await waitFor(() => expect(screen.queryByText('ออนไลน์')).toBeNull());
   });

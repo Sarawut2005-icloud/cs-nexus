@@ -60,7 +60,7 @@ export class ListPostsQuery extends PaginationQuery {
   @IsOptional()
   @IsString()
   @Length(2, 64)
-  author_username?: string;
+  author_core_user_id?: string;
 }
 
 export class PostResponseDto {
@@ -68,7 +68,7 @@ export class PostResponseDto {
   @ApiProperty() title!: string;
   @ApiProperty() content!: string;
   @ApiProperty({ nullable: true }) course_tag!: string | null;
-  @ApiProperty({ example: '6704101382-anuchat' }) author_username!: string;
+  @ApiProperty({ example: '6704101382-anuchat' }) author_core_user_id!: string;
   @ApiProperty() comment_count!: number;
 
   @ApiProperty({
@@ -84,7 +84,7 @@ export class PostResponseDto {
 export class PostCommentResponseDto {
   @ApiProperty() id!: string;
   @ApiProperty() post_id!: string;
-  @ApiProperty() author_username!: string;
+  @ApiProperty() author_core_user_id!: string;
   @ApiProperty() content!: string;
   @ApiProperty() created_at!: string;
 }
@@ -98,7 +98,7 @@ export function toPostResponse(
     title: post.title,
     content: post.content,
     course_tag: post.courseTag,
-    author_username: post.authorUsername,
+    author_core_user_id: post.authorCoreUserId,
     comment_count: post.commentCount,
     reactions,
     created_at: post.createdAt.toISOString(),
@@ -111,7 +111,7 @@ export function toCommentResponse(
   return {
     id: comment.id,
     post_id: comment.postId,
-    author_username: comment.authorUsername,
+    author_core_user_id: comment.authorCoreUserId,
     content: comment.content,
     created_at: comment.createdAt.toISOString(),
   };

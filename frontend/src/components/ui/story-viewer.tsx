@@ -20,7 +20,7 @@ const IMAGE_DURATION_MS = 5000;
 
 interface StoryViewerProps {
   stories: Story[];
-  username: string;
+  coreUserId: string;
   avatar?: string;
   timestamp?: string;
   /// วงแหวนรอบรูปโปรไฟล์ติดสีเมื่อยังมีของไม่ได้ดู
@@ -41,7 +41,7 @@ interface StoryViewerProps {
 /// ถ้าแยกเป็นสอง component ต้องยกสถานะขึ้นไปไว้ที่ parent ทุกครั้งที่ใช้
 export function StoryViewer({
   stories,
-  username,
+  coreUserId,
   avatar,
   timestamp,
   hasUnseen = true,
@@ -63,7 +63,7 @@ export function StoryViewer({
           'group flex shrink-0 cursor-pointer flex-col items-center gap-2 disabled:cursor-default disabled:opacity-60',
           className,
         )}
-        aria-label={`ดูสตอรี่ของ ${username}`}
+        aria-label={`ดูสตอรี่ของ ${coreUserId}`}
       >
         <span
           className={cn(
@@ -84,21 +84,21 @@ export function StoryViewer({
               />
             ) : (
               <span className="grid size-full place-items-center rounded-full bg-secondary text-lg font-semibold text-secondary-foreground">
-                {username.trim().charAt(0) || '?'}
+                {coreUserId.trim().charAt(0) || '?'}
               </span>
             )}
           </span>
         </span>
 
         <span className="max-w-[80px] truncate text-xs text-muted-foreground">
-          {label ?? username}
+          {label ?? coreUserId}
         </span>
       </button>
 
       {open && (
         <StoryOverlay
           stories={stories}
-          username={username}
+          coreUserId={coreUserId}
           avatar={avatar}
           timestamp={timestamp}
           onClose={() => setOpen(false)}
@@ -113,7 +113,7 @@ export function StoryViewer({
 
 function StoryOverlay({
   stories,
-  username,
+  coreUserId,
   avatar,
   timestamp,
   onClose,
@@ -122,7 +122,7 @@ function StoryOverlay({
   onMediaError,
 }: {
   stories: Story[];
-  username: string;
+  coreUserId: string;
   avatar?: string;
   timestamp?: string;
   onClose: () => void;
@@ -315,7 +315,7 @@ function StoryOverlay({
       className="fixed inset-0 z-100 flex flex-col bg-black/95 outline-none"
       role="dialog"
       aria-modal="true"
-      aria-label={`สตอรี่ของ ${username}`}
+      aria-label={`สตอรี่ของ ${coreUserId}`}
     >
       {/* แถบความคืบหน้าหนึ่งขีดต่อหนึ่งชิ้น */}
       <div className="flex gap-1 px-3 pt-3">
@@ -346,14 +346,14 @@ function StoryOverlay({
             <img src={avatar} alt="" className="size-full object-cover" />
           ) : (
             <span className="text-sm font-semibold text-white">
-              {username.trim().charAt(0) || '?'}
+              {coreUserId.trim().charAt(0) || '?'}
             </span>
           )}
         </span>
 
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium text-white">
-            {username}
+            {coreUserId}
           </span>
           {timestamp && (
             <span className="block text-[11px] text-white/60">
@@ -407,13 +407,13 @@ function StoryOverlay({
               callbacks.current.onMediaError?.(story);
             }}
           >
-            <track kind="captions" label={`สตอรี่ของ ${username}`} />
+            <track kind="captions" label={`สตอรี่ของ ${coreUserId}`} />
           </video>
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={story.src}
-            alt={`สตอรี่ของ ${username}`}
+            alt={`สตอรี่ของ ${coreUserId}`}
             className="size-full object-contain"
             onError={() => {
               setFailed(true);

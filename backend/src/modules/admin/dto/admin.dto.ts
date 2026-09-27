@@ -33,7 +33,7 @@ export class ListAuditLogsQuery extends PaginationQuery {
   @IsOptional()
   @IsString()
   @Length(2, 64)
-  actor_username?: string;
+  actor_core_user_id?: string;
 
   @ApiPropertyOptional({
     example: 'message.delete',
@@ -60,8 +60,8 @@ export class ListAuditLogsQuery extends PaginationQuery {
 
 export class AuditLogResponseDto {
   @ApiProperty() id!: string;
-  @ApiProperty({ example: '6700000001-ajarn' }) actor_username!: string;
-  @ApiProperty({ example: 'staff' }) actor_layer1_role!: string;
+  @ApiProperty({ example: '6700000001-ajarn' }) actor_core_user_id!: string;
+  @ApiProperty({ example: 'staff' }) actor_core_role!: string;
   @ApiProperty({ example: 'message.delete' }) action!: string;
   @ApiProperty({ example: 'MESSAGE' }) target_kind!: string;
   @ApiProperty() target_id!: string;
@@ -82,7 +82,7 @@ export class ListMembersQuery extends PaginationQuery {
   layer2_role?: Layer2Role;
 
   @ApiPropertyOptional({
-    description: 'ค้นจาก username บางส่วน',
+    description: 'ค้นจาก coreUserId บางส่วน',
     example: '67041',
   })
   @IsOptional()
@@ -132,12 +132,12 @@ export class UpdateMemberQuotaDto {
 export class MemberTargetParam {
   @ApiProperty({ example: '6704101382-anuchat' })
   @IsString()
-  @Matches(USERNAME_PATTERN, { message: 'รูปแบบ username ไม่ถูกต้อง' })
-  username!: string;
+  @Matches(USERNAME_PATTERN, { message: 'รูปแบบ coreUserId ไม่ถูกต้อง' })
+  coreUserId!: string;
 }
 
 export class MemberResponseDto {
-  @ApiProperty() username!: string;
+  @ApiProperty() coreUserId!: string;
   @ApiProperty({ enum: Layer2Role }) layer2_role!: Layer2Role;
 
   @ApiProperty({
@@ -154,8 +154,8 @@ export class MemberResponseDto {
 export function toAuditLogResponse(row: AuditLogModel): AuditLogResponseDto {
   return {
     id: row.id,
-    actor_username: row.actorUsername,
-    actor_layer1_role: row.actorLayer1Role,
+    actor_core_user_id: row.actorCoreUserId,
+    actor_core_role: row.actorCoreRole,
     action: row.action,
     target_kind: row.targetKind,
     target_id: row.targetId,
@@ -168,7 +168,7 @@ export function toMemberResponse(
   row: SubsystemMemberModel,
 ): MemberResponseDto {
   return {
-    username: row.username,
+    coreUserId: row.coreUserId,
     layer2_role: row.layer2Role,
     layer2_role_explicit: row.layer2RoleExplicit,
     storage_used_bytes: row.storageUsedBytes.toString(),

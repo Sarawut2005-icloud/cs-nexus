@@ -17,7 +17,7 @@ import {
 
 interface IceServer {
   urls: string[];
-  username?: string | null;
+  coreUserId?: string | null;
   credential?: string | null;
 }
 

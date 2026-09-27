@@ -18,8 +18,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useCall } from '@/components/csmju/call-provider';
 import { StoryRow } from '@/components/csmju/story-row';
 import { UserName } from '@/components/csmju/user-name';
-import { api, ApiError } from '@/lib/csmju/api';
-import { DEV_IDENTITIES, getIdentity } from '@/lib/csmju/identity';
+import { api, ApiError, qs } from '@/lib/csmju/api';
+import { useMe } from '@/lib/csmju/session';
 import {
   bindSocket,
   connectSocket,
@@ -29,7 +29,7 @@ import {
   onSocketStatus,
   rememberRoom,
 } from '@/lib/csmju/socket';
-import type { Channel, Message, ProfileSummary } from '@/lib/csmju/types';
+import type { Channel, Message, SearchHit } from '@/lib/csmju/types';
 
 /// ข้อความส่วนตัวแบบ Instagram
 ///
@@ -49,7 +49,7 @@ export default function MessagesPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('primary');
   const [query, setQuery] = useState('');
-  const me = getIdentity();
+  const me = useMe();
   const queryClient = useQueryClient();
 
   const threadsKey = ['channels', 'dm'] as const;
@@ -96,9 +96,9 @@ export default function MessagesPage() {
     if (!term) return byTab;
 
     return byTab.filter((thread) =>
-      peerOf(thread, me.username).toLowerCase().includes(term),
+      peerOf(thread, me.id).toLowerCase().includes(term),
     );
-  }, [threads, tab, query, me.username]);
+  }, [threads, tab, query, me.id]);
 
   const active = threads.find((thread) => thread.id === activeId) ?? null;
 
@@ -115,7 +115,7 @@ export default function MessagesPage() {
             type="button"
             className="flex items-center gap-1.5 text-base font-semibold"
           >
-            {me.username}
+            {me.id}
             <ChevronDown className="size-4 text-muted-foreground" />
           </button>
 
@@ -190,7 +190,7 @@ export default function MessagesPage() {
           )}
 
           {filtered.map((thread) => {
-            const peer = peerOf(thread, me.username);
+            const peer = peerOf(thread, me.id);
 
             return (
               <button
@@ -201,7 +201,7 @@ export default function MessagesPage() {
                   thread.id === activeId ? 'bg-secondary/60' : ''
                 }`}
               >
-                <UserAvatar username={peer} size={56} />
+                <UserAvatar coreUserId={peer} size={56} />
 
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">
@@ -250,10 +250,10 @@ export default function MessagesPage() {
 /// ห้องกลุ่มที่ไม่มี "คู่" — DM มีสมาชิกสองคนเสมอ แต่รายการห้องไม่ส่งรายชื่อ
 /// สมาชิกมาด้วย (จะกลายเป็น N+1 ตอนโหลดรายการ)
 ///
-/// TODO(PL): เสนอเพิ่ม `peer_username` ใน ChannelResponseDto เฉพาะเมื่อ
+/// TODO(PL): เสนอเพิ่ม `peer_core_user_id` ใน ChannelResponseDto เฉพาะเมื่อ
 /// kind = 'DM' จะได้ไม่ต้องเดาจากชื่อห้องแบบนี้
-function peerOf(thread: Channel, myUsername: string): string {
-  if (thread.name && thread.name !== myUsername) {
+function peerOf(thread: Channel, myCoreUserId: string): string {
+  if (thread.name && thread.name !== myCoreUserId) {
     return thread.name;
   }
 
@@ -283,39 +283,74 @@ function NewMessage({
   onStarted: (channel: Channel) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [people, setPeople] = useState<ProfileSummary[]>([]);
+  const [q, setQ] = useState('');
+
+  /// ผลค้นหา **พร้อมคำค้นที่ใช้หามัน**
+  ///
+  /// เก็บคำค้นไว้ด้วยเพื่อให้รู้ว่าผลชุดนี้ตรงกับที่พิมพ์อยู่ตอนนี้หรือยัง —
+  /// ทำให้คำนวณ "กำลังค้นหา" ได้จาก state ที่มีอยู่ ไม่ต้องมี useState แยก
+  /// แล้วไปสั่ง setLoading ในตัว effect ซึ่งกฎ react-hooks ของ React Compiler
+  /// ห้ามไว้ (setState ระหว่าง effect ทำให้เกิดการวาดซ้ำรอบพิเศษทุกครั้ง)
+  const [results, setResults] = useState<{
+    term: string;
+    items: SearchHit[];
+  } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const me = getIdentity();
+  const me = useMe();
+
+  // ค้นคนจริงจาก `GET /search?kind=people`
+  //
+  // เดิมตรงนี้อ่านรายชื่อผู้ใช้สมมติที่ฮาร์ดโค้ดไว้ในโค้ดหน้าบ้าน ซึ่งแปลว่า
+  // เริ่มแชทได้เฉพาะกับคนห้าคนที่เขียนไว้ และคนจริงที่ล็อกอินเข้ามาจะไม่โผล่
+  // ในรายการเลย
+  //
+  // ค้นได้เฉพาะคนที่เคยปรากฏในระบบนี้ (ตาราง profile_cache) ไม่ใช่ทุกคนใน
+  // มหาวิทยาลัย — Core Hub ยังไม่เปิด endpoint ค้นคนให้ระบบย่อยเรียก
+  // (data-dictionary.md ข้อ 1.2: GET /api/v1/users/:id ต้องมี permission)
+  const term = q.trim();
+  const longEnough = term.length >= 2;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !longEnough) return;
 
-    // คนที่เริ่มคุยได้ — ตอนนี้ใช้รายชื่อของโหมดพัฒนา
+    // หน่วงก่อนยิง ไม่งั้นพิมพ์ชื่อหนึ่งชื่อ = ยิงหลังบ้านทุกตัวอักษร
     //
-    // ของจริงต้องมาจาก endpoint ค้นคนของ Core (ยังไม่มี) หรือจาก
-    // GET /search?kind=people ซึ่งค้นได้เฉพาะคนที่เคยถูกซิงก์ชื่อมาแล้ว
-    // TODO(PL): ถาม PM ว่า Core มี endpoint ค้นคนไหม
-    const names = DEV_IDENTITIES.filter(
-      (identity) => identity.username !== me.username,
-    ).map((identity) => identity.username);
+    // ทุก setState อยู่ใน callback ของ timer ไม่ใช่ในตัว effect ตรง ๆ
+    const timer = setTimeout(() => {
+      void api
+        .list<SearchHit>(`/search${qs({ q: term, kind: 'people', limit: 10 })}`)
+        .then((page) => {
+          setError(null);
+          setResults({
+            term,
+            // ตัดตัวเองออก — เริ่มแชทกับตัวเองไม่ได้ และหลังบ้านก็ปฏิเสธอยู่แล้ว
+            items: page.items.filter((hit) => hit.id !== me.id),
+          });
+        })
+        .catch(() => {
+          setError('ค้นหาไม่สำเร็จ');
+          setResults({ term, items: [] });
+        });
+    }, 300);
 
-    void api
-      .get<ProfileSummary[]>(
-        `/profiles?usernames=${names.map(encodeURIComponent).join(',')}`,
-      )
-      .then(setPeople)
-      .catch(() => setError('โหลดรายชื่อไม่สำเร็จ'));
-  }, [open, me.username]);
+    return () => clearTimeout(timer);
+  }, [open, longEnough, term, me.id]);
 
-  async function start(username: string) {
-    setBusy(username);
+  // คำนวณจาก state ที่มี ไม่เก็บซ้ำ — ผลที่ยังไม่ตรงกับคำที่พิมพ์อยู่
+  // แปลว่ายังค้นไม่เสร็จ
+  const fresh = results?.term === term;
+  const loading = longEnough && !fresh;
+  const people = fresh ? results.items : [];
+
+  async function start(coreUserId: string) {
+    setBusy(coreUserId);
     setError(null);
 
     try {
       // หลังบ้านหาห้องเดิมก่อนสร้างใหม่ จึงกดซ้ำไม่ได้ห้องซ้ำ
       const channel = await api.post<Channel>('/direct-channels', {
-        peer_username: username,
+        peer_core_user_id: coreUserId,
       });
 
       onStarted(channel);
@@ -344,42 +379,67 @@ function NewMessage({
             ข้อความใหม่
           </p>
 
+          <div className="border-b border-border p-2">
+            <label htmlFor="new-message-search" className="sr-only">
+              ค้นหาคน
+            </label>
+            <input
+              id="new-message-search"
+              type="search"
+              value={q}
+              onChange={(event) => setQ(event.target.value)}
+              placeholder="พิมพ์ชื่อเพื่อค้นหา"
+              autoComplete="off"
+              className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
+
           {error && (
             <p className="px-3 py-2 text-xs text-destructive">{error}</p>
           )}
 
-          {people.length === 0 && !error && (
+          {!error && loading && (
             <p className="px-3 py-4 text-sm text-muted-foreground">
-              กำลังโหลดรายชื่อ…
+              กำลังค้นหา…
+            </p>
+          )}
+
+          {!error && !longEnough && (
+            <p className="px-3 py-4 text-sm text-muted-foreground">
+              พิมพ์อย่างน้อย 2 ตัวอักษร
+            </p>
+          )}
+
+          {!error && !loading && longEnough && people.length === 0 && (
+            <p className="px-3 py-4 text-sm leading-6 text-muted-foreground">
+              ไม่พบใคร — ค้นได้เฉพาะคนที่เคยใช้งานระบบนี้แล้ว
             </p>
           )}
 
           {people.map((person) => (
             <button
-              key={person.username}
+              key={person.id}
               type="button"
               disabled={busy !== null}
-              onClick={() => void start(person.username)}
+              onClick={() => void start(person.id)}
               className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-accent disabled:opacity-50"
             >
               <UserAvatar
-                username={person.username}
-                displayName={person.display_name}
-                avatarUrl={person.avatar_url}
-                badge={person.badge}
+                coreUserId={person.id}
+                displayName={person.title}
+                avatarUrl={null}
+                badge={null}
                 size={36}
               />
 
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm">
-                  {person.display_name}
-                </span>
+                <span className="block truncate text-sm">{person.title}</span>
                 <span className="block truncate font-mono text-[11px] text-muted-foreground">
-                  {person.username}
+                  {person.id}
                 </span>
               </span>
 
-              {busy === person.username && (
+              {busy === person.id && (
                 <Loader2 className="size-4 shrink-0 animate-spin" />
               )}
             </button>
@@ -409,7 +469,7 @@ function Thread({
 
   const socketRef = useRef<Socket | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const me = getIdentity();
+  const me = useMe();
   const { startCall, inCall } = useCall();
 
   useEffect(() => {
@@ -482,16 +542,16 @@ function Thread({
         );
 
         unbind.push(
-          bindSocket<{ channel_id: string; username: string }>(
+          bindSocket<{ channel_id: string; coreUserId: string }>(
             socket,
             'typing:sync',
             (payload) => {
               if (payload.channel_id !== thread.id) return;
 
               setTyping((prev) =>
-                prev.includes(payload.username)
+                prev.includes(payload.coreUserId)
                   ? prev
-                  : [...prev, payload.username],
+                  : [...prev, payload.coreUserId],
               );
 
               // เก็บตัวจับเวลาไว้ล้างตอนออกจากหน้า ไม่งั้นมันจะยิง setState
@@ -500,7 +560,7 @@ function Thread({
                 typingTimers.delete(timer);
 
                 setTyping((prev) =>
-                  prev.filter((name) => name !== payload.username),
+                  prev.filter((name) => name !== payload.coreUserId),
                 );
               }, 2500);
 
@@ -616,7 +676,7 @@ function Thread({
     }
   }
 
-  const peer = peerOf(thread, me.username);
+  const peer = peerOf(thread, me.id);
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
@@ -629,7 +689,7 @@ function Thread({
           ← กลับ
         </button>
 
-        <UserAvatar username={peer} size={36} />
+        <UserAvatar coreUserId={peer} size={36} />
 
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold">{peer}</span>
@@ -650,7 +710,7 @@ function Thread({
             inCall
               ? 'อยู่ในสายอื่นอยู่'
               : peer === 'แชทส่วนตัว'
-                ? 'ยังไม่รู้ว่าคู่สนทนาคือใคร — ดู TODO(PL) เรื่อง peer_username'
+                ? 'ยังไม่รู้ว่าคู่สนทนาคือใคร — ดู TODO(PL) เรื่อง peer_core_user_id'
                 : `โทรหา ${peer}`
           }
           className="grid size-9 shrink-0 place-items-center rounded-lg border border-border transition-colors hover:bg-accent disabled:opacity-40"
@@ -675,7 +735,7 @@ function Thread({
 
         <ul className="space-y-2">
           {messages.map((message) => {
-            const mine = message.author_username === me.username;
+            const mine = message.author_core_user_id === me.id;
 
             return (
               <li
@@ -691,7 +751,7 @@ function Thread({
                 >
                   {!mine && (
                     <UserName
-                      username={message.author_username}
+                      coreUserId={message.author_core_user_id}
                       className="mb-0.5 block text-[11px] opacity-70"
                     />
                   )}

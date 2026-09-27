@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, ShieldAlert, Trash } from 'lucide-react';
 import MemberList from '@/components/ui/member-list';
 import { api, ApiError } from '@/lib/csmju/api';
-import { getIdentity } from '@/lib/csmju/identity';
+import { useMe } from '@/lib/csmju/session';
 import type {
   AdminOverview,
   AuditLog,
@@ -25,9 +25,9 @@ type Tab = 'overview' | 'members' | 'audit' | 'reports';
 
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>('overview');
-  const me = getIdentity();
+  const me = useMe();
 
-  const canSeePanel = me.layer1Role === 'staff' || me.layer1Role === 'admin';
+  const canSeePanel = me.coreRole === 'staff' || me.coreRole === 'admin';
 
   if (!canSeePanel) {
     return (
@@ -76,7 +76,7 @@ export default function AdminPage() {
             }`}
           >
             {option.label}
-            {option.adminOnly && me.layer1Role !== 'admin' && (
+            {option.adminOnly && me.coreRole !== 'admin' && (
               <span className="ml-1 text-[10px] text-muted-foreground">
                 admin
               </span>
@@ -285,7 +285,7 @@ function Reports() {
                   {report.target_kind}
                 </span>
                 <span className="font-mono">{report.target_id.slice(0, 8)}…</span>
-                <span>แจ้งโดย {report.reporter_username}</span>
+                <span>แจ้งโดย {report.reporter_core_user_id}</span>
                 <span className="ml-auto">
                   {new Date(report.created_at).toLocaleString('th-TH')}
                 </span>
@@ -382,7 +382,7 @@ function AuditTrail() {
                   <Trash className="size-3.5 shrink-0 text-muted-foreground" />
                   <span className="font-mono text-xs">{log.action}</span>
                   <span className="text-xs text-muted-foreground">
-                    โดย {log.actor_username} ({log.actor_layer1_role})
+                    โดย {log.actor_core_user_id} ({log.actor_core_role})
                   </span>
                   <span className="ml-auto text-xs text-muted-foreground">
                     {new Date(log.created_at).toLocaleString('th-TH')}

@@ -42,7 +42,7 @@ export class SearchHitDto {
   })
   snippet!: string | null;
 
-  @ApiProperty({ nullable: true }) author_username!: string | null;
+  @ApiProperty({ nullable: true }) author_core_user_id!: string | null;
 
   @ApiProperty({
     nullable: true,

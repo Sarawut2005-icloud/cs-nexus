@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { GatewayUser } from '../../common/auth/gateway-user.js';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { canAdministerChannel } from '../../common/auth/member-role.js';
 import { Paginated } from '../../common/http/envelope.js';
 import { PaginationQuery } from '../../common/http/pagination.dto.js';
@@ -27,10 +27,10 @@ export class ChannelsService {
   ) {}
 
   async listMine(
-    user: GatewayUser,
+    user: CoreHubUser,
     query: PaginationQuery,
   ): Promise<Paginated<ChannelResponseDto>> {
-    const where = { members: { some: { username: user.username } } };
+    const where = { members: { some: { coreUserId: user.coreUserId } } };
 
     const [channels, total] = await Promise.all([
       this.prisma.channel.findMany({
@@ -39,7 +39,7 @@ export class ChannelsService {
         skip: query.skip,
         take: query.take,
         include: {
-          members: { where: { username: user.username } },
+          members: { where: { coreUserId: user.coreUserId } },
           _count: { select: { members: true } },
         },
       }),
@@ -72,11 +72,11 @@ export class ChannelsService {
   }
 
   async create(
-    user: GatewayUser,
+    user: CoreHubUser,
     dto: CreateChannelDto,
   ): Promise<ChannelResponseDto> {
     // ห้องเรียนประจำวิชาเป็นพื้นที่ทางการ ให้เฉพาะบุคลากรสร้าง
-    if (dto.kind === 'COURSE' && user.layer1Role === 'student') {
+    if (dto.kind === 'COURSE' && user.coreRole === 'student') {
       throw new ForbiddenException(
         'ห้องประจำวิชาสร้างได้เฉพาะอาจารย์และบุคลากร — นักศึกษาสร้างห้องกลุ่มได้',
       );
@@ -90,7 +90,7 @@ export class ChannelsService {
         maxSeats: dto.max_seats ?? 8,
         // คนสร้างเป็นผู้ดูแลห้องโดยอัตโนมัติ
         members: {
-          create: { username: user.username, role: 'MODERATOR' },
+          create: { coreUserId: user.coreUserId, role: 'MODERATOR' },
         },
       },
       include: { _count: { select: { members: true } } },
@@ -105,10 +105,10 @@ export class ChannelsService {
 
   /// แชทส่วนตัว — ต้องหาห้องเดิมก่อนเสมอ ไม่งั้นสองคนจะมีหลายห้องคุยกันเอง
   async createOrFindDirect(
-    user: GatewayUser,
+    user: CoreHubUser,
     dto: CreateDirectChannelDto,
   ): Promise<ChannelResponseDto> {
-    if (dto.peer_username === user.username) {
+    if (dto.peer_core_user_id === user.coreUserId) {
       throw new BadRequestException('สร้างห้องแชทกับตัวเองไม่ได้');
     }
 
@@ -116,12 +116,12 @@ export class ChannelsService {
       where: {
         kind: 'DM',
         AND: [
-          { members: { some: { username: user.username } } },
-          { members: { some: { username: dto.peer_username } } },
+          { members: { some: { coreUserId: user.coreUserId } } },
+          { members: { some: { coreUserId: dto.peer_core_user_id } } },
         ],
       },
       include: {
-        members: { where: { username: user.username } },
+        members: { where: { coreUserId: user.coreUserId } },
         _count: { select: { members: true } },
       },
     });
@@ -144,8 +144,8 @@ export class ChannelsService {
         maxSeats: 2,
         members: {
           create: [
-            { username: user.username, role: 'MEMBER' },
-            { username: dto.peer_username, role: 'MEMBER' },
+            { coreUserId: user.coreUserId, role: 'MEMBER' },
+            { coreUserId: dto.peer_core_user_id, role: 'MEMBER' },
           ],
         },
       },
@@ -160,7 +160,7 @@ export class ChannelsService {
   }
 
   async findOne(
-    user: GatewayUser,
+    user: CoreHubUser,
     channelId: string,
   ): Promise<ChannelResponseDto> {
     const membership = await this.requireMembership(user, channelId);
@@ -178,7 +178,7 @@ export class ChannelsService {
   }
 
   async addMembers(
-    user: GatewayUser,
+    user: CoreHubUser,
     channelId: string,
     dto: AddMembersDto,
   ): Promise<{ added: number }> {
@@ -198,35 +198,35 @@ export class ChannelsService {
       );
     }
 
-    const unique = [...new Set(dto.usernames)].filter(
-      (name) => name !== user.username,
+    const unique = [...new Set(dto.coreUserIds)].filter(
+      (name) => name !== user.coreUserId,
     );
 
     const result = await this.prisma.channelMember.createMany({
-      data: unique.map((username) => ({ channelId, username })),
+      data: unique.map((coreUserId) => ({ channelId, coreUserId })),
       skipDuplicates: true,
     });
 
     return { added: result.count };
   }
 
-  async leave(user: GatewayUser, channelId: string): Promise<void> {
+  async leave(user: CoreHubUser, channelId: string): Promise<void> {
     await this.requireMembership(user, channelId);
 
     await this.prisma.channelMember.delete({
-      where: { channelId_username: { channelId, username: user.username } },
+      where: { channelId_coreUserId: { channelId, coreUserId: user.coreUserId } },
     });
 
     // ลบแถวสมาชิกอย่างเดียวไม่พอ — socket ยังอยู่ในห้องของ socket.io
     // และการกระจายข้อความไม่ได้ตรวจสมาชิกซ้ำ อดีตสมาชิกจึงยังเห็นข้อความ
     // ใหม่แบบสดทุกข้อความ ทั้งที่กด "ออกจากห้อง" ไปแล้วและเปิดหน้าห้องไม่ได้
-    this.bus.evictFromRoom({ room: channelId, username: user.username });
+    this.bus.evictFromRoom({ room: channelId, coreUserId: user.coreUserId });
   }
 
   /// อัปเดตว่าอ่านถึงข้อความไหนแล้ว — ทำให้ badge ยังไม่อ่านคำนวณด้วยการลบเลข
   /// แทนที่จะต้อง COUNT ทุกครั้งที่โหลดรายการห้อง
   async markRead(
-    user: GatewayUser,
+    user: CoreHubUser,
     channelId: string,
     seq: number,
   ): Promise<{ last_read_seq: number }> {
@@ -241,7 +241,7 @@ export class ChannelsService {
     //
     // เงื่อนไข lastReadSeq < seq ทำให้การเขียนที่ถอยหลังไม่เข้าเงื่อนไขเลย
     await this.prisma.channelMember.updateMany({
-      where: { channelId, username: user.username, lastReadSeq: { lt: seq } },
+      where: { channelId, coreUserId: user.coreUserId, lastReadSeq: { lt: seq } },
       data: { lastReadSeq: seq },
     });
 
@@ -253,10 +253,10 @@ export class ChannelsService {
   /// ใช้ตอนโทร: ต้องรู้ว่าปลายทางอยู่ห้องเดียวกันก่อนส่งเสียงกริ่ง
   /// คืน boolean ไม่ throw เพราะผู้เรียกต้องแปลงเป็นข้อความที่ไม่บอกว่า
   /// คนชื่อนั้นมีอยู่จริงหรือไม่
-  async isMember(username: string, channelId: string): Promise<boolean> {
+  async isMember(coreUserId: string, channelId: string): Promise<boolean> {
     const membership = await this.prisma.channelMember.findUnique({
-      where: { channelId_username: { channelId, username } },
-      select: { username: true },
+      where: { channelId_coreUserId: { channelId, coreUserId } },
+      select: { coreUserId: true },
     });
 
     return membership !== null;
@@ -264,11 +264,11 @@ export class ChannelsService {
 
   /// ใช้ร่วมกันทั้ง REST และ Socket.io — จุดเดียวที่ตัดสินว่า "อยู่ห้องนี้ไหม"
   async requireMembership(
-    user: GatewayUser,
+    user: CoreHubUser,
     channelId: string,
   ): Promise<{ role: ChannelRole; lastReadSeq: number }> {
     const membership = await this.prisma.channelMember.findUnique({
-      where: { channelId_username: { channelId, username: user.username } },
+      where: { channelId_coreUserId: { channelId, coreUserId: user.coreUserId } },
       select: { role: true, lastReadSeq: true },
     });
 

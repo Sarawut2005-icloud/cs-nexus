@@ -17,7 +17,7 @@ import {
   type Badge,
 } from '@/components/csmju/user-badge';
 import { api, ApiError, qs } from '@/lib/csmju/api';
-import { getIdentity } from '@/lib/csmju/identity';
+import { useMe } from '@/lib/csmju/session';
 import type { Layer2Role, ProfileSummary } from '@/lib/csmju/types';
 
 /// รายชื่อสมาชิกของระบบย่อยสำหรับผู้ดูแล
@@ -30,7 +30,7 @@ import type { Layer2Role, ProfileSummary } from '@/lib/csmju/types';
 /// ถ้าไม่แสดง ผู้ดูแลจะไม่รู้ว่าค่าที่เห็นเป็นการตัดสินใจของใคร
 
 interface MemberRow {
-  username: string;
+  coreUserId: string;
   layer2_role: Layer2Role;
   layer2_role_explicit: boolean;
   storage_used_bytes: string;
@@ -68,8 +68,8 @@ export default function MemberList() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const online = useOnlineSet();
-  const me = getIdentity();
-  const isAdmin = me.layer1Role === 'admin';
+  const me = useMe();
+  const isAdmin = me.coreRole === 'admin';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -86,15 +86,15 @@ export default function MemberList() {
 
       setMembers(page.items);
 
-      // แปลง username เป็นชื่อจริงในคำขอเดียว ไม่ยิงทีละคน
+      // แปลง coreUserId เป็นชื่อจริงในคำขอเดียว ไม่ยิงทีละคน
       if (page.items.length > 0) {
         const profiles = await api.get<ProfileSummary[]>(
-          `/profiles?usernames=${page.items
-            .map((row) => encodeURIComponent(row.username))
+          `/profiles?coreUserIds=${page.items
+            .map((row) => encodeURIComponent(row.coreUserId))
             .join(',')}`,
         );
 
-        setNames(new Map(profiles.map((row) => [row.username, row])));
+        setNames(new Map(profiles.map((row) => [row.coreUserId, row])));
       }
     } catch (caught) {
       setError(
@@ -118,12 +118,12 @@ export default function MemberList() {
 
     try {
       const updated = await api.patch<MemberRow>(
-        `/subsystem-members/${encodeURIComponent(member.username)}/role`,
+        `/subsystem-members/${encodeURIComponent(member.coreUserId)}/role`,
         { layer2_role: role, reason: 'เปลี่ยนจากรายชื่อสมาชิก' },
       );
 
       setMembers((prev) =>
-        prev.map((row) => (row.username === member.username ? updated : row)),
+        prev.map((row) => (row.coreUserId === member.coreUserId ? updated : row)),
       );
     } catch (caught) {
       // เช่น "คุณเป็นผู้ดูแลคนสุดท้ายของระบบย่อยนี้"
@@ -136,7 +136,7 @@ export default function MemberList() {
 
     try {
       const updated = await api.patch<MemberRow>(
-        `/subsystem-members/${encodeURIComponent(member.username)}/storage-quota`,
+        `/subsystem-members/${encodeURIComponent(member.coreUserId)}/storage-quota`,
         {
           storage_quota_bytes: megabytes * 1024 * 1024,
           reason: 'ตั้งจากรายชื่อสมาชิก',
@@ -144,7 +144,7 @@ export default function MemberList() {
       );
 
       setMembers((prev) =>
-        prev.map((row) => (row.username === member.username ? updated : row)),
+        prev.map((row) => (row.coreUserId === member.coreUserId ? updated : row)),
       );
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : 'ตั้งโควตาไม่สำเร็จ');
@@ -235,7 +235,7 @@ export default function MemberList() {
 
         <ul className="divide-y divide-border">
           {members.map((member) => {
-            const profile = names.get(member.username);
+            const profile = names.get(member.coreUserId);
             const usedPercent =
               Number(member.storage_quota_bytes) > 0
                 ? (Number(member.storage_used_bytes) /
@@ -245,11 +245,11 @@ export default function MemberList() {
 
             return (
               <li
-                key={member.username}
+                key={member.coreUserId}
                 className="flex flex-wrap items-center gap-3 px-4 py-3"
               >
                 <UserAvatar
-                  username={member.username}
+                  coreUserId={member.coreUserId}
                   displayName={profile?.display_name}
                   avatarUrl={profile?.avatar_url}
                   badge={badgeFor(member.layer2_role)}
@@ -258,9 +258,9 @@ export default function MemberList() {
 
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 truncate text-sm font-medium">
-                    {profile?.display_name ?? member.username}
+                    {profile?.display_name ?? member.coreUserId}
                     <VerifiedBadge badge={badgeFor(member.layer2_role)} />
-                    {online.has(member.username) && (
+                    {online.has(member.coreUserId) && (
                       <span className="text-[11px] font-normal text-success">
                         ออนไลน์
                       </span>
@@ -268,7 +268,7 @@ export default function MemberList() {
                   </p>
 
                   <p className="truncate font-mono text-[11px] text-muted-foreground">
-                    {member.username}
+                    {member.coreUserId}
                   </p>
 
                   <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -296,7 +296,7 @@ export default function MemberList() {
                       // ไม่มีชื่อ = โปรแกรมอ่านหน้าจออ่านว่า "กล่องตัวเลือก"
                       // เฉย ๆ ในหน้าที่มีสมาชิกหลายสิบคน ผู้ใช้จึงไม่รู้ว่า
                       // กำลังเปลี่ยนสิทธิ์ของใครอยู่
-                      aria-label={`สิทธิ์ของ ${member.username}`}
+                      aria-label={`สิทธิ์ของ ${member.coreUserId}`}
                       className="rounded-lg border border-input bg-background px-2 py-1 text-xs"
                     >
                       <option value="GUEST">สมาชิกทั่วไป</option>

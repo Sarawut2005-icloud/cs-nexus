@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { GatewayUser } from '../../common/auth/gateway-user.js';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { Paginated } from '../../common/http/envelope.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { RealtimeBus } from '../../common/realtime/realtime-bus.js';
@@ -14,10 +14,10 @@ import {
 
 export interface PushInput {
   /// ผู้รับ
-  username: string;
+  coreUserId: string;
   kind: NotificationKind;
   refId: string;
-  actorUsername?: string;
+  actorCoreUserId?: string;
   payload?: Record<string, unknown>;
 }
 
@@ -34,17 +34,17 @@ export class NotificationsService {
   /// การส่งข้อความล้มไปด้วย งานหลักสำเร็จไปแล้วก่อนจะมาถึงบรรทัดนี้
   async push(input: PushInput): Promise<void> {
     // ไม่แจ้งเตือนตัวเอง — คนกดรู้อยู่แล้วว่าตัวเองกดอะไร
-    if (input.actorUsername === input.username) {
+    if (input.actorCoreUserId === input.coreUserId) {
       return;
     }
 
     try {
       const row = await this.prisma.notification.create({
         data: {
-          username: input.username,
+          coreUserId: input.coreUserId,
           kind: input.kind,
           refId: input.refId,
-          actorUsername: input.actorUsername ?? null,
+          actorCoreUserId: input.actorCoreUserId ?? null,
           // cast เพราะชนิด JSON input ของ Prisma ไม่ยอมรับ null ที่ระดับ field
           // แต่ payload ของเรามี null ซ้อนอยู่ข้างในได้ตามปกติ (เช่น preview: null)
           // ซึ่ง Postgres เก็บเป็น JSON null ได้ถูกต้องอยู่แล้ว
@@ -53,16 +53,16 @@ export class NotificationsService {
       });
 
       this.bus.pushToUser({
-        username: input.username,
+        coreUserId: input.coreUserId,
         notification: {
           id: row.id,
           kind: row.kind,
           ref_id: row.refId,
-          actor_username: row.actorUsername,
+          actor_core_user_id: row.actorCoreUserId,
           payload: row.payload ?? null,
           created_at: row.createdAt.toISOString(),
         },
-        unread_count: await this.rawUnreadCount(input.username),
+        unread_count: await this.rawUnreadCount(input.coreUserId),
       });
     } catch {
       // ตั้งใจกลืน — ดูเหตุผลใน doc comment ด้านบน
@@ -71,8 +71,8 @@ export class NotificationsService {
 
   /// แจ้งหลายคนพร้อมกัน เช่น @everyone ในห้อง หรือประกาศนัดประชุม
   async pushMany(
-    usernames: string[],
-    input: Omit<PushInput, 'username'>,
+    coreUserIds: string[],
+    input: Omit<PushInput, 'coreUserId'>,
   ): Promise<void> {
     // ไม่เรียก push() ทีละคน
     //
@@ -82,8 +82,8 @@ export class NotificationsService {
     // ระบบค้างตามไปด้วย ทั้งที่ต้นเหตุคือการแจ้งเตือนอย่างเดียว
     //
     // เขียนทีเดียวด้วย createMany แล้วนับยอดยังไม่อ่านของทุกคนในคิวรีเดียว
-    const unique = [...new Set(usernames)].filter(
-      (username) => username !== input.actorUsername,
+    const unique = [...new Set(coreUserIds)].filter(
+      (coreUserId) => coreUserId !== input.actorCoreUserId,
     );
 
     if (unique.length === 0) {
@@ -92,11 +92,11 @@ export class NotificationsService {
 
     try {
       await this.prisma.notification.createMany({
-        data: unique.map((username) => ({
-          username,
+        data: unique.map((coreUserId) => ({
+          coreUserId,
           kind: input.kind,
           refId: input.refId,
-          actorUsername: input.actorUsername ?? null,
+          actorCoreUserId: input.actorCoreUserId ?? null,
           payload: input.payload as Prisma.InputJsonValue | undefined,
         })),
       });
@@ -104,7 +104,7 @@ export class NotificationsService {
       // createMany ไม่คืนแถวที่สร้าง จึงอ่านกลับมาเพื่อส่งเข้า socket
       const rows = await this.prisma.notification.findMany({
         where: {
-          username: { in: unique },
+          coreUserId: { in: unique },
           kind: input.kind,
           refId: input.refId,
         },
@@ -113,27 +113,27 @@ export class NotificationsService {
       });
 
       const unreadPerUser = await this.prisma.notification.groupBy({
-        by: ['username'],
-        where: { username: { in: unique }, readAt: null },
+        by: ['coreUserId'],
+        where: { coreUserId: { in: unique }, readAt: null },
         _count: { _all: true },
       });
 
       const unreadBy = new Map(
-        unreadPerUser.map((row) => [row.username, row._count._all]),
+        unreadPerUser.map((row) => [row.coreUserId, row._count._all]),
       );
 
       for (const row of rows) {
         this.bus.pushToUser({
-          username: row.username,
+          coreUserId: row.coreUserId,
           notification: {
             id: row.id,
             kind: row.kind,
             ref_id: row.refId,
-            actor_username: row.actorUsername,
+            actor_core_user_id: row.actorCoreUserId,
             payload: row.payload ?? null,
             created_at: row.createdAt.toISOString(),
           },
-          unread_count: unreadBy.get(row.username) ?? 0,
+          unread_count: unreadBy.get(row.coreUserId) ?? 0,
         });
       }
     } catch {
@@ -142,11 +142,11 @@ export class NotificationsService {
   }
 
   async list(
-    user: GatewayUser,
+    user: CoreHubUser,
     query: ListNotificationsQuery,
   ): Promise<Paginated<NotificationResponseDto>> {
     const where = {
-      username: user.username,
+      coreUserId: user.coreUserId,
       ...(query.unread_only === 'true' ? { readAt: null } : {}),
     };
 
@@ -163,14 +163,14 @@ export class NotificationsService {
     return new Paginated(rows.map(toNotificationResponse), query.meta(total));
   }
 
-  async unreadCount(user: GatewayUser): Promise<UnreadCountDto> {
-    return { unread_count: await this.rawUnreadCount(user.username) };
+  async unreadCount(user: CoreHubUser): Promise<UnreadCountDto> {
+    return { unread_count: await this.rawUnreadCount(user.coreUserId) };
   }
 
-  async markRead(user: GatewayUser, id: string): Promise<UnreadCountDto> {
-    // ค้นด้วย username ด้วย เพื่อไม่ให้ mark แจ้งเตือนของคนอื่นได้
+  async markRead(user: CoreHubUser, id: string): Promise<UnreadCountDto> {
+    // ค้นด้วย coreUserId ด้วย เพื่อไม่ให้ mark แจ้งเตือนของคนอื่นได้
     const found = await this.prisma.notification.findFirst({
-      where: { id, username: user.username },
+      where: { id, coreUserId: user.coreUserId },
       select: { id: true, readAt: true },
     });
 
@@ -185,21 +185,21 @@ export class NotificationsService {
       });
     }
 
-    return { unread_count: await this.rawUnreadCount(user.username) };
+    return { unread_count: await this.rawUnreadCount(user.coreUserId) };
   }
 
-  async markAllRead(user: GatewayUser): Promise<{ marked: number }> {
+  async markAllRead(user: CoreHubUser): Promise<{ marked: number }> {
     const result = await this.prisma.notification.updateMany({
-      where: { username: user.username, readAt: null },
+      where: { coreUserId: user.coreUserId, readAt: null },
       data: { readAt: new Date() },
     });
 
     return { marked: result.count };
   }
 
-  private rawUnreadCount(username: string): Promise<number> {
+  private rawUnreadCount(coreUserId: string): Promise<number> {
     return this.prisma.notification.count({
-      where: { username, readAt: null },
+      where: { coreUserId, readAt: null },
     });
   }
 }

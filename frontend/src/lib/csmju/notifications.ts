@@ -8,10 +8,10 @@ import type { Notification } from './types';
 
 /// ข้อความของแจ้งเตือนแต่ละชนิด
 ///
-/// หลังบ้านส่ง kind + actor_username + payload มาให้ครบในหนึ่ง query
+/// หลังบ้านส่ง kind + actor_core_user_id + payload มาให้ครบในหนึ่ง query
 /// หน้าบ้านจึงประกอบข้อความได้โดยไม่ต้องยิงถามเพิ่มทีละรายการ
 export function describeNotification(item: Notification): string {
-  const who = item.actor_username ?? 'มีคน';
+  const who = item.actor_core_user_id ?? 'มีคน';
   const payload = item.payload ?? {};
   const preview = typeof payload.preview === 'string' ? payload.preview : null;
 
@@ -69,8 +69,8 @@ export function notificationLink(item: Notification): string | null {
 
   switch (item.kind) {
     case 'FOLLOW':
-      return item.actor_username
-        ? `/profile/${encodeURIComponent(item.actor_username)}`
+      return item.actor_core_user_id
+        ? `/profile/${encodeURIComponent(item.actor_core_user_id)}`
         : null;
 
     case 'MENTION':

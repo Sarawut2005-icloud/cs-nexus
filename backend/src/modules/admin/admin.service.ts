@@ -3,7 +3,7 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
-import type { GatewayUser } from '../../common/auth/gateway-user.js';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { RolesGuard } from '../../common/auth/roles.guard.js';
 import { Paginated } from '../../common/http/envelope.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
@@ -40,7 +40,7 @@ export class AdminService {
     }
 
     const where = {
-      ...(query.actor_username ? { actorUsername: query.actor_username } : {}),
+      ...(query.actor_core_user_id ? { actorCoreUserId: query.actor_core_user_id } : {}),
       ...(query.action ? { action: query.action } : {}),
       ...(since || until
         ? {
@@ -71,7 +71,7 @@ export class AdminService {
     const where = {
       ...(query.layer2_role ? { layer2Role: query.layer2_role } : {}),
       ...(query.q
-        ? { username: { contains: query.q, mode: 'insensitive' as const } }
+        ? { coreUserId: { contains: query.q, mode: 'insensitive' as const } }
         : {}),
     };
 
@@ -97,12 +97,12 @@ export class AdminService {
   /// แต่หลังจากนั้นไม่มีอะไรเขียนคอลัมน์นี้อีกเลย — แปลว่าถ้าอาจารย์อยากตั้ง
   /// นักศึกษาคนหนึ่งเป็นผู้ช่วยสอน (EDITOR) จะทำไม่ได้เลยจนถึงรอบนี้
   async updateRole(
-    actor: GatewayUser,
-    username: string,
+    actor: CoreHubUser,
+    coreUserId: string,
     dto: UpdateMemberRoleDto,
   ): Promise<MemberResponseDto> {
     // กันตัดขาตัวเอง: ผู้ดูแลคนสุดท้ายลดสิทธิ์ตัวเองแล้วจะไม่มีใครแก้กลับได้
-    if (username === actor.username && dto.layer2_role !== 'ADMIN') {
+    if (coreUserId === actor.coreUserId && dto.layer2_role !== 'ADMIN') {
       const admins = await this.prisma.subsystemMember.count({
         where: { layer2Role: 'ADMIN' },
       });
@@ -115,17 +115,17 @@ export class AdminService {
     }
 
     const before = await this.prisma.subsystemMember.findUnique({
-      where: { username },
+      where: { coreUserId },
     });
 
     return this.prisma.$transaction(async (tx) => {
       // explicit = true บอกว่านี่คือเจตนาของคน ไม่ใช่ค่าที่แปลงมาจาก
-      // layer1_role — resolveMember จะไม่เขียนทับค่านี้อีก
+      // core_role — resolveMember จะไม่เขียนทับค่านี้อีก
       const member = await tx.subsystemMember.upsert({
-        where: { username },
+        where: { coreUserId },
         update: { layer2Role: dto.layer2_role, layer2RoleExplicit: true },
         create: {
-          username,
+          coreUserId,
           layer2Role: dto.layer2_role,
           layer2RoleExplicit: true,
         },
@@ -133,11 +133,11 @@ export class AdminService {
 
       await tx.auditLog.create({
         data: {
-          actorUsername: actor.username,
-          actorLayer1Role: actor.layer1Role,
+          actorCoreUserId: actor.coreUserId,
+          actorCoreRole: actor.coreRole,
           action: 'member.role_change',
           targetKind: 'MEMBER',
-          targetId: username,
+          targetId: coreUserId,
           metadata: {
             from: before?.layer2Role ?? null,
             to: dto.layer2_role,
@@ -160,11 +160,11 @@ export class AdminService {
   /// ถ้าบังคับให้แถวมีอยู่ก่อน จะ **ตั้งโควตาล่วงหน้าก่อนเปิดเทอมไม่ได้** —
   /// ซึ่งเป็นเวลาเดียวที่คนจะทำงานนี้จริง คือเตรียมให้อาจารย์ก่อนเริ่มสอน
   ///
-  /// ผลข้างเคียงที่ยอมรับ: พิมพ์ username ผิดจะได้แถวเปล่าค่าเริ่มต้นเพิ่มมา
+  /// ผลข้างเคียงที่ยอมรับ: พิมพ์ coreUserId ผิดจะได้แถวเปล่าค่าเริ่มต้นเพิ่มมา
   /// ซึ่งไม่มีผลอะไรเพราะไม่มีใครล็อกอินเข้ามาใช้มัน และเห็นได้ใน audit log
   async updateQuota(
-    actor: GatewayUser,
-    username: string,
+    actor: CoreHubUser,
+    coreUserId: string,
     dto: UpdateMemberQuotaDto,
   ): Promise<MemberResponseDto> {
     if (dto.storage_quota_bytes > MAX_QUOTA_BYTES) {
@@ -174,7 +174,7 @@ export class AdminService {
     }
 
     const before = await this.prisma.subsystemMember.findUnique({
-      where: { username },
+      where: { coreUserId },
     });
 
     // ตั้งโควตาต่ำกว่าที่ใช้ไปแล้วได้ แต่ต้องรู้ตัวว่าเกิดอะไรขึ้น:
@@ -185,21 +185,21 @@ export class AdminService {
 
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.subsystemMember.upsert({
-        where: { username },
+        where: { coreUserId },
         update: { storageQuotaBytes: BigInt(dto.storage_quota_bytes) },
         create: {
-          username,
+          coreUserId,
           storageQuotaBytes: BigInt(dto.storage_quota_bytes),
         },
       });
 
       await tx.auditLog.create({
         data: {
-          actorUsername: actor.username,
-          actorLayer1Role: actor.layer1Role,
+          actorCoreUserId: actor.coreUserId,
+          actorCoreRole: actor.coreRole,
           action: 'member.quota_change',
           targetKind: 'MEMBER',
-          targetId: username,
+          targetId: coreUserId,
           metadata: {
             from: before?.storageQuotaBytes.toString() ?? null,
             to: dto.storage_quota_bytes.toString(),

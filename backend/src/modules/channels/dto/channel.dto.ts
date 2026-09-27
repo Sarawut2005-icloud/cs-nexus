@@ -51,13 +51,13 @@ export class CreateChannelDto {
 export class CreateDirectChannelDto {
   @ApiProperty({
     example: '6704101999-somchai',
-    description: 'username ของอีกฝ่าย ตาม Shared Identity ของ CSMJU2030',
+    description: 'coreUserId ของอีกฝ่าย ตาม Shared Identity ของ CSMJU2030',
   })
   @IsString()
   @Matches(/^[A-Za-z0-9._-]{3,64}$/, {
-    message: 'username ไม่ถูกต้องตามรูปแบบของระบบกลาง',
+    message: 'coreUserId ไม่ถูกต้องตามรูปแบบของระบบกลาง',
   })
-  peer_username!: string;
+  peer_core_user_id!: string;
 }
 
 export class AddMembersDto {
@@ -65,7 +65,7 @@ export class AddMembersDto {
   @IsArray()
   @ArrayMaxSize(50, { message: 'เพิ่มได้ครั้งละไม่เกิน 50 คน' })
   @IsString({ each: true })
-  usernames!: string[];
+  coreUserIds!: string[];
 }
 
 export class ChannelResponseDto {

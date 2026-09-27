@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { GatewayUser } from '../../common/auth/gateway-user.js';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { Paginated } from '../../common/http/envelope.js';
 import { PaginationQuery } from '../../common/http/pagination.dto.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
@@ -30,7 +30,7 @@ export class PostsService {
   ) {}
 
   async list(
-    user: GatewayUser,
+    user: CoreHubUser,
     query: ListPostsQuery,
   ): Promise<Paginated<PostResponseDto>> {
     const where = await this.feedWhere(user, query);
@@ -59,7 +59,7 @@ export class PostsService {
     );
   }
 
-  async findOne(user: GatewayUser, id: string): Promise<PostResponseDto> {
+  async findOne(user: CoreHubUser, id: string): Promise<PostResponseDto> {
     const post = await this.prisma.post.findUnique({ where: { id } });
 
     if (!post) {
@@ -75,16 +75,16 @@ export class PostsService {
   }
 
   /// เงื่อนไขของกระดาน — ทั้งหมด เฉพาะคนที่ติดตาม หรือของคนคนเดียว
-  private async feedWhere(user: GatewayUser, query: ListPostsQuery) {
-    if (query.author_username) {
-      return { authorUsername: query.author_username };
+  private async feedWhere(user: CoreHubUser, query: ListPostsQuery) {
+    if (query.author_core_user_id) {
+      return { authorCoreUserId: query.author_core_user_id };
     }
 
     if (query.feed === 'following') {
-      const usernames = await this.follows.followingUsernames(user);
+      const coreUserIds = await this.follows.followingCoreUserIds(user);
 
       return {
-        authorUsername: { in: usernames },
+        authorCoreUserId: { in: coreUserIds },
         ...(query.course_tag ? { courseTag: query.course_tag } : {}),
       };
     }
@@ -93,7 +93,7 @@ export class PostsService {
   }
 
   async create(
-    user: GatewayUser,
+    user: CoreHubUser,
     dto: CreatePostDto,
   ): Promise<PostResponseDto> {
     const post = await this.prisma.post.create({
@@ -101,7 +101,7 @@ export class PostsService {
         title: dto.title,
         content: dto.content,
         courseTag: dto.course_tag ?? null,
-        authorUsername: user.username,
+        authorCoreUserId: user.coreUserId,
       },
     });
 
@@ -109,17 +109,17 @@ export class PostsService {
   }
 
 
-  async remove(user: GatewayUser, id: string): Promise<void> {
+  async remove(user: CoreHubUser, id: string): Promise<void> {
     const post = await this.prisma.post.findUnique({ where: { id } });
 
     if (!post) {
       throw new NotFoundException('ไม่พบโพสต์นี้');
     }
 
-    const isOwner = post.authorUsername === user.username;
+    const isOwner = post.authorCoreUserId === user.coreUserId;
     // บุคลากรและผู้ดูแลลบได้ เพราะกระดานข่าวเป็นพื้นที่ทางการของสาขา
     const canModerate =
-      user.layer1Role === 'admin' || user.layer1Role === 'staff';
+      user.coreRole === 'admin' || user.coreRole === 'staff';
 
     if (!isOwner && !canModerate) {
       throw new ForbiddenException('ลบได้เฉพาะโพสต์ของตัวเอง');
@@ -130,13 +130,13 @@ export class PostsService {
 
       await tx.auditLog.create({
         data: {
-          actorUsername: user.username,
-          actorLayer1Role: user.layer1Role,
+          actorCoreUserId: user.coreUserId,
+          actorCoreRole: user.coreRole,
           action: 'post.delete',
           targetKind: 'POST',
           targetId: id,
           metadata: {
-            author_username: post.authorUsername,
+            author_core_user_id: post.authorCoreUserId,
             by_moderator: !isOwner,
           },
         },
@@ -168,7 +168,7 @@ export class PostsService {
   /// สร้างคอมเมนต์และเพิ่มตัวนับในทรานแซกชันเดียว
   /// ถ้าแยกกัน ตัวนับจะเพี้ยนทันทีที่มีการเขียนพร้อมกันสองคน
   async addComment(
-    user: GatewayUser,
+    user: CoreHubUser,
     postId: string,
     dto: CreateCommentDto,
   ): Promise<PostCommentResponseDto> {
@@ -178,7 +178,7 @@ export class PostsService {
       const created = await tx.postComment.create({
         data: {
           postId,
-          authorUsername: user.username,
+          authorCoreUserId: user.coreUserId,
           content: dto.content,
         },
       });
@@ -193,14 +193,14 @@ export class PostsService {
 
     const post = await this.prisma.post.findUniqueOrThrow({
       where: { id: postId },
-      select: { authorUsername: true, title: true },
+      select: { authorCoreUserId: true, title: true },
     });
 
     await this.notifications.push({
-      username: post.authorUsername,
+      coreUserId: post.authorCoreUserId,
       kind: 'POST_COMMENT',
       refId: postId,
-      actorUsername: user.username,
+      actorCoreUserId: user.coreUserId,
       payload: { preview: dto.content.slice(0, 120), title: post.title },
     });
 
@@ -208,7 +208,7 @@ export class PostsService {
   }
 
   async removeComment(
-    user: GatewayUser,
+    user: CoreHubUser,
     postId: string,
     commentId: string,
   ): Promise<void> {
@@ -220,9 +220,9 @@ export class PostsService {
       throw new NotFoundException('ไม่พบความคิดเห็นนี้');
     }
 
-    const isOwner = comment.authorUsername === user.username;
+    const isOwner = comment.authorCoreUserId === user.coreUserId;
     const canModerate =
-      user.layer1Role === 'admin' || user.layer1Role === 'staff';
+      user.coreRole === 'admin' || user.coreRole === 'staff';
 
     if (!isOwner && !canModerate) {
       throw new ForbiddenException('ลบได้เฉพาะความคิดเห็นของตัวเอง');

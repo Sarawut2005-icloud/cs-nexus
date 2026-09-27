@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { GatewayUser } from '../../common/auth/gateway-user.js';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { Paginated } from '../../common/http/envelope.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import type { ReportTarget } from '../../generated/prisma/enums.js';
@@ -25,19 +25,19 @@ export class ReportsService {
   /// unique(reporter, targetKind, targetId) ทำให้คนเดิมรายงานเรื่องเดิมซ้ำไม่ได้
   /// ซึ่งกันทั้งการกดพลาดและการปั่นยอดรายงานเพื่อกลั่นแกล้งคนอื่น
   async create(
-    user: GatewayUser,
+    user: CoreHubUser,
     dto: CreateReportDto,
   ): Promise<ReportResponseDto> {
     await this.assertTargetExists(dto.target_kind, dto.target_id);
 
-    if (dto.target_kind === 'USER' && dto.target_id === user.username) {
+    if (dto.target_kind === 'USER' && dto.target_id === user.coreUserId) {
       throw new BadRequestException('รายงานตัวเองไม่ได้');
     }
 
     const existing = await this.prisma.report.findUnique({
       where: {
-        reporterUsername_targetKind_targetId: {
-          reporterUsername: user.username,
+        reporterCoreUserId_targetKind_targetId: {
+          reporterCoreUserId: user.coreUserId,
           targetKind: dto.target_kind,
           targetId: dto.target_id,
         },
@@ -52,7 +52,7 @@ export class ReportsService {
 
     const report = await this.prisma.report.create({
       data: {
-        reporterUsername: user.username,
+        reporterCoreUserId: user.coreUserId,
         targetKind: dto.target_kind,
         targetId: dto.target_id,
         reason: dto.reason,
@@ -64,11 +64,11 @@ export class ReportsService {
 
   /// รายงานที่ฉันเคยแจ้ง — ผู้ใช้ทั่วไปเห็นได้แค่ของตัวเอง
   async listMine(
-    user: GatewayUser,
+    user: CoreHubUser,
     query: ListReportsQuery,
   ): Promise<Paginated<ReportResponseDto>> {
     const where = {
-      reporterUsername: user.username,
+      reporterCoreUserId: user.coreUserId,
       ...(query.status ? { status: query.status } : {}),
       ...(query.target_kind ? { targetKind: query.target_kind } : {}),
     };
@@ -114,7 +114,7 @@ export class ReportsService {
   /// Blueprint หน้า 3 กำหนดให้ Admin Panel กลางอ่าน audit log ของระบบย่อยได้
   /// การตัดสินเรื่องร้องเรียนคือสิ่งที่ต้องตรวจย้อนหลังได้มากที่สุดในระบบ
   async resolve(
-    user: GatewayUser,
+    user: CoreHubUser,
     id: string,
     dto: ResolveReportDto,
   ): Promise<ReportResponseDto> {
@@ -126,7 +126,7 @@ export class ReportsService {
 
     if (report.status !== 'OPEN') {
       throw new ConflictException(
-        `รายงานนี้ถูกปิดไปแล้วโดย ${report.resolvedByUsername ?? 'ผู้ดูแล'}`,
+        `รายงานนี้ถูกปิดไปแล้วโดย ${report.resolvedByCoreUserId ?? 'ผู้ดูแล'}`,
       );
     }
 
@@ -135,21 +135,21 @@ export class ReportsService {
         where: { id },
         data: {
           status: dto.status,
-          resolvedByUsername: user.username,
+          resolvedByCoreUserId: user.coreUserId,
           resolvedAt: new Date(),
         },
       });
 
       await tx.auditLog.create({
         data: {
-          actorUsername: user.username,
-          actorLayer1Role: user.layer1Role,
+          actorCoreUserId: user.coreUserId,
+          actorCoreRole: user.coreRole,
           action: `report.${dto.status.toLowerCase()}`,
           targetKind: report.targetKind,
           targetId: report.targetId,
           metadata: {
             report_id: id,
-            reporter_username: report.reporterUsername,
+            reporter_core_user_id: report.reporterCoreUserId,
             note: dto.note ?? null,
           },
         },
@@ -204,13 +204,13 @@ export class ReportsService {
       }
       case 'USER':
       default:
-        // USER: target_id คือ username ไม่ใช่ uuid — คนที่ยังไม่เคยเข้าระบบย่อย
+        // USER: target_id คือ coreUserId ไม่ใช่ uuid — คนที่ยังไม่เคยเข้าระบบย่อย
         // นี้จะไม่มีแถวใน subsystem_members จึงยังรายงานไม่ได้ ซึ่งถูกต้องแล้ว
         // เพราะเขาไม่มีเนื้อหาอะไรในระบบเราให้ต้องรายงาน
         return Boolean(
           await this.prisma.subsystemMember.findUnique({
-            where: { username: id },
-            select: { username: true },
+            where: { coreUserId: id },
+            select: { coreUserId: true },
           }),
         );
     }

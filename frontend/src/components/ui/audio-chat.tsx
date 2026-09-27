@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 
 /// คนหนึ่งคนในสาย
 export interface VoiceParticipant {
-  username: string;
+  coreUserId: string;
   displayName?: string;
   /// เสียงของเขา — ใช้วัดระดับเพื่อรู้ว่ากำลังพูดอยู่ไหม
   stream?: MediaStream | null;
@@ -95,7 +95,7 @@ export function VoiceChat({
       <ul className="space-y-1.5">
         {participants.map((participant) => (
           <ParticipantRow
-            key={participant.username}
+            key={participant.coreUserId}
             participant={participant}
             localStream={participant.isMe ? localStream : null}
             selfMuted={participant.isMe ? muted : false}
@@ -169,7 +169,7 @@ function ParticipantRow({
   const stream = participant.isMe ? localStream : participant.stream ?? null;
   const level = useAudioLevel(stream);
   const speaking = level > 0.06 && !(participant.isMe && selfMuted);
-  const name = participant.displayName ?? participant.username;
+  const name = participant.displayName ?? participant.coreUserId;
 
   return (
     <li

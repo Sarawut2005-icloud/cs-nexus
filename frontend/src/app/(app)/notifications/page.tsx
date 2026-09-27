@@ -177,7 +177,7 @@ export default function NotificationsPage() {
           const body = (
             <>
               <UserAvatar
-                username={item.actor_username ?? 'ระบบ'}
+                coreUserId={item.actor_core_user_id ?? 'ระบบ'}
                 size={36}
                 showOnline={false}
               />

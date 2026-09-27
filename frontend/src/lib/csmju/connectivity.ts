@@ -38,7 +38,7 @@ export interface ConnectivityReport {
 
 interface IceServerLike {
   urls: string[];
-  username?: string | null;
+  coreUserId?: string | null;
   credential?: string | null;
 }
 
@@ -96,7 +96,7 @@ export async function checkConnectivity(
   const peer = new RTCPeerConnection({
     iceServers: iceServers.map((server) => ({
       urls: server.urls,
-      username: server.username ?? undefined,
+      coreUserId: server.coreUserId ?? undefined,
       credential: server.credential ?? undefined,
     })),
   });

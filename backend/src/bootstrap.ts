@@ -1,7 +1,8 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { GATEWAY_HEADERS } from './common/auth/gateway-user.js';
-import { GatewayAuthGuard } from './common/auth/gateway-auth.guard.js';
+import { CoreHubJwtGuard } from './auth/core-hub-jwt.guard.js';
+import { CoreHubTokenVerifier } from './auth/core-hub-token.verifier.js';
+import { JwksService } from './auth/jwks.service.js';
 import { RolesGuard } from './common/auth/roles.guard.js';
 import { EnvelopeInterceptor } from './common/http/envelope.js';
 import { HttpExceptionFilter } from './common/http/http-exception.filter.js';
@@ -78,17 +79,19 @@ export function configureApp(app: INestApplication): void {
   app.enableCors({
     origin: corsOrigin(),
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-      'content-type',
-      'authorization',
-      GATEWAY_HEADERS.username,
-      GATEWAY_HEADERS.layer1Role,
-      GATEWAY_HEADERS.faculty,
-      'x-gateway-secret',
-    ],
-    // ตัวตนมาจาก header ไม่ใช่ cookie จึงไม่ต้องเปิด credentials
-    // (เปิดแล้วจะใช้ origin แบบ wildcard ไม่ได้ด้วย)
-    credentials: false,
+    // ไม่มี header ตัวตนอีกแล้ว — X-User-Id / X-Layer1-Role / X-Faculty
+    // ถูกถอดออกพร้อมกับ API Gateway ที่สัญญา v1.0 บอกว่าไม่เคยมีอยู่จริง
+    // เหลือ `authorization` สำหรับ Bearer และคุกกี้ที่เบราว์เซอร์แนบเอง
+    allowedHeaders: ['content-type', 'authorization'],
+
+    // **ต้องเป็น true** เพราะ session คือคุกกี้ `core_hub_access_token`
+    // ที่ /auth/callback ตั้งไว้บนโดเมนของหลังบ้าน (:4000) ส่วนหน้าบ้าน
+    // อยู่คนละพอร์ต (:4100) ถ้าไม่เปิด เบราว์เซอร์จะไม่ส่งคุกกี้มาให้เลย
+    // แล้วทุก request จะได้ 401 ทั้งที่ผู้ใช้ล็อกอินแล้ว
+    //
+    // ผลข้างเคียงที่ต้องรู้: เปิดแล้วใช้ origin เป็น `*` ไม่ได้ —
+    // corsOrigin() จึงต้องคืนรายการโดเมนหรือ RegExp เสมอ ห้ามคืน true
+    credentials: true,
     maxAge: 86400,
   });
 
@@ -96,7 +99,7 @@ export function configureApp(app: INestApplication): void {
     new ValidationPipe({
       whitelist: true,
       // ปฏิเสธ field ที่ไม่อยู่ใน DTO ไม่ใช่แค่ตัดออกเงียบ ๆ
-      // เพื่อไม่ให้ client ยัดค่าอย่าง owner_username เข้ามาแล้วคิดว่ามันมีผล
+      // เพื่อไม่ให้ client ยัดค่าอย่าง owner_core_user_id เข้ามาแล้วคิดว่ามันมีผล
       forbidNonWhitelisted: true,
       transform: true,
       transformOptions: { enableImplicitConversion: false },
@@ -105,8 +108,18 @@ export function configureApp(app: INestApplication): void {
 
   const reflector = app.get(Reflector);
 
+  // ด่านแรกคือ "คุณเป็นใคร" — ตรวจลายเซ็น JWT ของ Core Hub ด้วยกุญแจจาก JWKS
+  // ด่านที่สองคือ "คุณทำสิ่งนี้ได้ไหม" — สิทธิ์ Layer 2 ของระบบย่อยเอง
+  //
+  // เดิมด่านแรกคือ GatewayAuthGuard ซึ่งเชื่อ header `X-User-Id` ที่ใครยิงตรง
+  // เข้าหลังบ้านก็ปลอมได้ และมีโหมด DEV_FAKE_GATEWAY ที่สร้างตัวตนขึ้นมาเอง
+  // จาก env — ทั้งสองอย่างถูกลบทิ้งแล้ว ตัวตนมาจาก token ที่ Core Hub เซ็น
+  // ทางเดียวเท่านั้น
   app.useGlobalGuards(
-    new GatewayAuthGuard(reflector),
+    new CoreHubJwtGuard(
+      reflector,
+      new CoreHubTokenVerifier(new JwksService()),
+    ),
     new RolesGuard(reflector, app.get(PrismaService)),
   );
   app.useGlobalInterceptors(new EnvelopeInterceptor());

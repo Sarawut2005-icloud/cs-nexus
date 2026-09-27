@@ -286,10 +286,10 @@
         "operationId": "ProfilesController_resolve",
         "parameters": [
           {
-            "name": "usernames",
+            "name": "coreUserIds",
             "required": false,
             "in": "query",
-            "description": "รายชื่อ username คั่นด้วยลูกน้ำ สูงสุด 100 ชื่อต่อครั้ง",
+            "description": "รายชื่อ coreUserId คั่นด้วยลูกน้ำ สูงสุด 100 ชื่อต่อครั้ง",
             "schema": {
               "example": "6704101382-anuchat,6700000001-ajarn",
               "type": "string"
@@ -301,7 +301,7 @@
             "description": ""
           }
         },
-        "summary": "แปลง username หลายตัวเป็นชื่อที่แสดง ในคำขอเดียว",
+        "summary": "แปลง coreUserId หลายตัวเป็นชื่อที่แสดง ในคำขอเดียว",
         "tags": [
           "profiles"
         ]
@@ -473,12 +473,12 @@
         ]
       }
     },
-    "/api/v1/profiles/{username}": {
+    "/api/v1/profiles/{coreUserId}": {
       "get": {
         "operationId": "ProfilesController_detail",
         "parameters": [
           {
-            "name": "username",
+            "name": "coreUserId",
             "required": true,
             "in": "path",
             "schema": {
@@ -511,7 +511,7 @@
             }
           },
           "400": {
-            "description": "รูปแบบ username ไม่ถูกต้อง",
+            "description": "รูปแบบ coreUserId ไม่ถูกต้อง",
             "content": {
               "application/json": {
                 "schema": {
@@ -560,12 +560,12 @@
         ]
       }
     },
-    "/api/v1/profiles/{username}/followers": {
+    "/api/v1/profiles/{coreUserId}/followers": {
       "get": {
         "operationId": "ProfilesController_followers",
         "parameters": [
           {
-            "name": "username",
+            "name": "coreUserId",
             "required": true,
             "in": "path",
             "schema": {
@@ -607,12 +607,12 @@
         ]
       }
     },
-    "/api/v1/profiles/{username}/following": {
+    "/api/v1/profiles/{coreUserId}/following": {
       "get": {
         "operationId": "ProfilesController_following",
         "parameters": [
           {
-            "name": "username",
+            "name": "coreUserId",
             "required": true,
             "in": "path",
             "schema": {
@@ -890,12 +890,12 @@
         ]
       }
     },
-    "/api/v1/follows/{username}": {
+    "/api/v1/follows/{coreUserId}": {
       "delete": {
         "operationId": "FollowsController_unfollow",
         "parameters": [
           {
-            "name": "username",
+            "name": "coreUserId",
             "required": true,
             "in": "path",
             "schema": {
@@ -1470,7 +1470,7 @@
     },
     "/api/v1/reels": {
       "get": {
-        "description": "feed=following = เฉพาะคนที่ติดตาม · author_username = หน้าโปรไฟล์ของคนนั้น",
+        "description": "feed=following = เฉพาะคนที่ติดตาม · author_core_user_id = หน้าโปรไฟล์ของคนนั้น",
         "operationId": "ReelsController_list",
         "parameters": [
           {
@@ -1511,7 +1511,7 @@
             }
           },
           {
-            "name": "author_username",
+            "name": "author_core_user_id",
             "required": false,
             "in": "query",
             "description": "เฉพาะคลิปของคนนี้ — ใช้ทำหน้าโปรไฟล์",
@@ -2292,10 +2292,10 @@
         "operationId": "PresenceController_get",
         "parameters": [
           {
-            "name": "usernames",
+            "name": "coreUserIds",
             "required": false,
             "in": "query",
-            "description": "รายชื่อ username คั่นด้วยลูกน้ำ · เว้นว่างเพื่อขอทุกคนที่ออนไลน์อยู่",
+            "description": "รายชื่อ coreUserId คั่นด้วยลูกน้ำ · เว้นว่างเพื่อขอทุกคนที่ออนไลน์อยู่",
             "schema": {
               "example": "6704101382-anuchat,6700000001-ajarn",
               "type": "string"
@@ -3954,7 +3954,7 @@
             }
           },
           {
-            "name": "author_username",
+            "name": "author_core_user_id",
             "required": false,
             "in": "query",
             "description": "เฉพาะกระทู้ของคนนี้ — ใช้ทำหน้าโปรไฟล์",
@@ -6407,7 +6407,7 @@
             }
           },
           {
-            "name": "actor_username",
+            "name": "actor_core_user_id",
             "required": false,
             "in": "query",
             "description": "กรองตามผู้กระทำ",
@@ -6571,7 +6571,7 @@
             "name": "q",
             "required": false,
             "in": "query",
-            "description": "ค้นจาก username บางส่วน",
+            "description": "ค้นจาก coreUserId บางส่วน",
             "schema": {
               "example": "67041",
               "type": "string"
@@ -6659,13 +6659,13 @@
         ]
       }
     },
-    "/api/v1/subsystem-members/{username}/role": {
+    "/api/v1/subsystem-members/{coreUserId}/role": {
       "patch": {
         "description": "แก้ได้เฉพาะสิทธิ์ในระบบย่อยนี้ (Layer 2) เพราะเป็น Local Data ตาม Blueprint หน้า 11 · สิทธิ์ระดับองค์กร (Layer 1) ต้องไปแก้ที่ Admin Panel กลาง",
         "operationId": "MembersAdminController_updateRole",
         "parameters": [
           {
-            "name": "username",
+            "name": "coreUserId",
             "required": true,
             "in": "path",
             "schema": {
@@ -6757,13 +6757,13 @@
         ]
       }
     },
-    "/api/v1/subsystem-members/{username}/storage-quota": {
+    "/api/v1/subsystem-members/{coreUserId}/storage-quota": {
       "patch": {
         "description": "ค่าเริ่มต้น 200 MB พอสำหรับนักศึกษา แต่ไม่พอสำหรับอาจารย์ที่อัปคลิปสอน · เพดานที่ตั้งได้คือ 5 GB · ตั้งล่วงหน้าก่อนเจ้าตัวเข้าระบบครั้งแรกได้ เพื่อเตรียมไว้ก่อนเปิดเทอม",
         "operationId": "MembersAdminController_updateQuota",
         "parameters": [
           {
-            "name": "username",
+            "name": "coreUserId",
             "required": true,
             "in": "path",
             "schema": {
@@ -6912,14 +6912,26 @@
     }
   },
   "info": {
-    "title": "CS Nexus — aie4-social-reels",
-    "description": "ระบบย่อยภายใต้ CSMJU2030 · ตัวตนมาจาก API Gateway ผ่าน header X-User-Id / X-Layer1-Role / X-Faculty",
+    "title": "CS Nexus — csmju-social-reels",
+    "description": "ระบบย่อยภายใต้ CSMJU2030 · ตัวตนมาจาก JWT ของ Core Hub ที่ระบบนี้ตรวจลายเซ็นเองด้วย JWKS ทุก request (RS256 · iss=core-hub · aud=csmju2030 · kid=core-hub-2026) ส่ง token มาได้สองทาง: Authorization: Bearer หรือคุกกี้ core_hub_access_token",
     "version": "1.0.0",
     "contact": {}
   },
   "tags": [],
   "servers": [],
   "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      },
+      "cookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "core_hub_access_token"
+      }
+    },
     "schemas": {
       "NotificationResponseDto": {
         "type": "object",
@@ -6935,7 +6947,7 @@
             "type": "string",
             "description": "id ของสิ่งที่ถูกกระทำ"
           },
-          "actor_username": {
+          "actor_core_user_id": {
             "type": "object",
             "nullable": true,
             "example": "6700000001-ajarn"
@@ -6961,7 +6973,7 @@
           "id",
           "kind",
           "ref_id",
-          "actor_username",
+          "actor_core_user_id",
           "payload",
           "read_at",
           "created_at"
@@ -7009,18 +7021,13 @@
       "MeResponseDto": {
         "type": "object",
         "properties": {
-          "username": {
+          "coreUserId": {
             "type": "string",
-            "example": "6704101382-anuchat"
+            "example": "user-002"
           },
-          "layer1_role": {
+          "core_role": {
             "type": "string",
             "example": "student"
-          },
-          "faculty": {
-            "type": "object",
-            "example": "science",
-            "nullable": true
           },
           "layer2_role": {
             "type": "string",
@@ -7044,9 +7051,8 @@
           }
         },
         "required": [
-          "username",
-          "layer1_role",
-          "faculty",
+          "coreUserId",
+          "core_role",
           "layer2_role",
           "storage_used_bytes",
           "storage_quota_bytes",
@@ -7105,13 +7111,13 @@
       "MyProfileDto": {
         "type": "object",
         "properties": {
-          "username": {
+          "coreUserId": {
             "type": "string",
             "example": "6704101382-anuchat"
           },
           "display_name": {
             "type": "string",
-            "description": "ชื่อที่แสดง มาจาก Core ผ่านแคช — ถ้ายังไม่เคยซิงก์จะคืน username ไปก่อน",
+            "description": "ชื่อที่แสดง มาจาก Core ผ่านแคช — ถ้ายังไม่เคยซิงก์จะคืน coreUserId ไปก่อน",
             "example": "อนุชาติ ณัฐธยานนท์"
           },
           "avatar_url": {
@@ -7130,7 +7136,7 @@
               "STAFF"
             ],
             "nullable": true,
-            "description": "เครื่องหมายยืนยันข้างชื่อ · null = สมาชิกทั่วไป · มาจาก layer2_role ของระบบย่อยนี้ ไม่ใช่ layer1_role (ซึ่งเราห้ามเก็บตามหน้า 10)"
+            "description": "เครื่องหมายยืนยันข้างชื่อ · null = สมาชิกทั่วไป · มาจาก layer2_role ของระบบย่อยนี้ ไม่ใช่ core_role (ซึ่งเราห้ามเก็บตามหน้า 10)"
           },
           "stats": {
             "$ref": "#/components/schemas/ProfileStatsDto"
@@ -7170,7 +7176,7 @@
               "display_name",
               "avatar_url",
               "faculty",
-              "layer1_role"
+              "core_role"
             ],
             "type": "array",
             "items": {
@@ -7179,7 +7185,7 @@
           }
         },
         "required": [
-          "username",
+          "coreUserId",
           "display_name",
           "avatar_url",
           "synced_at",
@@ -7211,13 +7217,13 @@
       "ProfileDetailDto": {
         "type": "object",
         "properties": {
-          "username": {
+          "coreUserId": {
             "type": "string",
             "example": "6704101382-anuchat"
           },
           "display_name": {
             "type": "string",
-            "description": "ชื่อที่แสดง มาจาก Core ผ่านแคช — ถ้ายังไม่เคยซิงก์จะคืน username ไปก่อน",
+            "description": "ชื่อที่แสดง มาจาก Core ผ่านแคช — ถ้ายังไม่เคยซิงก์จะคืน coreUserId ไปก่อน",
             "example": "อนุชาติ ณัฐธยานนท์"
           },
           "avatar_url": {
@@ -7236,7 +7242,7 @@
               "STAFF"
             ],
             "nullable": true,
-            "description": "เครื่องหมายยืนยันข้างชื่อ · null = สมาชิกทั่วไป · มาจาก layer2_role ของระบบย่อยนี้ ไม่ใช่ layer1_role (ซึ่งเราห้ามเก็บตามหน้า 10)"
+            "description": "เครื่องหมายยืนยันข้างชื่อ · null = สมาชิกทั่วไป · มาจาก layer2_role ของระบบย่อยนี้ ไม่ใช่ core_role (ซึ่งเราห้ามเก็บตามหน้า 10)"
           },
           "stats": {
             "$ref": "#/components/schemas/ProfileStatsDto"
@@ -7262,7 +7268,7 @@
           }
         },
         "required": [
-          "username",
+          "coreUserId",
           "display_name",
           "avatar_url",
           "synced_at",
@@ -7276,7 +7282,7 @@
       "FollowEdgeDto": {
         "type": "object",
         "properties": {
-          "username": {
+          "coreUserId": {
             "type": "string",
             "example": "6704101382-anuchat"
           },
@@ -7285,20 +7291,20 @@
           }
         },
         "required": [
-          "username",
+          "coreUserId",
           "created_at"
         ]
       },
       "FollowDto": {
         "type": "object",
         "properties": {
-          "username": {
+          "coreUserId": {
             "type": "string",
             "example": "6700000001-ajarn"
           }
         },
         "required": [
-          "username"
+          "coreUserId"
         ]
       },
       "AssetResponseDto": {
@@ -7307,7 +7313,7 @@
           "id": {
             "type": "string"
           },
-          "owner_username": {
+          "owner_core_user_id": {
             "type": "string"
           },
           "bucket": {
@@ -7348,7 +7354,7 @@
         },
         "required": [
           "id",
-          "owner_username",
+          "owner_core_user_id",
           "bucket",
           "file_name",
           "mime_type",
@@ -7458,7 +7464,7 @@
           "duration_ms": {
             "type": "number"
           },
-          "author_username": {
+          "author_core_user_id": {
             "type": "string",
             "description": "Shared Identity ของเจ้าของคลิป — ไม่มี student_id ซ้ำซ้อน",
             "example": "6704101382-anuchat"
@@ -7485,7 +7491,7 @@
           "caption",
           "asset_id",
           "duration_ms",
-          "author_username",
+          "author_core_user_id",
           "like_count",
           "view_count",
           "liked_by_me",
@@ -7554,7 +7560,7 @@
           "reel_id": {
             "type": "string"
           },
-          "author_username": {
+          "author_core_user_id": {
             "type": "string"
           },
           "content": {
@@ -7567,7 +7573,7 @@
         "required": [
           "id",
           "reel_id",
-          "author_username",
+          "author_core_user_id",
           "content",
           "created_at"
         ]
@@ -7608,7 +7614,7 @@
       "PresenceResponseDto": {
         "type": "object",
         "properties": {
-          "online_usernames": {
+          "online_core_user_ids": {
             "description": "คนที่มี socket เปิดอยู่ตอนนี้",
             "example": [
               "6704101382-anuchat"
@@ -7621,11 +7627,11 @@
           "total_online": {
             "type": "number",
             "example": 3,
-            "description": "จำนวนคนที่ออนไลน์ทั้งระบบ (ไม่ขึ้นกับตัวกรอง usernames)"
+            "description": "จำนวนคนที่ออนไลน์ทั้งระบบ (ไม่ขึ้นกับตัวกรอง coreUserIds)"
           }
         },
         "required": [
-          "online_usernames",
+          "online_core_user_ids",
           "total_online"
         ]
       },
@@ -7732,7 +7738,7 @@
       "AddMembersDto": {
         "type": "object",
         "properties": {
-          "usernames": {
+          "coreUserIds": {
             "example": [
               "6704101999-somchai"
             ],
@@ -7743,7 +7749,7 @@
           }
         },
         "required": [
-          "usernames"
+          "coreUserIds"
         ]
       },
       "MarkReadResponseDto": {
@@ -7773,14 +7779,14 @@
       "CreateDirectChannelDto": {
         "type": "object",
         "properties": {
-          "peer_username": {
+          "peer_core_user_id": {
             "type": "string",
             "example": "6704101999-somchai",
-            "description": "username ของอีกฝ่าย ตาม Shared Identity ของ CSMJU2030"
+            "description": "coreUserId ของอีกฝ่าย ตาม Shared Identity ของ CSMJU2030"
           }
         },
         "required": [
-          "peer_username"
+          "peer_core_user_id"
         ]
       },
       "MessageAttachmentDto": {
@@ -7844,7 +7850,7 @@
           "channel_id": {
             "type": "string"
           },
-          "author_username": {
+          "author_core_user_id": {
             "type": "string"
           },
           "content": {
@@ -7880,7 +7886,7 @@
             "type": "object",
             "nullable": true
           },
-          "pinned_by_username": {
+          "pinned_by_core_user_id": {
             "type": "object",
             "nullable": true
           },
@@ -7899,14 +7905,14 @@
           "id",
           "seq",
           "channel_id",
-          "author_username",
+          "author_core_user_id",
           "content",
           "attachments",
           "embed",
           "parent_id",
           "reply_count",
           "pinned_at",
-          "pinned_by_username",
+          "pinned_by_core_user_id",
           "client_nonce",
           "edited_at",
           "created_at"
@@ -7971,7 +7977,7 @@
               "type": "string"
             }
           },
-          "username": {
+          "coreUserId": {
             "type": "string"
           },
           "credential": {
@@ -7985,7 +7991,7 @@
       "VoiceParticipantDto": {
         "type": "object",
         "properties": {
-          "username": {
+          "coreUserId": {
             "type": "string"
           },
           "joined_at": {
@@ -7993,7 +7999,7 @@
           }
         },
         "required": [
-          "username",
+          "coreUserId",
           "joined_at"
         ]
       },
@@ -8171,7 +8177,7 @@
             "type": "object",
             "nullable": true
           },
-          "author_username": {
+          "author_core_user_id": {
             "type": "string",
             "example": "6704101382-anuchat"
           },
@@ -8198,7 +8204,7 @@
           "title",
           "content",
           "course_tag",
-          "author_username",
+          "author_core_user_id",
           "comment_count",
           "reactions",
           "created_at"
@@ -8235,7 +8241,7 @@
           "post_id": {
             "type": "string"
           },
-          "author_username": {
+          "author_core_user_id": {
             "type": "string"
           },
           "content": {
@@ -8248,7 +8254,7 @@
         "required": [
           "id",
           "post_id",
-          "author_username",
+          "author_core_user_id",
           "content",
           "created_at"
         ]
@@ -8324,7 +8330,7 @@
             "nullable": true,
             "description": "หัวข้อของสิ่งที่บันทึกไว้ ณ เวลาที่อ่าน — null ถ้าถูกลบไปแล้ว"
           },
-          "author_username": {
+          "author_core_user_id": {
             "type": "object",
             "nullable": true
           },
@@ -8336,7 +8342,7 @@
           "target_kind",
           "target_id",
           "title",
-          "author_username",
+          "author_core_user_id",
           "created_at"
         ]
       },
@@ -8393,7 +8399,7 @@
               "CANCELLED"
             ]
           },
-          "created_by_username": {
+          "created_by_core_user_id": {
             "type": "string"
           },
           "joinable_now": {
@@ -8412,7 +8418,7 @@
           "starts_at",
           "ends_at",
           "status",
-          "created_by_username",
+          "created_by_core_user_id",
           "joinable_now",
           "created_at"
         ]
@@ -8479,11 +8485,11 @@
               "REJECTED"
             ]
           },
-          "reporter_username": {
+          "reporter_core_user_id": {
             "type": "string",
             "description": "ผู้รายงาน — ผู้ดูแลเห็นได้ เพราะการรายงานเท็จซ้ำ ๆ ต้องตามตัวได้"
           },
-          "resolved_by_username": {
+          "resolved_by_core_user_id": {
             "type": "object",
             "nullable": true
           },
@@ -8501,8 +8507,8 @@
           "target_id",
           "reason",
           "status",
-          "reporter_username",
-          "resolved_by_username",
+          "reporter_core_user_id",
+          "resolved_by_core_user_id",
           "resolved_at",
           "created_at"
         ]
@@ -8524,7 +8530,7 @@
           "target_id": {
             "type": "string",
             "example": "9f1c2b3a-0000-4000-8000-000000000000",
-            "description": "id ของสิ่งที่รายงาน · ถ้าเป็น USER ให้ใส่ username"
+            "description": "id ของสิ่งที่รายงาน · ถ้าเป็น USER ให้ใส่ coreUserId"
           },
           "reason": {
             "type": "string",
@@ -8602,7 +8608,7 @@
             "nullable": true,
             "description": "ข้อความรอบ ๆ คำค้น ตัดมาไม่เกิน 160 ตัวอักษร"
           },
-          "author_username": {
+          "author_core_user_id": {
             "type": "object",
             "nullable": true
           },
@@ -8621,7 +8627,7 @@
           "id",
           "title",
           "snippet",
-          "author_username",
+          "author_core_user_id",
           "channel_id",
           "created_at"
         ]
@@ -8656,7 +8662,7 @@
           "id": {
             "type": "string"
           },
-          "author_username": {
+          "author_core_user_id": {
             "type": "string"
           },
           "kind": {
@@ -8696,7 +8702,7 @@
         },
         "required": [
           "id",
-          "author_username",
+          "author_core_user_id",
           "kind",
           "media_url",
           "asset_id",
@@ -8710,7 +8716,7 @@
       "StoryTrayDto": {
         "type": "object",
         "properties": {
-          "author_username": {
+          "author_core_user_id": {
             "type": "string"
           },
           "has_unseen": {
@@ -8729,7 +8735,7 @@
           }
         },
         "required": [
-          "author_username",
+          "author_core_user_id",
           "has_unseen",
           "is_me",
           "stories"
@@ -8754,7 +8760,7 @@
       "StoryViewerDto": {
         "type": "object",
         "properties": {
-          "username": {
+          "coreUserId": {
             "type": "string"
           },
           "viewed_at": {
@@ -8762,7 +8768,7 @@
           }
         },
         "required": [
-          "username",
+          "coreUserId",
           "viewed_at"
         ]
       },
@@ -8772,11 +8778,11 @@
           "id": {
             "type": "string"
           },
-          "actor_username": {
+          "actor_core_user_id": {
             "type": "string",
             "example": "6700000001-ajarn"
           },
-          "actor_layer1_role": {
+          "actor_core_role": {
             "type": "string",
             "example": "staff"
           },
@@ -8802,8 +8808,8 @@
         },
         "required": [
           "id",
-          "actor_username",
-          "actor_layer1_role",
+          "actor_core_user_id",
+          "actor_core_role",
           "action",
           "target_kind",
           "target_id",
@@ -8814,7 +8820,7 @@
       "MemberResponseDto": {
         "type": "object",
         "properties": {
-          "username": {
+          "coreUserId": {
             "type": "string"
           },
           "layer2_role": {
@@ -8845,7 +8851,7 @@
           }
         },
         "required": [
-          "username",
+          "coreUserId",
           "layer2_role",
           "layer2_role_explicit",
           "storage_used_bytes",

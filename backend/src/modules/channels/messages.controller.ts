@@ -13,7 +13,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { CurrentUser, type GatewayUser } from '../../common/auth/gateway-user.js';
+import { CurrentUser, type CoreHubUser } from '../../common/auth/core-user.js';
 import {
   ApiEnvelope,
   ApiEnvelopeError,
@@ -48,7 +48,7 @@ export class MessagesController {
   @ApiEnvelopeList(MessageResponseDto)
   @ApiEnvelopeError(404, 'ไม่พบห้อง หรือไม่ได้เป็นสมาชิก')
   list(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Query() query: ListMessagesQuery,
   ) {
@@ -61,7 +61,7 @@ export class MessagesController {
   @ApiEnvelopeError(400, 'ข้อความว่าง หรือไฟล์แนบยังไม่พร้อม')
   @ApiEnvelopeError(403, 'แนบไฟล์ของคนอื่นไม่ได้')
   async send(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() dto: SendMessageDto,
   ) {
@@ -79,7 +79,7 @@ export class MessagesController {
   })
   @ApiEnvelopeList(MessageResponseDto)
   listPinned(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Query() query: PaginationQuery,
   ) {
@@ -93,7 +93,7 @@ export class MessagesController {
   @ApiEnvelopeList(MessageResponseDto)
   @ApiEnvelopeError(404, 'ไม่พบข้อความต้นเธรด')
   listThread(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('messageId', ParseUUIDPipe) messageId: string,
     @Query() query: PaginationQuery,
@@ -111,7 +111,7 @@ export class MessagesController {
   @ApiEnvelopeError(400, 'เกิน 15 นาทีแล้ว')
   @ApiEnvelopeError(403, 'แก้ข้อความของคนอื่นไม่ได้')
   edit(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('messageId', ParseUUIDPipe) messageId: string,
     @Body() dto: EditMessageDto,
@@ -125,7 +125,7 @@ export class MessagesController {
   @ApiEnvelopeError(400, 'ห้องนี้ปักหมุดครบเพดานแล้ว')
   @ApiEnvelopeError(403, 'ไม่มีสิทธิ์ปักหมุด')
   pin(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('messageId', ParseUUIDPipe) messageId: string,
   ) {
@@ -136,7 +136,7 @@ export class MessagesController {
   @ApiOperation({ summary: 'ถอนหมุด' })
   @ApiEnvelope(MessageResponseDto)
   unpin(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('messageId', ParseUUIDPipe) messageId: string,
   ) {
@@ -148,7 +148,7 @@ export class MessagesController {
   @ApiOperation({ summary: 'ลบข้อความ (เจ้าของ ผู้ดูแลห้อง หรือ admin องค์กร)' })
   @ApiEnvelopeError(403, 'ลบข้อความของคนอื่นไม่ได้')
   async remove(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('messageId', ParseUUIDPipe) messageId: string,
   ) {

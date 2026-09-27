@@ -8,7 +8,7 @@ import type { Bookmark } from '@/lib/csmju/types';
 
 /// รายการที่บันทึกไว้ดูทีหลัง — เห็นได้เฉพาะเจ้าของ
 ///
-/// หลังบ้านผูก where กับ username ทุกคิวรี และไม่มี endpoint ให้ดูของคนอื่นเลย
+/// หลังบ้านผูก where กับ coreUserId ทุกคิวรี และไม่มี endpoint ให้ดูของคนอื่นเลย
 /// เพราะ "สิ่งที่คนหนึ่งเก็บไว้อ่าน" เป็นข้อมูลส่วนตัวพอ ๆ กับประวัติการค้นหา
 ///
 /// ของที่ถูกลบไปแล้วจะคืน title = null แทนที่จะหายจากรายการเงียบ ๆ
@@ -119,11 +119,11 @@ export default function SavedPage() {
 
               <p className="mt-0.5 text-[11px] text-muted-foreground">
                 {item.target_kind === 'REEL' ? 'คลิป' : 'กระทู้'}
-                {item.author_username && (
+                {item.author_core_user_id && (
                   <>
                     {' · '}
                     <UserName
-                      username={item.author_username}
+                      coreUserId={item.author_core_user_id}
                       className="text-[11px]"
                     />
                   </>

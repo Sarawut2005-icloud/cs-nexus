@@ -11,8 +11,8 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CurrentUser,
-  type GatewayUser,
-} from '../../common/auth/gateway-user.js';
+  type CoreHubUser,
+} from '../../common/auth/core-user.js';
 import {
   ApiEnvelope,
   ApiEnvelopeError,
@@ -34,7 +34,7 @@ export class BookmarksController {
   @ApiOperation({ summary: 'รายการที่ฉันบันทึกไว้ (เห็นได้เฉพาะเจ้าของ)' })
   @ApiEnvelopeList(BookmarkResponseDto)
   list(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Query() query: ListBookmarksQuery,
   ) {
     return this.bookmarks.listMine(user, query);
@@ -44,7 +44,7 @@ export class BookmarksController {
   @ApiOperation({ summary: 'บันทึกโพสต์หรือคลิปไว้ดูทีหลัง' })
   @ApiEnvelope(BookmarkResponseDto, { status: 201, description: 'บันทึกแล้ว' })
   @ApiEnvelopeError(404, 'ไม่พบสิ่งที่จะบันทึก')
-  add(@CurrentUser() user: GatewayUser, @Body() dto: CreateBookmarkDto) {
+  add(@CurrentUser() user: CoreHubUser, @Body() dto: CreateBookmarkDto) {
     return this.bookmarks.add(user, dto);
   }
 
@@ -52,7 +52,7 @@ export class BookmarksController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'เอาออกจากรายการที่บันทึกไว้' })
   async remove(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Query() query: CreateBookmarkDto,
   ) {
     await this.bookmarks.remove(user, query);

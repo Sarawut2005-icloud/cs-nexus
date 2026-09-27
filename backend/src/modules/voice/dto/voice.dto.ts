@@ -30,12 +30,12 @@ export class IceServerDto {
   @ApiProperty({ example: ['stun:stun.l.google.com:19302'] })
   urls!: string[];
 
-  @ApiPropertyOptional() username?: string;
+  @ApiPropertyOptional() coreUserId?: string;
   @ApiPropertyOptional() credential?: string;
 }
 
 export class VoiceParticipantDto {
-  @ApiProperty() username!: string;
+  @ApiProperty() coreUserId!: string;
   @ApiProperty() joined_at!: string;
 }
 

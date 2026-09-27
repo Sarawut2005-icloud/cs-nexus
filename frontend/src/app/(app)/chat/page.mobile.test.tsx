@@ -84,7 +84,7 @@ vi.mock('@/lib/csmju/api', () => {
           },
         };
       }),
-      get: vi.fn(async () => ({ online_usernames: [], total_online: 0 })),
+      get: vi.fn(async () => ({ online_core_user_ids: [], total_online: 0 })),
       post: vi.fn(async () => ({})),
       patch: vi.fn(async () => ({})),
       del: vi.fn(async () => undefined),
@@ -112,14 +112,16 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/chat',
 }));
 
-vi.mock('@/lib/csmju/identity', () => ({
-  getIdentity: () => ({
-    username: '6704101382-anuchat',
-    layer1Role: 'student',
-    faculty: 'science',
-    displayName: 'อนุชาติ',
+// ตัวตนมาจาก `GET /api/v1/me` ผ่าน <SessionProvider> ซึ่งเทสต์นี้ไม่ได้ครอบ
+// จึง mock แค่ `useMe` ค่าที่คืนเป็นรูปเดียวกับที่หลังบ้านส่งจริง
+// (`id` คือ sub จาก token ไม่ใช่รหัสนักศึกษา)
+vi.mock('@/lib/csmju/session', () => ({
+  useMe: () => ({
+    id: 'user-002',
+    email: 'student@core.local',
+    coreRole: 'student',
+    subsystemRole: 'GUEST',
   }),
-  DEV_IDENTITIES: [],
 }));
 
 /// หาแผงรายการห้องจากหัวข้อของมัน

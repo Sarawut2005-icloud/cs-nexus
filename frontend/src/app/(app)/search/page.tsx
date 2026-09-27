@@ -201,7 +201,7 @@ function HitList({ hits }: { hits: SearchHit[] }) {
 
                 <span className="mt-1 block text-[11px] text-muted-foreground">
                   {hit.kind}
-                  {hit.author_username ? ` · ${hit.author_username}` : ''}
+                  {hit.author_core_user_id ? ` · ${hit.author_core_user_id}` : ''}
                   {hit.created_at
                     ? ` · ${new Date(hit.created_at).toLocaleDateString('th-TH')}`
                     : ''}

@@ -7,9 +7,9 @@ import {
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { Layer2Role } from '../../generated/prisma/enums.js';
-import type { Layer1Role, RequestWithUser } from './gateway-user.js';
+import type { CoreRole, RequestWithCoreUser } from './core-user.js';
 import { defaultLayer2Role, resolveMember } from './member-role.js';
-import { LAYER1_ROLES_KEY } from './layer1-roles.decorator.js';
+import { CORE_ROLES_KEY } from './core-roles.decorator.js';
 import { LAYER2_ROLES_KEY } from './layer2-roles.decorator.js';
 
 /// Two-Tier RBAC (Blueprint หน้า 11)
@@ -32,8 +32,8 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const layer1Required = this.reflector.getAllAndOverride<Layer1Role[]>(
-      LAYER1_ROLES_KEY,
+    const coreRoleRequired = this.reflector.getAllAndOverride<CoreRole[]>(
+      CORE_ROLES_KEY,
       [context.getHandler(), context.getClass()],
     );
     const layer2Required = this.reflector.getAllAndOverride<Layer2Role[]>(
@@ -41,25 +41,25 @@ export class RolesGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
-    if (!layer1Required?.length && !layer2Required?.length) {
+    if (!coreRoleRequired?.length && !layer2Required?.length) {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<RequestWithUser>();
-    const user = request.gatewayUser;
+    const request = context.switchToHttp().getRequest<RequestWithCoreUser>();
+    const user = request.coreUser;
 
     if (!user) {
       throw new ForbiddenException('ไม่พบตัวตนของผู้เรียก');
     }
 
-    if (layer1Required?.length && !layer1Required.includes(user.layer1Role)) {
+    if (coreRoleRequired?.length && !coreRoleRequired.includes(user.coreRole)) {
       throw new ForbiddenException(
-        `ต้องมีสิทธิ์ระดับองค์กรเป็น ${layer1Required.join(' หรือ ')}`,
+        `ต้องมีสิทธิ์ระดับองค์กรเป็น ${coreRoleRequired.join(' หรือ ')}`,
       );
     }
 
     if (layer2Required?.length) {
-      // resolveMember ปรับสิทธิ์ให้ตรงกับ layer1_role ด้วยถ้าแถวถูกสร้าง
+      // resolveMember ปรับสิทธิ์ให้ตรงกับ core_role ด้วยถ้าแถวถูกสร้าง
       // โดยคนอื่นไว้ก่อน (เช่นผู้ดูแลตั้งโควตาล่วงหน้า)
       const member = await resolveMember(this.prisma, user);
 
@@ -75,7 +75,7 @@ export class RolesGuard implements CanActivate {
 
   /// คงไว้เพื่อความเข้ากันได้ — ตรรกะจริงย้ายไป common/auth/member-role.ts
   /// เพื่อให้ RolesGuard และ GET /subsystem-members/me ใช้ชุดเดียวกัน
-  static defaultLayer2Role(layer1Role: Layer1Role): Layer2Role {
-    return defaultLayer2Role(layer1Role);
+  static defaultLayer2Role(coreRole: CoreRole): Layer2Role {
+    return defaultLayer2Role(coreRole);
   }
 }

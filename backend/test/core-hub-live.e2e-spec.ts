@@ -1,8 +1,11 @@
 import { INestApplication } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AuthModule } from '../src/auth/auth.module.js';
+import { CoreHubJwtGuard } from '../src/auth/core-hub-jwt.guard.js';
+import { CoreHubTokenVerifier } from '../src/auth/core-hub-token.verifier.js';
 import { PREFIX_EXCLUDE } from '../src/bootstrap.js';
 import { EnvelopeInterceptor } from '../src/common/http/envelope.js';
 import { HttpExceptionFilter } from '../src/common/http/http-exception.filter.js';
@@ -149,6 +152,16 @@ beforeAll(async () => {
   // ชุดเดียวกับของจริง แต่ไม่เอา global guard ของ Gateway มาด้วย เพราะมัน
   // ต้องใช้ PrismaService · `PREFIX_EXCLUDE` นำเข้ามาจาก bootstrap ไม่พิมพ์ซ้ำ
   // ถ้าค่าหลุดจากกันเมื่อไหร่ เทสต์ชุดนี้จะแดงทันที
+
+  // ด่านเดียวกับของจริง — `CoreHubJwtGuard` เป็น global guard ใน
+  // bootstrap.ts แล้ว ไม่ได้ติดเฉพาะ route อีกต่อไป ถ้าไม่ติดตั้งที่นี่
+  // `@CurrentUser()` จะไม่เจอตัวตนแล้วโยน error ออกมาเป็น 500
+  //
+  // ไม่เอา RolesGuard มาด้วยเพราะมันต้องใช้ PrismaService ซึ่งชุดนี้
+  // ตั้งใจไม่ต่อฐานข้อมูล
+  app.useGlobalGuards(
+    new CoreHubJwtGuard(app.get(Reflector), app.get(CoreHubTokenVerifier)),
+  );
   app.useGlobalInterceptors(new EnvelopeInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
   app.setGlobalPrefix('api/v1', { exclude: PREFIX_EXCLUDE });

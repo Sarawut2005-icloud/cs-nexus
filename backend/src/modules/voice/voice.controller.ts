@@ -11,7 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { CurrentUser, type GatewayUser } from '../../common/auth/gateway-user.js';
+import { CurrentUser, type CoreHubUser } from '../../common/auth/core-user.js';
 import {
   ApiEnvelope,
   ApiEnvelopeError,
@@ -56,7 +56,7 @@ export class VoiceController {
   })
   @ApiEnvelopeList(VoiceSessionDto)
   async list(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Query() query: ListVoiceSessionsQuery,
   ) {
     return this.voice.listActive(user, query.channel_id);
@@ -69,7 +69,7 @@ export class VoiceController {
   @ApiEnvelope(JoinVoiceResponseDto, { status: 201 })
   @ApiEnvelopeError(409, 'ห้องเต็มตามเพดานของ mesh P2P')
   @ApiEnvelopeError(404, 'ไม่ได้เป็นสมาชิกห้องนี้')
-  join(@CurrentUser() user: GatewayUser, @Body() dto: JoinVoiceDto) {
+  join(@CurrentUser() user: CoreHubUser, @Body() dto: JoinVoiceDto) {
     return this.voice.join(user, dto.channel_id);
   }
 
@@ -77,7 +77,7 @@ export class VoiceController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'ออกจากห้องเสียง' })
   async leave(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     await this.voice.leave(user, id);

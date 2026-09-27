@@ -1,7 +1,5 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Public } from '../common/auth/public.decorator.js';
-import { CoreHubJwtGuard } from './core-hub-jwt.guard.js';
 import { CurrentUser } from './current-user.decorator.js';
 import type { CoreHubUser } from './core-hub-token.verifier.js';
 import { subsystemRoleFor } from './role-mapping.js';
@@ -15,14 +13,9 @@ import { subsystemRoleFor } from './role-mapping.js';
 /// `id` คือค่า `sub` ตรง ๆ ไม่ใช่ id ในฐานข้อมูลเรา — ตัวตนกลางมีที่เดียว
 /// คือ Core Hub ถ้าคืน id ของเราไป ระบบย่อยอื่นจะเอาไปอ้างอิงข้ามระบบไม่ได้
 ///
-/// ระหว่างย้ายจาก Gateway header ไป JWKS เส้นทางนี้ใช้ **ด่านใหม่เท่านั้น**
-///
-/// `@Public()` ปิดด่านเก่า (GatewayAuthGuard) ที่ยังเป็น global guard อยู่
-/// ส่วน `@UseGuards(CoreHubJwtGuard)` เปิดด่านใหม่เฉพาะ route นี้
-/// สองบรรทัดนี้จะหายไปพร้อมกันตอนสลับด่านใหม่เป็น global
+/// ไม่ต้องติด guard เอง — `CoreHubJwtGuard` เป็น global guard แล้ว
+/// (เดิมต้องติดเฉพาะ route นี้ ระหว่างที่ด่านเก่าของ Gateway ยังคุมอยู่)
 @ApiTags('auth')
-@Public()
-@UseGuards(CoreHubJwtGuard)
 @Controller('me')
 export class MeController {
   @Get()

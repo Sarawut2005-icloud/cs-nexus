@@ -6,7 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { GatewayUser } from '../../common/auth/gateway-user.js';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import {
   STORAGE_PROVIDER,
@@ -33,15 +33,15 @@ const MAX_BATCH = 100;
 ///
 /// ส่งรายการนี้ออกไปแทนที่จะให้หน้าบ้าน hardcode เอง เพราะถ้าวันหนึ่ง Core
 /// ยอมให้ระบบย่อยแก้อะไรได้เพิ่ม จะแก้ที่เดียวแล้วทุกหน้าจอตามทันที
-/// เครื่องหมายยืนยันข้างชื่อ — มาจาก layer2_role ไม่ใช่ layer1_role
+/// เครื่องหมายยืนยันข้างชื่อ — มาจาก layer2_role ไม่ใช่ core_role
 ///
-/// **ทำไมไม่ใช้ layer1_role**: Blueprint หน้า 10 ห้ามเก็บ layer1_role ลง
+/// **ทำไมไม่ใช้ core_role**: Blueprint หน้า 10 ห้ามเก็บ core_role ลง
 /// ฐานข้อมูล เรารู้ role ของ "ผู้เรียกเอง" จาก header ทุก request แต่ไม่มีทาง
 /// รู้ของคนอื่นเลยจนกว่า Core จะมี endpoint ให้ถาม (ยังไม่มี)
 ///
 /// layer2_role เป็น Local Data ที่เรานิยามเองได้ (หน้า 11) และตรงกับความหมาย
 /// ที่เครื่องหมายถูกควรสื่อในชุมชนนี้อยู่แล้ว: "คนนี้มีอำนาจดูแลที่นี่"
-/// ค่าเริ่มต้นแปลงจาก layer1_role มาให้แล้ว (staff→EDITOR, admin→ADMIN)
+/// ค่าเริ่มต้นแปลงจาก core_role มาให้แล้ว (staff→EDITOR, admin→ADMIN)
 ///
 /// **หมายเหตุ: ตรงนี้กลับคำตัดสินใจเดิม** — ก่อนหน้านี้ `detail()` ซ่อน
 /// layer2_role ของคนอื่นด้วยเหตุผลว่า "รู้ว่าใครเป็น ADMIN คือรู้ว่าควรไป
@@ -62,7 +62,7 @@ const MANAGED_BY_CORE = [
   'display_name',
   'avatar_url',
   'faculty',
-  'layer1_role',
+  'core_role',
 ] as const;
 
 @Injectable()
@@ -75,12 +75,12 @@ export class ProfilesService {
     @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
   ) {}
 
-  /// แปลง username หลายตัวเป็นชื่อที่แสดง ในคิวรีเดียว
+  /// แปลง coreUserId หลายตัวเป็นชื่อที่แสดง ในคิวรีเดียว
   ///
   /// หน้าบ้านเรนเดอร์ฟีดหรือรายชื่อในห้องแล้วต้องการชื่อจริงของทุกคนพร้อมกัน
   /// ถ้าไม่มี endpoint นี้ หน้าบ้านจะยิงทีละคน = 20 คำขอต่อการโหลดหนึ่งหน้า
-  async resolveMany(usernames: string[]): Promise<ProfileSummaryDto[]> {
-    const unique = [...new Set(usernames.filter(Boolean))];
+  async resolveMany(coreUserIds: string[]): Promise<ProfileSummaryDto[]> {
+    const unique = [...new Set(coreUserIds.filter(Boolean))];
 
     if (unique.length > MAX_BATCH) {
       throw new BadRequestException(
@@ -94,22 +94,22 @@ export class ProfilesService {
 
     const [cached, members] = await Promise.all([
       this.prisma.profileCache.findMany({
-        where: { username: { in: unique } },
+        where: { coreUserId: { in: unique } },
       }),
       // ดึง layer2_role มาคำนวณ badge ในคิวรีเดียวกับการแปลงชื่อ
       // ไม่งั้นหน้าบ้านต้องยิงถามสิทธิ์ทีละคนเพื่อวาดเครื่องหมายถูก
       this.prisma.subsystemMember.findMany({
-        where: { username: { in: unique } },
-        select: { username: true, layer2Role: true },
+        where: { coreUserId: { in: unique } },
+        select: { coreUserId: true, layer2Role: true },
       }),
     ]);
 
-    const byUsername = new Map(cached.map((row) => [row.username, row]));
-    const roleByUsername = new Map(
-      members.map((row) => [row.username, row.layer2Role]),
+    const byCoreUserId = new Map(cached.map((row) => [row.coreUserId, row]));
+    const roleByCoreUserId = new Map(
+      members.map((row) => [row.coreUserId, row.layer2Role]),
     );
-    const stale = unique.filter((username) => {
-      const row = byUsername.get(username);
+    const stale = unique.filter((coreUserId) => {
+      const row = byCoreUserId.get(coreUserId);
 
       return !row || Date.now() - row.syncedAt.getTime() > CACHE_TTL_MS;
     });
@@ -118,41 +118,41 @@ export class ProfilesService {
       const fresh = await this.syncFromCore(stale);
 
       for (const row of fresh) {
-        byUsername.set(row.username, row);
+        byCoreUserId.set(row.coreUserId, row);
       }
     }
 
-    return unique.map((username) => {
-      const row = byUsername.get(username);
+    return unique.map((coreUserId) => {
+      const row = byCoreUserId.get(coreUserId);
 
       return {
-        username,
-        // ยังไม่มีข้อมูลจาก Core ก็คืน username ไปก่อน ดีกว่าคืนค่าว่าง
+        coreUserId,
+        // ยังไม่มีข้อมูลจาก Core ก็คืน coreUserId ไปก่อน ดีกว่าคืนค่าว่าง
         // แล้วให้หน้าบ้านเรนเดอร์ช่องว่างโดยไม่รู้ว่าเป็นบั๊กหรือไม่มีชื่อจริง
-        display_name: row?.displayName ?? username,
+        display_name: row?.displayName ?? coreUserId,
         avatar_url: row?.avatarUrl ?? null,
         synced_at: row?.syncedAt.toISOString() ?? null,
-        badge: badgeFor(roleByUsername.get(username)),
+        badge: badgeFor(roleByCoreUserId.get(coreUserId)),
       };
     });
   }
 
   async detail(
-    viewer: GatewayUser,
-    username: string,
+    viewer: CoreHubUser,
+    coreUserId: string,
   ): Promise<ProfileDetailDto> {
-    const [summary] = await this.resolveMany([username]);
+    const [summary] = await this.resolveMany([coreUserId]);
 
     const [reelCount, postCount, followStats, relation, member] =
       await Promise.all([
-        this.prisma.reel.count({ where: { authorUsername: username } }),
-        this.prisma.post.count({ where: { authorUsername: username } }),
-        this.follows.stats(username),
-        this.follows.relationWith(viewer, username),
-        this.prisma.subsystemMember.findUnique({ where: { username } }),
+        this.prisma.reel.count({ where: { authorCoreUserId: coreUserId } }),
+        this.prisma.post.count({ where: { authorCoreUserId: coreUserId } }),
+        this.follows.stats(coreUserId),
+        this.follows.relationWith(viewer, coreUserId),
+        this.prisma.subsystemMember.findUnique({ where: { coreUserId } }),
       ]);
 
-    const isSelf = viewer.username === username;
+    const isSelf = viewer.coreUserId === coreUserId;
 
     return {
       ...summary,
@@ -171,10 +171,10 @@ export class ProfilesService {
   }
 
   /// โปรไฟล์ของฉัน — เพิ่ม bio และรูปปกที่เป็นของระบบย่อยนี้
-  async me(user: GatewayUser): Promise<MyProfileDto> {
-    const detail = await this.detail(user, user.username);
+  async me(user: CoreHubUser): Promise<MyProfileDto> {
+    const detail = await this.detail(user, user.coreUserId);
     const member = await this.prisma.subsystemMember.findUnique({
-      where: { username: user.username },
+      where: { coreUserId: user.coreUserId },
       include: { cover: true },
     });
 
@@ -204,7 +204,7 @@ export class ProfilesService {
   /// Core เป็นแหล่งความจริงของตัวตน (Blueprint หน้า 10) ระบบย่อยที่เปิดให้
   /// แก้ชื่อเองจะสร้างชื่อสองเวอร์ชันของคนเดียวกัน แล้วไม่มีใครรู้ว่าอันไหนจริง
   async updateMine(
-    user: GatewayUser,
+    user: CoreHubUser,
     dto: UpdateMyProfileDto,
   ): Promise<MyProfileDto> {
     // ตรวจรูปปกก่อน: ต้องเป็นไฟล์ของตัวเอง commit แล้ว และเป็นรูป
@@ -217,7 +217,7 @@ export class ProfilesService {
         throw new NotFoundException('ไม่พบไฟล์รูปปกนี้');
       }
 
-      if (asset.ownerUsername !== user.username) {
+      if (asset.ownerCoreUserId !== user.coreUserId) {
         throw new ForbiddenException('ใช้ไฟล์ของคนอื่นเป็นรูปปกไม่ได้');
       }
 
@@ -233,7 +233,7 @@ export class ProfilesService {
     }
 
     await this.prisma.subsystemMember.upsert({
-      where: { username: user.username },
+      where: { coreUserId: user.coreUserId },
       update: {
         ...(dto.bio !== undefined ? { bio: dto.bio.trim() || null } : {}),
         ...(dto.cover_asset_id !== undefined
@@ -241,7 +241,7 @@ export class ProfilesService {
           : {}),
       },
       create: {
-        username: user.username,
+        coreUserId: user.coreUserId,
         bio: dto.bio?.trim() || null,
         coverAssetId: dto.cover_asset_id ?? null,
       },
@@ -256,11 +256,11 @@ export class ProfilesService {
   /// ห้ามให้ผู้ใช้แก้ชื่อที่นี่ ตารางนี้จึงเขียนได้จากทางเดียวคือซิงก์ขาเข้า
   ///
   /// TODO(PL): ยืนยันรูปแบบจริงกับ PM — ตอนนี้เดาว่าเป็น
-  ///   GET {CSMJU_CORE_API_URL}/api/v1/users/{username}
+  ///   GET {CSMJU_CORE_API_URL}/api/v1/users/{coreUserId}
   ///   → { data: { display_name, avatar_url } }
   /// ถ้ายังไม่มี Core ให้เรียก (ช่วงพัฒนา) เมธอดนี้จะคืนอาเรย์ว่างอย่างเงียบ ๆ
-  /// แล้วชั้นบนจะ fallback ไปใช้ username ซึ่งทำให้ระบบเดินต่อได้
-  private async syncFromCore(usernames: string[]) {
+  /// แล้วชั้นบนจะ fallback ไปใช้ coreUserId ซึ่งทำให้ระบบเดินต่อได้
+  private async syncFromCore(coreUserIds: string[]) {
     const baseUrl = process.env.CSMJU_CORE_API_URL;
     const clientId = process.env.CSMJU_CLIENT_ID;
     const clientSecret = process.env.CSMJU_CLIENT_SECRET;
@@ -270,10 +270,10 @@ export class ProfilesService {
     }
 
     const results = await Promise.all(
-      usernames.map(async (username) => {
+      coreUserIds.map(async (coreUserId) => {
         try {
           const response = await fetch(
-            `${baseUrl}/api/v1/users/${encodeURIComponent(username)}`,
+            `${baseUrl}/api/v1/users/${encodeURIComponent(coreUserId)}`,
             {
               headers: {
                 'x-client-id': clientId,
@@ -297,9 +297,9 @@ export class ProfilesService {
           }
 
           return this.prisma.profileCache.upsert({
-            where: { username },
+            where: { coreUserId },
             create: {
-              username,
+              coreUserId,
               displayName,
               avatarUrl: body.data?.avatar_url ?? null,
             },
@@ -312,7 +312,7 @@ export class ProfilesService {
         } catch (error) {
           // Core ล่มไม่ควรทำให้ฟีดของเราล่มตาม — ใช้ค่าที่แคชไว้ต่อไป
           this.logger.warn(
-            `ซิงก์โปรไฟล์ ${username} จาก Core ไม่สำเร็จ: ${
+            `ซิงก์โปรไฟล์ ${coreUserId} จาก Core ไม่สำเร็จ: ${
               error instanceof Error ? error.message : 'ไม่ทราบสาเหตุ'
             }`,
           );

@@ -11,9 +11,9 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CurrentUser,
-  type GatewayUser,
-} from '../../common/auth/gateway-user.js';
-import { Layer1Roles } from '../../common/auth/layer1-roles.decorator.js';
+  type CoreHubUser,
+} from '../../common/auth/core-user.js';
+import { CoreRoles } from '../../common/auth/core-roles.decorator.js';
 import {
   ApiEnvelope,
   ApiEnvelopeError,
@@ -37,7 +37,7 @@ export class ReportsController {
   @ApiEnvelope(ReportResponseDto, { status: 201, description: 'รับเรื่องแล้ว' })
   @ApiEnvelopeError(404, 'ไม่พบสิ่งที่รายงาน')
   @ApiEnvelopeError(409, 'รายงานเรื่องนี้ไว้แล้ว')
-  create(@CurrentUser() user: GatewayUser, @Body() dto: CreateReportDto) {
+  create(@CurrentUser() user: CoreHubUser, @Body() dto: CreateReportDto) {
     return this.reports.create(user, dto);
   }
 
@@ -45,14 +45,14 @@ export class ReportsController {
   @ApiOperation({ summary: 'เรื่องที่ฉันเคยรายงาน และสถานะล่าสุด' })
   @ApiEnvelopeList(ReportResponseDto)
   listMine(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Query() query: ListReportsQuery,
   ) {
     return this.reports.listMine(user, query);
   }
 
   @Get()
-  @Layer1Roles('staff', 'admin')
+  @CoreRoles('staff', 'admin')
   @ApiOperation({
     summary: 'คิวเรื่องร้องเรียนสำหรับผู้ดูแล (เก่าสุดก่อน)',
     description: 'เฉพาะบุคลากรและผู้ดูแลระดับองค์กร',
@@ -64,13 +64,13 @@ export class ReportsController {
   }
 
   @Patch(':id')
-  @Layer1Roles('staff', 'admin')
+  @CoreRoles('staff', 'admin')
   @ApiOperation({ summary: 'ปิดเรื่อง — จัดการแล้ว หรือไม่เข้าข่าย' })
   @ApiEnvelope(ReportResponseDto)
   @ApiEnvelopeError(403, 'ไม่มีสิทธิ์ปิดเรื่อง')
   @ApiEnvelopeError(409, 'เรื่องนี้ถูกปิดไปแล้ว')
   resolve(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ResolveReportDto,
   ) {

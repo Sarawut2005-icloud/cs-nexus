@@ -5,7 +5,6 @@ import {
   Compass,
   Film,
   Hash,
-  LayoutDashboard,
   Search,
   Send,
   ShieldCheck,
@@ -13,17 +12,23 @@ import {
   Video,
 } from 'lucide-react';
 import { CallProvider } from '@/components/csmju/call-provider';
-import { IdentitySwitcher } from '@/components/csmju/identity-switcher';
+import { SessionCard } from '@/components/csmju/session-card';
 import { NotificationBell } from '@/components/csmju/notification-bell';
 import LumaBar from '@/components/ui/futuristic-nav';
 import { QueryProvider } from '@/components/csmju/query-provider';
 import { MotionProvider } from '@/components/ui/motion-provider';
+import { SessionProvider } from '@/lib/csmju/session';
 
 /// เปลือกของแอป — sidebar ซ้าย เนื้อหาขวา แบบ Discord/Teams
 ///
 /// เป็น Server Component เพราะไม่มีอะไรต้องโต้ตอบ ส่วนที่ต้องโต้ตอบ
-/// (สวิตช์ตัวตน กระดิ่ง) แยกเป็น Client Component ชิ้นเล็กสองชิ้น
+/// (ป้ายผู้ใช้ กระดิ่ง) แยกเป็น Client Component ชิ้นเล็กสองชิ้น
 /// ทำให้ JavaScript ที่ส่งไปเบราว์เซอร์น้อยกว่าการทำทั้งเปลือกเป็น client
+///
+/// `SessionProvider` อยู่ชั้นนอกสุด เพราะทุกหน้าใต้ `(app)` ต้องรู้ว่าผู้ใช้
+/// เป็นใครก่อนจะเรนเดอร์อะไรได้ — มันจะถาม `GET /api/v1/me` ครั้งเดียวแล้ว
+/// กันไม่ให้ children เรนเดอร์จนกว่าจะได้คำตอบ หน้าจอข้างในจึงเรียก `useMe()`
+/// แบบ synchronous ได้โดยไม่ต้องเขียนเคส "ยังไม่รู้ว่าเป็นใคร" ซ้ำทุกหน้า
 
 const NAV = [
   { href: '/feed', label: 'ฟีดชุมชน', icon: Compass, hint: 'Facebook' },
@@ -44,8 +49,9 @@ export default function AppLayout({ children }: LayoutProps<'/'>) {
     // ต้องดังแม้ผู้ใช้กำลังอ่านฟีดอยู่ — ถ้าผูกกับหน้า DM สายจะเข้าเฉพาะ
     // ตอนเปิดหน้านั้นค้างไว้ ซึ่งเท่ากับไม่มีระบบโทรเลย
     <QueryProvider>
-      <MotionProvider>
-        <CallProvider>
+      <SessionProvider>
+        <MotionProvider>
+          <CallProvider>
           <div className="flex min-h-dvh">
             <aside className="flex w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar max-lg:hidden">
               <div className="flex items-center gap-2 px-4 py-4">
@@ -76,23 +82,10 @@ export default function AppLayout({ children }: LayoutProps<'/'>) {
                     )}
                   </Link>
                 ))}
-
-                {/* หน้าตัวอย่างดีไซน์ใช้ข้อมูลปลอม จึงต้องไม่โผล่ในของจริง
-                 * ตอนเดโมให้ PM ลิงก์นี้อยู่ในเมนูหลักคือภาระที่ไม่จำเป็น
-                 * และเสี่ยงที่คนดูจะเข้าใจว่าเลขในนั้นเป็นข้อมูลจริง */}
-                {process.env.NODE_ENV !== 'production' && (
-                  <Link
-                    href="/mockup"
-                    className="mt-2 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent"
-                  >
-                    <LayoutDashboard className="size-4 shrink-0" />
-                    <span className="flex-1">ตัวอย่างดีไซน์ (ข้อมูลปลอม)</span>
-                  </Link>
-                )}
               </nav>
 
               <div className="p-2">
-                <IdentitySwitcher />
+                <SessionCard />
               </div>
             </aside>
 
@@ -120,8 +113,9 @@ export default function AppLayout({ children }: LayoutProps<'/'>) {
 
             <LumaBar />
           </div>
-        </CallProvider>
-      </MotionProvider>
+          </CallProvider>
+        </MotionProvider>
+      </SessionProvider>
     </QueryProvider>
   );
 }

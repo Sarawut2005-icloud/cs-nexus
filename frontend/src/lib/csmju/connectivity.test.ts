@@ -52,7 +52,7 @@ function installFakePeer(types: CandidateType[]) {
 const STUN_ONLY = [{ urls: ['stun:stun.example:3478'] }];
 const WITH_TURN = [
   { urls: ['stun:stun.example:3478'] },
-  { urls: ['turn:turn.example:3478'], username: 'u', credential: 'c' },
+  { urls: ['turn:turn.example:3478'], coreUserId: 'u', credential: 'c' },
 ];
 
 describe('checkConnectivity', () => {

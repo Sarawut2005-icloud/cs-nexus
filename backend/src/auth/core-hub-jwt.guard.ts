@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
-import { CORE_HUB_PUBLIC_KEY } from './public.decorator.js';
+import { IS_PUBLIC_KEY } from '../common/auth/public.decorator.js';
 import {
   CoreHubTokenVerifier,
   TokenRejected,
@@ -42,13 +42,10 @@ export class CoreHubJwtGuard implements CanActivate {
     // ยืนยันตอนจับมือใน gateway ของมันเอง
     if (context.getType() !== 'http') return true;
 
-    const isPublic = this.reflector.getAllAndOverride<boolean>(
-      CORE_HUB_PUBLIC_KEY,
-      [
-        context.getHandler(),
-        context.getClass(),
-      ],
-    );
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     if (isPublic) return true;
 

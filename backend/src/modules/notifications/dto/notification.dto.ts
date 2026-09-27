@@ -19,7 +19,7 @@ export class NotificationResponseDto {
   @ApiProperty({ description: 'id ของสิ่งที่ถูกกระทำ' }) ref_id!: string;
 
   @ApiProperty({ nullable: true, example: '6700000001-ajarn' })
-  actor_username!: string | null;
+  actor_core_user_id!: string | null;
 
   @ApiProperty({
     nullable: true,
@@ -43,7 +43,7 @@ export function toNotificationResponse(
     id: row.id,
     kind: row.kind,
     ref_id: row.refId,
-    actor_username: row.actorUsername,
+    actor_core_user_id: row.actorCoreUserId,
     payload: row.payload ?? null,
     read_at: row.readAt?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),

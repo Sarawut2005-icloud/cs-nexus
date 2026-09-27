@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { GatewayUser } from '../../common/auth/gateway-user.js';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { Paginated } from '../../common/http/envelope.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import {
@@ -13,21 +13,21 @@ export class BookmarksService {
   constructor(private readonly prisma: PrismaService) {}
 
   async add(
-    user: GatewayUser,
+    user: CoreHubUser,
     dto: CreateBookmarkDto,
   ): Promise<BookmarkResponseDto> {
     await this.assertTargetExists(dto);
 
     const row = await this.prisma.bookmark.upsert({
       where: {
-        username_targetKind_targetId: {
-          username: user.username,
+        coreUserId_targetKind_targetId: {
+          coreUserId: user.coreUserId,
           targetKind: dto.target_kind,
           targetId: dto.target_id,
         },
       },
       create: {
-        username: user.username,
+        coreUserId: user.coreUserId,
         targetKind: dto.target_kind,
         targetId: dto.target_id,
       },
@@ -39,10 +39,10 @@ export class BookmarksService {
     return enriched;
   }
 
-  async remove(user: GatewayUser, dto: CreateBookmarkDto): Promise<void> {
+  async remove(user: CoreHubUser, dto: CreateBookmarkDto): Promise<void> {
     await this.prisma.bookmark.deleteMany({
       where: {
-        username: user.username,
+        coreUserId: user.coreUserId,
         targetKind: dto.target_kind,
         targetId: dto.target_id,
       },
@@ -51,14 +51,14 @@ export class BookmarksService {
 
   /// รายการที่บันทึกไว้ของฉัน
   ///
-  /// where ผูกกับ username เสมอ — ตารางนี้ไม่มี endpoint ไหนที่ให้ดูของคนอื่น
+  /// where ผูกกับ coreUserId เสมอ — ตารางนี้ไม่มี endpoint ไหนที่ให้ดูของคนอื่น
   /// เพราะ "สิ่งที่คนหนึ่งเก็บไว้อ่าน" เป็นข้อมูลส่วนตัวพอ ๆ กับประวัติการค้นหา
   async listMine(
-    user: GatewayUser,
+    user: CoreHubUser,
     query: ListBookmarksQuery,
   ): Promise<Paginated<BookmarkResponseDto>> {
     const where = {
-      username: user.username,
+      coreUserId: user.coreUserId,
       ...(query.target_kind ? { targetKind: query.target_kind } : {}),
     };
 
@@ -94,13 +94,13 @@ export class BookmarksService {
       postIds.length
         ? this.prisma.post.findMany({
             where: { id: { in: postIds } },
-            select: { id: true, title: true, authorUsername: true },
+            select: { id: true, title: true, authorCoreUserId: true },
           })
         : Promise.resolve([]),
       reelIds.length
         ? this.prisma.reel.findMany({
             where: { id: { in: reelIds } },
-            select: { id: true, title: true, authorUsername: true },
+            select: { id: true, title: true, authorCoreUserId: true },
           })
         : Promise.resolve([]),
     ]);
@@ -116,7 +116,7 @@ export class BookmarksService {
         target_kind: row.targetKind as BookmarkResponseDto['target_kind'],
         target_id: row.targetId,
         title: found?.title ?? null,
-        author_username: found?.authorUsername ?? null,
+        author_core_user_id: found?.authorCoreUserId ?? null,
         created_at: row.createdAt.toISOString(),
       };
     });

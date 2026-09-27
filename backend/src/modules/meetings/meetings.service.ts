@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { GatewayUser } from '../../common/auth/gateway-user.js';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { canAdministerChannel } from '../../common/auth/member-role.js';
 import { Paginated } from '../../common/http/envelope.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
@@ -33,7 +33,7 @@ export class MeetingsService {
   /// เหตุผล: ถ้ามีสองรายการ (สมาชิกห้อง กับ ผู้ได้รับเชิญ) มันจะไม่ตรงกันทันที
   /// ที่มีคนเข้าหรือออกจากห้อง แล้วจะเกิดเคส "อยู่ในห้องแต่เข้าประชุมไม่ได้"
   async create(
-    user: GatewayUser,
+    user: CoreHubUser,
     dto: CreateMeetingDto,
   ): Promise<MeetingResponseDto> {
     const membership = await this.channels.requireMembership(
@@ -74,21 +74,21 @@ export class MeetingsService {
         agenda: dto.agenda ?? null,
         startsAt,
         endsAt,
-        createdByUsername: user.username,
+        createdByCoreUserId: user.coreUserId,
       },
     });
 
     const members = await this.prisma.channelMember.findMany({
       where: { channelId: dto.channel_id },
-      select: { username: true },
+      select: { coreUserId: true },
     });
 
     await this.notifications.pushMany(
-      members.map((m) => m.username),
+      members.map((m) => m.coreUserId),
       {
         kind: 'MEETING_INVITE',
         refId: meeting.id,
-        actorUsername: user.username,
+        actorCoreUserId: user.coreUserId,
         payload: {
           channel_id: dto.channel_id,
           title: dto.title,
@@ -105,12 +105,12 @@ export class MeetingsService {
   /// เห็นได้เฉพาะห้องของตัวเอง — ถ้าคืนทั้งระบบจะกลายเป็นตารางสอนของทุกคน
   /// ที่ใครก็อ่านได้ รวมทั้งนัดคุยส่วนตัวระหว่างอาจารย์กับนักศึกษา
   async list(
-    user: GatewayUser,
+    user: CoreHubUser,
     query: ListMeetingsQuery,
   ): Promise<Paginated<MeetingResponseDto>> {
     const memberships = await this.prisma.channelMember.findMany({
       where: {
-        username: user.username,
+        coreUserId: user.coreUserId,
         ...(query.channel_id ? { channelId: query.channel_id } : {}),
       },
       select: { channelId: true },
@@ -144,7 +144,7 @@ export class MeetingsService {
   }
 
   async findOne(
-    user: GatewayUser,
+    user: CoreHubUser,
     id: string,
   ): Promise<MeetingResponseDto> {
     const meeting = await this.prisma.meeting.findUnique({ where: { id } });
@@ -161,7 +161,7 @@ export class MeetingsService {
 
   /// ยกเลิกนัด — ไม่ลบแถว เพราะคนที่จดไว้ในปฏิทินต้องเห็นว่ามันถูกยกเลิก
   /// ไม่ใช่เห็นว่ามันหายไปเฉย ๆ แล้วยังไปรอตามเวลาเดิม
-  async cancel(user: GatewayUser, id: string): Promise<MeetingResponseDto> {
+  async cancel(user: CoreHubUser, id: string): Promise<MeetingResponseDto> {
     const meeting = await this.prisma.meeting.findUnique({ where: { id } });
 
     if (!meeting) {
@@ -173,9 +173,9 @@ export class MeetingsService {
       meeting.channelId,
     );
 
-    const isOwner = meeting.createdByUsername === user.username;
+    const isOwner = meeting.createdByCoreUserId === user.coreUserId;
     const canModerate =
-      membership.role === 'MODERATOR' || user.layer1Role === 'admin';
+      membership.role === 'MODERATOR' || user.coreRole === 'admin';
 
     if (!isOwner && !canModerate) {
       throw new ForbiddenException('ยกเลิกได้เฉพาะนัดที่ตัวเองสร้าง');
@@ -192,15 +192,15 @@ export class MeetingsService {
 
     const members = await this.prisma.channelMember.findMany({
       where: { channelId: meeting.channelId },
-      select: { username: true },
+      select: { coreUserId: true },
     });
 
     await this.notifications.pushMany(
-      members.map((m) => m.username),
+      members.map((m) => m.coreUserId),
       {
         kind: 'MEETING_INVITE',
         refId: meeting.id,
-        actorUsername: user.username,
+        actorCoreUserId: user.coreUserId,
         payload: {
           channel_id: meeting.channelId,
           title: meeting.title,

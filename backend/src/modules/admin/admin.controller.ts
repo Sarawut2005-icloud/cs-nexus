@@ -2,9 +2,9 @@ import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CurrentUser,
-  type GatewayUser,
-} from '../../common/auth/gateway-user.js';
-import { Layer1Roles } from '../../common/auth/layer1-roles.decorator.js';
+  type CoreHubUser,
+} from '../../common/auth/core-user.js';
+import { CoreRoles } from '../../common/auth/core-roles.decorator.js';
 import {
   ApiEnvelope,
   ApiEnvelopeError,
@@ -30,7 +30,7 @@ export class AuditLogsController {
   constructor(private readonly admin: AdminService) {}
 
   @Get()
-  @Layer1Roles('admin')
+  @CoreRoles('admin')
   @ApiOperation({
     summary: 'อ่าน audit log ของระบบย่อยนี้ (ผู้ดูแลองค์กร)',
     description:
@@ -50,7 +50,7 @@ export class MembersAdminController {
   constructor(private readonly admin: AdminService) {}
 
   @Get()
-  @Layer1Roles('staff', 'admin')
+  @CoreRoles('staff', 'admin')
   @ApiOperation({ summary: 'รายชื่อสมาชิกระบบย่อยพร้อมสิทธิ์และโควตา' })
   @ApiEnvelopeList(MemberResponseDto)
   @ApiEnvelopeError(403, 'ไม่มีสิทธิ์ดูรายชื่อสมาชิก')
@@ -58,8 +58,8 @@ export class MembersAdminController {
     return this.admin.listMembers(query);
   }
 
-  @Patch(':username/role')
-  @Layer1Roles('admin')
+  @Patch(':coreUserId/role')
+  @CoreRoles('admin')
   @ApiOperation({
     summary: 'เปลี่ยนสิทธิ์ Layer 2 ของสมาชิก',
     description:
@@ -68,15 +68,15 @@ export class MembersAdminController {
   @ApiEnvelope(MemberResponseDto)
   @ApiEnvelopeError(403, 'ไม่มีสิทธิ์ หรือเป็นผู้ดูแลคนสุดท้ายที่ลดสิทธิ์ตัวเอง')
   updateRole(
-    @CurrentUser() user: GatewayUser,
-    @Param('username') username: string,
+    @CurrentUser() user: CoreHubUser,
+    @Param('coreUserId') coreUserId: string,
     @Body() dto: UpdateMemberRoleDto,
   ) {
-    return this.admin.updateRole(user, username, dto);
+    return this.admin.updateRole(user, coreUserId, dto);
   }
 
-  @Patch(':username/storage-quota')
-  @Layer1Roles('admin')
+  @Patch(':coreUserId/storage-quota')
+  @CoreRoles('admin')
   @ApiOperation({
     summary: 'ตั้งโควตาพื้นที่เก็บไฟล์ให้สมาชิก',
     description:
@@ -85,11 +85,11 @@ export class MembersAdminController {
   @ApiEnvelope(MemberResponseDto)
   @ApiEnvelopeError(400, 'เกินเพดาน 5 GB')
   updateQuota(
-    @CurrentUser() user: GatewayUser,
-    @Param('username') username: string,
+    @CurrentUser() user: CoreHubUser,
+    @Param('coreUserId') coreUserId: string,
     @Body() dto: UpdateMemberQuotaDto,
   ) {
-    return this.admin.updateQuota(user, username, dto);
+    return this.admin.updateQuota(user, coreUserId, dto);
   }
 }
 
@@ -100,7 +100,7 @@ export class AdminOverviewController {
   constructor(private readonly admin: AdminService) {}
 
   @Get()
-  @Layer1Roles('staff', 'admin')
+  @CoreRoles('staff', 'admin')
   @ApiOperation({ summary: 'สรุปตัวเลขของระบบย่อยสำหรับแดชบอร์ดผู้ดูแล' })
   @ApiEnvelopeError(403, 'ไม่มีสิทธิ์')
   overview() {

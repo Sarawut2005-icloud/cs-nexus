@@ -180,12 +180,12 @@ vi.mock('@/lib/csmju/api', () => {
   };
 });
 
-vi.mock('@/lib/csmju/identity', () => ({
-  getIdentity: () => ({
-    username: 'aaa-caller',
-    layer1Role: 'student',
-    faculty: 'science',
-    displayName: 'ผู้โทร',
+vi.mock('@/lib/csmju/session', () => ({
+  useMe: () => ({
+    id: 'aaa-caller',
+    email: 'caller@core.local',
+    coreRole: 'student',
+    subsystemRole: 'GUEST',
   }),
 }));
 
@@ -290,7 +290,7 @@ function incoming() {
     handlers.get('call:incoming')?.({
       session_id: 'session-9',
       channel_id: 'dm-9',
-      from_username: 'ccc-friend',
+      from_core_user_id: 'ccc-friend',
     });
   });
 }
@@ -326,7 +326,7 @@ describe('สายเรียกเข้า', () => {
 
     expect(answer?.payload).toMatchObject({
       session_id: 'session-9',
-      to_username: 'ccc-friend',
+      to_core_user_id: 'ccc-friend',
       accepted: true,
     });
   });
@@ -356,7 +356,7 @@ describe('สายเรียกเข้า', () => {
     act(() => {
       handlers.get('call:cancelled')?.({
         session_id: 'session-9',
-        from_username: 'ccc-friend',
+        from_core_user_id: 'ccc-friend',
       });
     });
 
@@ -380,7 +380,7 @@ describe('โทรออก', () => {
 
     expect(ring?.payload).toMatchObject({
       session_id: 'session-1',
-      to_username: 'bbb-peer',
+      to_core_user_id: 'bbb-peer',
     });
   });
 
@@ -401,7 +401,7 @@ describe('โทรออก', () => {
     act(() => {
       handlers.get('call:answered')?.({
         accepted: false,
-        from_username: 'bbb-peer',
+        from_core_user_id: 'bbb-peer',
       });
     });
 
@@ -424,7 +424,7 @@ describe('โทรออก', () => {
     act(() => {
       handlers.get('call:answered')?.({
         accepted: true,
-        from_username: 'bbb-peer',
+        from_core_user_id: 'bbb-peer',
       });
     });
 
@@ -452,7 +452,7 @@ describe('เก็บสายให้สะอาดทุกทาง', () =
     act(() => {
       handlers.get('call:answered')?.({
         accepted: true,
-        from_username: 'bbb-peer',
+        from_core_user_id: 'bbb-peer',
       });
     });
 
@@ -470,7 +470,7 @@ describe('เก็บสายให้สะอาดทุกทาง', () =
     act(() => {
       handlers.get('call:answered')?.({
         accepted: false,
-        from_username: 'bbb-peer',
+        from_core_user_id: 'bbb-peer',
       });
     });
 
@@ -505,7 +505,7 @@ describe('เก็บสายให้สะอาดทุกทาง', () =
 
     expect(ended?.payload).toMatchObject({
       session_id: 'session-1',
-      to_username: 'bbb-peer',
+      to_core_user_id: 'bbb-peer',
     });
 
     await waitFor(() =>
@@ -531,7 +531,7 @@ describe('เก็บสายให้สะอาดทุกทาง', () =
     act(() => {
       handlers.get('call:ended')?.({
         session_id: 'session-1',
-        from_username: 'bbb-peer',
+        from_core_user_id: 'bbb-peer',
       });
     });
 
@@ -549,7 +549,7 @@ describe('เก็บสายให้สะอาดทุกทาง', () =
     act(() => {
       handlers.get('call:ended')?.({
         session_id: 'session-1',
-        from_username: 'zzz-stranger',
+        from_core_user_id: 'zzz-stranger',
       });
     });
 
@@ -570,7 +570,7 @@ describe('เก็บสายให้สะอาดทุกทาง', () =
     act(() => {
       handlers.get('call:ended')?.({
         session_id: 'session-เก่า',
-        from_username: 'bbb-peer',
+        from_core_user_id: 'bbb-peer',
       });
     });
 
@@ -621,7 +621,7 @@ describe('WebRTC', () => {
         ice_servers: [
           {
             urls: ['turn:turn.example:3478'],
-            username: 'u1',
+            coreUserId: 'u1',
             credential: 'c1',
           },
         ],
@@ -632,7 +632,7 @@ describe('WebRTC', () => {
     await callOut();
 
     expect(FakePeerConnection.latest().config.iceServers).toEqual([
-      { urls: ['turn:turn.example:3478'], username: 'u1', credential: 'c1' },
+      { urls: ['turn:turn.example:3478'], coreUserId: 'u1', credential: 'c1' },
     ]);
   });
 
@@ -676,14 +676,14 @@ describe('WebRTC', () => {
     act(() => {
       handlers.get('call:answered')?.({
         accepted: true,
-        from_username: 'bbb-peer',
+        from_core_user_id: 'bbb-peer',
       });
     });
 
     await waitFor(() => expect(offersSent()).toHaveLength(1));
 
     expect(offersSent()[0].payload).toMatchObject({
-      to_username: 'bbb-peer',
+      to_core_user_id: 'bbb-peer',
       kind: 'offer',
     });
 
@@ -704,7 +704,7 @@ describe('WebRTC', () => {
       handlers.get('call:incoming')?.({
         session_id: 'session-9',
         channel_id: 'dm-9',
-        from_username: 'AAA-earlier',
+        from_core_user_id: 'AAA-earlier',
       });
     });
 
@@ -721,7 +721,7 @@ describe('WebRTC', () => {
     // ได้ offer จากเขาแล้วต้องตอบ answer กลับได้ตามปกติ
     await act(async () => {
       await handlers.get('rtc:signal')?.({
-        from_username: 'AAA-earlier',
+        from_core_user_id: 'AAA-earlier',
         kind: 'offer',
         data: { type: 'offer', sdp: 'ของผู้โทร' },
       });
@@ -745,7 +745,7 @@ describe('WebRTC', () => {
       handlers.get('call:incoming')?.({
         session_id: 'session-9',
         channel_id: 'dm-9',
-        from_username: 'AAA-earlier',
+        from_core_user_id: 'AAA-earlier',
       });
     });
 
@@ -778,7 +778,7 @@ describe('WebRTC', () => {
     act(() => {
       handlers.get('call:answered')?.({
         accepted: true,
-        from_username: 'bbb-peer',
+        from_core_user_id: 'bbb-peer',
       });
     });
 
@@ -794,7 +794,7 @@ describe('WebRTC', () => {
     act(() => {
       handlers.get('call:answered')?.({
         accepted: true,
-        from_username: 'bbb-peer',
+        from_core_user_id: 'bbb-peer',
       });
     });
 
@@ -802,7 +802,7 @@ describe('WebRTC', () => {
 
     await act(async () => {
       await handlers.get('rtc:signal')?.({
-        from_username: 'bbb-peer',
+        from_core_user_id: 'bbb-peer',
         kind: 'renegotiate',
         data: null,
       });
@@ -817,7 +817,7 @@ describe('WebRTC', () => {
 
     await act(async () => {
       await handlers.get('rtc:signal')?.({
-        from_username: 'bbb-peer',
+        from_core_user_id: 'bbb-peer',
         kind: 'offer',
         data: { type: 'offer', sdp: 'ของอีกฝ่าย' },
       });
@@ -834,7 +834,7 @@ describe('WebRTC', () => {
         (row.payload as { kind?: string }).kind === 'answer',
     );
 
-    expect(answer?.payload).toMatchObject({ to_username: 'bbb-peer' });
+    expect(answer?.payload).toMatchObject({ to_core_user_id: 'bbb-peer' });
   });
 
   it('ice candidate ที่มาก่อน remote description ไม่ทำให้สายพัง', async () => {
@@ -850,7 +850,7 @@ describe('WebRTC', () => {
     // ต้องไม่โยนออกมา ไม่งั้นจะกลายเป็น unhandled rejection
     await act(async () => {
       await handlers.get('rtc:signal')?.({
-        from_username: 'bbb-peer',
+        from_core_user_id: 'bbb-peer',
         kind: 'ice',
         data: { candidate: 'x' },
       });
@@ -870,7 +870,7 @@ describe('WebRTC', () => {
     act(() => {
       handlers.get('call:answered')?.({
         accepted: true,
-        from_username: 'bbb-peer',
+        from_core_user_id: 'bbb-peer',
       });
     });
 
@@ -895,7 +895,7 @@ describe('WebRTC', () => {
     act(() => {
       handlers.get('call:answered')?.({
         accepted: true,
-        from_username: 'bbb-peer',
+        from_core_user_id: 'bbb-peer',
       });
     });
 

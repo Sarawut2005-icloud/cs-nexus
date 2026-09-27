@@ -153,14 +153,14 @@ export function EditProfileDialog({
 
                   <div className="space-y-1">
                     <Label
-                      htmlFor={`${id}-username`}
+                      htmlFor={`${id}-coreUserId`}
                       className="text-xs text-muted-foreground"
                     >
                       รหัสผู้ใช้ (Shared Identity)
                     </Label>
                     <Input
-                      id={`${id}-username`}
-                      value={profile.username}
+                      id={`${id}-coreUserId`}
+                      value={profile.coreUserId}
                       readOnly
                       disabled
                       className="bg-background font-mono text-xs"

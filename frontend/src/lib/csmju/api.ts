@@ -8,7 +8,6 @@
 ///   const posts = await api.get<Post[]>('/posts')
 /// แทนที่จะต้องจำ `res.data` ทุกครั้ง แล้วลืมเช็ค success ในบางที่
 
-import { getIdentity } from './identity';
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
@@ -60,22 +59,22 @@ async function request<T>(
   path: string,
   body?: unknown,
 ): Promise<{ data: T; meta?: PaginationMeta }> {
-  const identity = getIdentity();
-
   let response: Response;
 
   try {
     response = await fetch(`${BASE_URL}${path}`, {
       method,
-      headers: {
-        'content-type': 'application/json',
-        // ระหว่างที่ API Gateway ของ Core ยังไม่พร้อม หน้าบ้านแนบ header
-        // เองเพื่อทดสอบหลายผู้ใช้ในเครื่องเดียว — ของจริง Gateway จะแนบให้
-        // และหลังบ้านตั้ง DEV_FAKE_GATEWAY=false แล้ว header จากที่นี่จะไร้ผล
-        'x-user-id': identity.username,
-        'x-layer1-role': identity.layer1Role,
-        'x-faculty': identity.faculty,
-      },
+      headers: { 'content-type': 'application/json' },
+
+      // **ตัวตนอยู่ในคุกกี้ ไม่ใช่ใน header ที่หน้าบ้านเขียนเอง**
+      //
+      // `core_hub_access_token` เป็นคุกกี้ httpOnly ที่หลังบ้านตั้งไว้ตอน
+      // /auth/callback — JavaScript ในหน้านี้อ่านมันไม่ได้ด้วยซ้ำ จึงไม่มีทาง
+      // แนบเองได้ ต้องให้เบราว์เซอร์แนบให้ ซึ่งเกิดขึ้นเมื่อใส่ `credentials`
+      //
+      // ไม่ใส่บรรทัดนี้ = ทุก request ได้ 401 ทั้งที่ผู้ใช้ล็อกอินแล้ว
+      // (หลังบ้านต้องตั้ง `credentials: true` ใน CORS คู่กันด้วย)
+      credentials: 'include',
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {

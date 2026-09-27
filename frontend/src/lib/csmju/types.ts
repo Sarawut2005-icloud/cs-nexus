@@ -17,8 +17,8 @@ export type BookmarkTarget = 'POST' | 'REEL';
 export type MeetingStatus = 'SCHEDULED' | 'LIVE' | 'ENDED' | 'CANCELLED';
 
 export interface Me {
-  username: string;
-  layer1_role: string;
+  coreUserId: string;
+  core_role: string;
   faculty: string | null;
   layer2_role: Layer2Role;
   storage_used_bytes: string;
@@ -44,7 +44,7 @@ export interface Post {
   title: string;
   content: string;
   course_tag: string | null;
-  author_username: string;
+  author_core_user_id: string;
   comment_count: number;
   reactions: ReactionSummary | null;
   created_at: string;
@@ -53,7 +53,7 @@ export interface Post {
 export interface PostComment {
   id: string;
   post_id: string;
-  author_username: string;
+  author_core_user_id: string;
   content: string;
   created_at: string;
 }
@@ -64,7 +64,7 @@ export interface Reel {
   caption: string | null;
   asset_id: string;
   duration_ms: number;
-  author_username: string;
+  author_core_user_id: string;
   like_count: number;
   view_count: number;
   liked_by_me: boolean;
@@ -74,7 +74,7 @@ export interface Reel {
 export interface ReelComment {
   id: string;
   reel_id: string;
-  author_username: string;
+  author_core_user_id: string;
   content: string;
   created_at: string;
 }
@@ -103,14 +103,14 @@ export interface Message {
   id: string;
   seq: number;
   channel_id: string;
-  author_username: string;
+  author_core_user_id: string;
   content: string | null;
   attachments: MessageAttachment[];
   embed: { kind: string; ref_id: string } | null;
   parent_id: string | null;
   reply_count: number;
   pinned_at: string | null;
-  pinned_by_username: string | null;
+  pinned_by_core_user_id: string | null;
   client_nonce: string;
   edited_at: string | null;
   created_at: string;
@@ -120,7 +120,7 @@ export interface Notification {
   id: string;
   kind: string;
   ref_id: string;
-  actor_username: string | null;
+  actor_core_user_id: string | null;
   payload: Record<string, unknown> | null;
   read_at: string | null;
   created_at: string;
@@ -133,12 +133,12 @@ export interface Relation {
 }
 
 export interface ProfileSummary {
-  username: string;
+  coreUserId: string;
   display_name: string;
   avatar_url: string | null;
   synced_at: string | null;
   /// เครื่องหมายยืนยันข้างชื่อ — มาจาก layer2_role ของระบบย่อยนี้
-  /// ไม่ใช่ layer1_role ซึ่งเราห้ามเก็บ (Blueprint หน้า 10)
+  /// ไม่ใช่ core_role ซึ่งเราห้ามเก็บ (Blueprint หน้า 10)
   badge: 'ADMIN' | 'STAFF' | null;
 }
 
@@ -164,7 +164,7 @@ export interface MyProfile extends ProfileDetail {
 }
 
 export interface FollowEdge {
-  username: string;
+  coreUserId: string;
   created_at: string;
 }
 
@@ -172,7 +172,7 @@ export interface Bookmark {
   target_kind: BookmarkTarget;
   target_id: string;
   title: string | null;
-  author_username: string | null;
+  author_core_user_id: string | null;
   created_at: string;
 }
 
@@ -181,7 +181,7 @@ export interface SearchHit {
   id: string;
   title: string;
   snippet: string | null;
-  author_username: string | null;
+  author_core_user_id: string | null;
   channel_id: string | null;
   created_at: string | null;
 }
@@ -200,14 +200,14 @@ export interface Meeting {
   starts_at: string;
   ends_at: string;
   status: MeetingStatus;
-  created_by_username: string;
+  created_by_core_user_id: string;
   joinable_now: boolean;
   created_at: string;
 }
 
 export interface IceServer {
   urls: string[];
-  username?: string;
+  coreUserId?: string;
   credential?: string;
 }
 
@@ -215,7 +215,7 @@ export interface VoiceSession {
   id: string;
   channel_id: string;
   started_at: string;
-  participants: { username: string; joined_at: string }[];
+  participants: { coreUserId: string; joined_at: string }[];
   max_seats: number;
   seats_taken: number;
 }
@@ -228,8 +228,8 @@ export interface JoinVoiceResponse extends VoiceSession {
 
 export interface AuditLog {
   id: string;
-  actor_username: string;
-  actor_layer1_role: string;
+  actor_core_user_id: string;
+  actor_core_role: string;
   action: string;
   target_kind: string;
   target_id: string;
@@ -238,7 +238,7 @@ export interface AuditLog {
 }
 
 export interface SubsystemMember {
-  username: string;
+  coreUserId: string;
   layer2_role: Layer2Role;
   /// true = ผู้ดูแลตั้งด้วยมือ · false = แปลงมาจากสิทธิ์องค์กรอัตโนมัติ
   layer2_role_explicit: boolean;
@@ -268,15 +268,15 @@ export interface Report {
   target_id: string;
   reason: string;
   status: 'OPEN' | 'RESOLVED' | 'REJECTED';
-  reporter_username: string;
-  resolved_by_username: string | null;
+  reporter_core_user_id: string;
+  resolved_by_core_user_id: string | null;
   resolved_at: string | null;
   created_at: string;
 }
 
 export interface StoryItem {
   id: string;
-  author_username: string;
+  author_core_user_id: string;
   kind: 'IMAGE' | 'VIDEO';
   /// signed URL อายุ 5 นาที — ถ้าโหลดไม่ขึ้นให้ดึงแถวใหม่
   media_url: string;
@@ -290,14 +290,14 @@ export interface StoryItem {
 }
 
 export interface StoryTray {
-  author_username: string;
+  author_core_user_id: string;
   has_unseen: boolean;
   is_me: boolean;
   stories: StoryItem[];
 }
 
 export interface StoryViewerRow {
-  username: string;
+  coreUserId: string;
   viewed_at: string;
 }
 

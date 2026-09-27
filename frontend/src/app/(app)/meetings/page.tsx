@@ -10,7 +10,7 @@ import { CalendarPlus, Loader2, Video, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { UserName } from '@/components/csmju/user-name';
 import { api, ApiError } from '@/lib/csmju/api';
-import { getIdentity } from '@/lib/csmju/identity';
+import { useMe } from '@/lib/csmju/session';
 import type { Channel, Meeting } from '@/lib/csmju/types';
 
 /// นัดประชุมล่วงหน้าแบบ Microsoft Teams
@@ -23,7 +23,7 @@ import type { Channel, Meeting } from '@/lib/csmju/types';
 
 export default function MeetingsPage() {
   const [upcomingOnly, setUpcomingOnly] = useState(true);
-  const me = getIdentity();
+  const me = useMe();
   const queryClient = useQueryClient();
 
   const meetingsKey = ['meetings', upcomingOnly] as const;
@@ -160,7 +160,7 @@ export default function MeetingsPage() {
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     ห้อง {channel?.name ?? meeting.channel_id} · นัดโดย{' '}
                     <UserName
-                      username={meeting.created_by_username}
+                      coreUserId={meeting.created_by_core_user_id}
                       className="text-xs"
                     />
                   </p>
@@ -201,8 +201,8 @@ export default function MeetingsPage() {
                 )}
 
                 {!cancelled &&
-                  (meeting.created_by_username === me.username ||
-                    me.layer1Role === 'admin') && (
+                  (meeting.created_by_core_user_id === me.id ||
+                    me.coreRole === 'admin') && (
                     <button
                       type="button"
                       onClick={() => void cancel(meeting)}

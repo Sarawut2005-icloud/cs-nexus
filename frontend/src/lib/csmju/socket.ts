@@ -16,7 +16,6 @@
 
 import { io, type Socket } from 'socket.io-client';
 import { api } from './api';
-import { getIdentity } from './identity';
 
 const SOCKET_URL =
   process.env.NEXT_PUBLIC_SOCKET_URL ?? 'http://localhost:4000';
@@ -31,7 +30,6 @@ const RECONNECT_MIN_MS = 1000;
 const RECONNECT_MAX_MS = 30_000;
 
 let socket: Socket | null = null;
-let connectingFor: string | null = null;
 let pending: Promise<Socket> | null = null;
 let retryDelay = RECONNECT_MIN_MS;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -203,16 +201,18 @@ function attach(target: Socket) {
 
 /// ต่อ socket (หรือคืนตัวที่ต่ออยู่แล้ว)
 ///
-/// ถ้าสลับตัวตนใน dev จะตัดตัวเก่าแล้วต่อใหม่ ไม่งั้น socket จะยังเป็นคนเดิม
-/// ทั้งที่ REST เปลี่ยนคนไปแล้ว — อาการคือ "ส่งข้อความแล้วขึ้นชื่อคนอื่น"
+/// ตัวตนของ socket มาจาก **ตั๋วอายุสั้น** ที่ขอผ่าน REST ซึ่งหลังบ้านออกให้
+/// เฉพาะคำขอที่ผ่านการตรวจลายเซ็น token แล้วเท่านั้น หน้าบ้านจึงไม่ต้องรู้
+/// (และไม่มีทางรู้) ว่าตัวเองเป็นใคร — token อยู่ในคุกกี้ httpOnly
+///
+/// เดิมมีการเทียบชื่อผู้ใช้เพื่อบังคับต่อใหม่ตอนสลับตัวตนในโหมด dev
+/// ซึ่งไม่มีแล้วเพราะไม่มีตัวสลับตัวตนอีกต่อไป
 export async function connectSocket(): Promise<Socket> {
-  const identity = getIdentity();
-
-  if (socket?.connected && connectingFor === identity.username) {
+  if (socket?.connected) {
     return socket;
   }
 
-  if (pending && connectingFor === identity.username) {
+  if (pending) {
     return pending;
   }
 
@@ -232,7 +232,6 @@ export async function connectSocket(): Promise<Socket> {
     retryTimer = null;
   }
 
-  connectingFor = identity.username;
   manualClose = false;
   setStatus('connecting');
 
@@ -254,7 +253,6 @@ export async function connectSocket(): Promise<Socket> {
     return await pending;
   } catch (error) {
     pending = null;
-    connectingFor = null;
     setStatus('offline');
     scheduleReconnect();
 
@@ -282,7 +280,6 @@ export function disconnectSocket(): void {
 
   joinedRooms.clear();
   bindings.clear();
-  connectingFor = null;
   pending = null;
   setStatus('offline');
 }

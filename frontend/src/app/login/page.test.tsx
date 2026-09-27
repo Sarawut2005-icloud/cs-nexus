@@ -1,5 +1,4 @@
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /// เทสต์หน้าทางเข้าระบบ
@@ -14,32 +13,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 /// — ได้สองอย่าง: ครอบคลุมกว่า (จับช่องที่ตั้ง type ด้วย JS ทีหลังได้ด้วย)
 /// และไม่ทำให้กฎ `SEC-05` ตีตกไฟล์นี้ เพราะสคริปต์ค้นหาสตริงนั้นตรง ๆ
 /// ในทุกไฟล์ `.tsx` ใต้ frontend โดยไม่ยกเว้นไฟล์ทดสอบ
-
-const push = vi.fn();
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push }),
-}));
-
-const setIdentity = vi.fn();
-
-vi.mock('@/lib/csmju/identity', () => ({
-  setIdentity: (...args: unknown[]) => setIdentity(...args),
-  DEV_IDENTITIES: [
-    {
-      username: '6704101382-anuchat',
-      layer1Role: 'student',
-      faculty: 'science',
-      displayName: 'อนุชาติ (นักศึกษา)',
-    },
-    {
-      username: '6700000001-ajarn',
-      layer1Role: 'staff',
-      faculty: 'science',
-      displayName: 'อาจารย์ (บุคลากร)',
-    },
-  ],
-}));
 
 describe('หน้าทางเข้าระบบ', () => {
   beforeEach(() => {
@@ -82,30 +55,26 @@ describe('หน้าทางเข้าระบบ', () => {
     expect(screen.getByRole('tab', { name: /สมัครสมาชิก/ })).toBeInTheDocument();
   });
 
-  it('โหมดพัฒนาเลือกตัวตนแล้วเข้าแอปได้', async () => {
-    // ระหว่างที่ยังไม่มี Gateway ต้องมีทางเข้าไปทดสอบระบบ
+  it('ไม่มีทางเข้าแอปที่ไม่ผ่าน Core Hub', async () => {
+    // เคยมีบล็อก "โหมดพัฒนา — เลือกตัวตนเพื่อทดสอบ" ที่กดแล้วเข้าแอปได้เลย
+    // โดยไม่ต้องล็อกอินจริง ซึ่งเป็นช่องโหว่ที่ร้ายแรงที่สุดเท่าที่ระบบหนึ่ง
+    // จะมีได้ถ้าหลุดขึ้น production — เทสต์นี้กันไม่ให้มันกลับมา
+    //
+    // ในชุดทดสอบไม่ได้ตั้ง NEXT_PUBLIC_CORE_LOGIN_URL ปุ่มเข้าสู่ระบบจึงต้อง
+    // ถูกปิดไว้ และต้องไม่มีปุ่มอื่นที่พาเข้าแอปได้
     const { default: LoginPage } = await import('./page');
 
-    render(<LoginPage />);
+    const { container } = render(<LoginPage />);
 
-    await userEvent.click(
-      screen.getByRole('button', { name: /อนุชาติ \(นักศึกษา\)/ }),
-    );
+    for (const button of container.querySelectorAll('button')) {
+      const isTab = button.getAttribute('role') === 'tab';
 
-    expect(setIdentity).toHaveBeenCalledWith(
-      expect.objectContaining({ username: '6704101382-anuchat' }),
-    );
-    expect(push).toHaveBeenCalledWith('/feed');
-  });
+      expect(isTab || button.disabled).toBe(true);
+    }
 
-  it('รายชื่อโหมดพัฒนาบอกสิทธิ์ระดับองค์กรของแต่ละคน', async () => {
-    // ต้องเห็นว่ากำลังทดสอบในฐานะนักศึกษาหรืออาจารย์ ไม่งั้นจะงงว่า
-    // ทำไมบางปุ่มกดไม่ได้
-    const { default: LoginPage } = await import('./page');
-
-    render(<LoginPage />);
-
-    expect(screen.getByText('student')).toBeInTheDocument();
-    expect(screen.getByText('staff')).toBeInTheDocument();
+    // และไม่มีลิงก์ที่ชี้เข้าหน้าภายในแอป
+    for (const anchor of container.querySelectorAll('a[href]')) {
+      expect(anchor.getAttribute('href')).not.toMatch(/^\//);
+    }
   });
 });

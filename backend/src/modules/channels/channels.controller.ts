@@ -13,7 +13,7 @@ import {
 import { ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, Min } from 'class-validator';
-import { CurrentUser, type GatewayUser } from '../../common/auth/gateway-user.js';
+import { CurrentUser, type CoreHubUser } from '../../common/auth/core-user.js';
 import {
   ApiEnvelope,
   ApiEnvelopeError,
@@ -52,7 +52,7 @@ export class ChannelsController {
   @Get()
   @ApiOperation({ summary: 'ห้องทั้งหมดที่ฉันเป็นสมาชิก พร้อมจำนวนที่ยังไม่อ่าน' })
   @ApiEnvelopeList(ChannelResponseDto)
-  list(@CurrentUser() user: GatewayUser, @Query() query: PaginationQuery) {
+  list(@CurrentUser() user: CoreHubUser, @Query() query: PaginationQuery) {
     return this.channels.listMine(user, query);
   }
 
@@ -60,7 +60,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'สร้างห้องกลุ่ม ห้องประจำวิชา หรือห้องเสียง' })
   @ApiEnvelope(ChannelResponseDto, { status: 201 })
   @ApiEnvelopeError(403, 'นักศึกษาสร้างห้องประจำวิชาไม่ได้')
-  create(@CurrentUser() user: GatewayUser, @Body() dto: CreateChannelDto) {
+  create(@CurrentUser() user: CoreHubUser, @Body() dto: CreateChannelDto) {
     return this.channels.create(user, dto);
   }
 
@@ -69,7 +69,7 @@ export class ChannelsController {
   @ApiEnvelope(ChannelResponseDto)
   @ApiEnvelopeError(404, 'ไม่พบห้อง หรือไม่ได้เป็นสมาชิก')
   findOne(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.channels.findOne(user, id);
@@ -79,7 +79,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'เพิ่มสมาชิกเข้าห้อง (เฉพาะผู้ดูแลห้อง)' })
   @ApiEnvelope(AddMembersResponseDto, { status: 201 })
   addMembers(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AddMembersDto,
   ) {
@@ -90,7 +90,7 @@ export class ChannelsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'ออกจากห้อง' })
   async leave(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     await this.channels.leave(user, id);
@@ -100,7 +100,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'บันทึกว่าอ่านถึงข้อความลำดับใดแล้ว' })
   @ApiEnvelope(MarkReadResponseDto, { status: 201 })
   markRead(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: MarkReadDto,
   ) {
@@ -120,7 +120,7 @@ export class DirectChannelsController {
   @ApiEnvelope(ChannelResponseDto, { status: 201 })
   @ApiEnvelopeError(400, 'สร้างห้องกับตัวเองไม่ได้')
   create(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Body() dto: CreateDirectChannelDto,
   ) {
     return this.channels.createOrFindDirect(user, dto);

@@ -113,8 +113,8 @@ vi.mock('./api', () => ({
 
 vi.mock('./identity', () => ({
   getIdentity: () => ({
-    username: 'tester',
-    layer1Role: 'student',
+    coreUserId: 'tester',
+    coreRole: 'student',
     faculty: 'science',
     displayName: 'ผู้ทดสอบ',
   }),

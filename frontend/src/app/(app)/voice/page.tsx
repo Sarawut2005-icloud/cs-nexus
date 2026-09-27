@@ -16,7 +16,7 @@ import { AnimatedTooltip } from '@/components/ui/animated-tooltip';
 import { Avatar, UserName } from '@/components/csmju/user-name';
 import { ConnectivityCheck } from '@/components/csmju/connectivity-check';
 import { api, ApiError } from '@/lib/csmju/api';
-import { getIdentity } from '@/lib/csmju/identity';
+import { useMe } from '@/lib/csmju/session';
 import {
   bindSocket,
   connectSocket,
@@ -36,7 +36,7 @@ import type { Channel, JoinVoiceResponse, VoiceSession } from '@/lib/csmju/types
 /// การต่อสายจริง — แท็บเดียวจะเห็นแค่ตัวเองในห้อง
 
 interface PeerState {
-  username: string;
+  coreUserId: string;
   connection: RTCPeerConnection;
   stream: MediaStream | null;
   /// เราเป็นฝ่ายยื่นข้อเสนอของสายนี้ไหม (ตัดสินด้วยการเทียบชื่อตอนเปิดสาย)
@@ -68,7 +68,7 @@ export default function VoicePage() {
   /// cleanup ผูกครั้งเดียวจึงมองเห็นแต่ค่าตอน mount — ต้องอ่านผ่าน ref
   const sessionRef = useRef<JoinVoiceResponse | null>(null);
   const presenterRef = useRef<string | null>(null);
-  const me = getIdentity();
+  const me = useMe();
 
   useEffect(() => {
     void api
@@ -102,7 +102,7 @@ export default function VoicePage() {
 
     if (!peer.isOfferer) {
       socket.emit('rtc:signal', {
-        to_username: peer.username,
+        to_core_user_id: peer.coreUserId,
         kind: 'renegotiate',
         data: null,
       });
@@ -116,7 +116,7 @@ export default function VoicePage() {
       await peer.connection.setLocalDescription(offer);
 
       socket.emit('rtc:signal', {
-        to_username: peer.username,
+        to_core_user_id: peer.coreUserId,
         kind: 'offer',
         data: offer,
       });
@@ -155,8 +155,8 @@ export default function VoicePage() {
   }, [renegotiate]);
 
   const createPeer = useCallback(
-    (username: string, shouldOffer: boolean) => {
-      const existing = peersRef.current[username];
+    (coreUserId: string, shouldOffer: boolean) => {
+      const existing = peersRef.current[coreUserId];
 
       if (existing) {
         return existing;
@@ -167,13 +167,13 @@ export default function VoicePage() {
       });
 
       const state: PeerState = {
-        username,
+        coreUserId,
         connection,
         stream: null,
         isOfferer: shouldOffer,
       };
 
-      peersRef.current = { ...peersRef.current, [username]: state };
+      peersRef.current = { ...peersRef.current, [coreUserId]: state };
       setPeers({ ...peersRef.current });
 
       for (const track of localStream.current?.getTracks() ?? []) {
@@ -184,7 +184,7 @@ export default function VoicePage() {
         if (!event.candidate) return;
 
         socketRef.current?.emit('rtc:signal', {
-          to_username: username,
+          to_core_user_id: coreUserId,
           kind: 'ice',
           data: event.candidate.toJSON(),
         });
@@ -194,7 +194,7 @@ export default function VoicePage() {
         const [stream] = event.streams;
 
         state.stream = stream ?? null;
-        peersRef.current = { ...peersRef.current, [username]: { ...state } };
+        peersRef.current = { ...peersRef.current, [coreUserId]: { ...state } };
         setPeers({ ...peersRef.current });
       };
 
@@ -209,7 +209,7 @@ export default function VoicePage() {
         ) {
           // อาการนี้คือสิ่งที่ TURN แก้ — บอกตรง ๆ ดีกว่าให้ผู้ใช้เดา
           setNotice(
-            `ต่อเสียงกับ ${username} ไม่ติด — เครือข่ายนี้ต้องมี TURN server (ยังไม่ได้ตั้ง)`,
+            `ต่อเสียงกับ ${coreUserId} ไม่ติด — เครือข่ายนี้ต้องมี TURN server (ยังไม่ได้ตั้ง)`,
           );
         }
       };
@@ -221,7 +221,7 @@ export default function VoicePage() {
           await connection.setLocalDescription(offer);
 
           socketRef.current?.emit('rtc:signal', {
-            to_username: username,
+            to_core_user_id: coreUserId,
             kind: 'offer',
             data: offer,
           });
@@ -276,7 +276,7 @@ export default function VoicePage() {
 
       iceServers.current = joined.ice_servers.map((server) => ({
         urls: server.urls,
-        username: server.username,
+        coreUserId: server.coreUserId,
         credential: server.credential,
       }));
 
@@ -300,12 +300,12 @@ export default function VoicePage() {
       // ผลคือเข้าหน้าห้องเสียงหนึ่งครั้งแล้วสายเรียกเข้าพังทั้งแอป
       unbindRef.current.push(
         bindSocket<{
-          from_username: string;
+          from_core_user_id: string;
           kind: 'offer' | 'answer' | 'ice' | 'renegotiate';
           data: unknown;
         }>(socket, 'rtc:signal', async (payload) => {
           // ฝั่งที่ได้ offer ไม่ต้องยื่น offer กลับ
-          const peer = createPeer(payload.from_username, false);
+          const peer = createPeer(payload.from_core_user_id, false);
 
           if (payload.kind === 'offer') {
             await peer.connection.setRemoteDescription(
@@ -317,7 +317,7 @@ export default function VoicePage() {
             await peer.connection.setLocalDescription(answer);
 
             socket.emit('rtc:signal', {
-              to_username: payload.from_username,
+              to_core_user_id: payload.from_core_user_id,
               kind: 'answer',
               data: answer,
             });
@@ -352,13 +352,13 @@ export default function VoicePage() {
       );
 
       unbindRef.current.push(
-        bindSocket<{ session_id: string; presenter_username: string | null }>(
+        bindSocket<{ session_id: string; presenter_core_user_id: string | null }>(
           socket,
           'screen:changed',
           (payload) => {
             if (payload.session_id !== joined.id) return;
 
-            setPresenter(payload.presenter_username);
+            setPresenter(payload.presenter_core_user_id);
           },
         ),
       );
@@ -366,9 +366,9 @@ export default function VoicePage() {
       // ยื่น offer ไปหาคนที่อยู่ในห้องก่อนเราเข้ามา
       // เกณฑ์: ใครชื่อ "น้อยกว่า" เป็นฝ่ายยื่น เพื่อไม่ให้ทั้งคู่ยื่นพร้อมกัน
       for (const participant of joined.participants) {
-        if (participant.username === me.username) continue;
+        if (participant.coreUserId === me.id) continue;
 
-        createPeer(participant.username, me.username < participant.username);
+        createPeer(participant.coreUserId, me.id < participant.coreUserId);
       }
     } catch (caught) {
       teardown();
@@ -425,7 +425,7 @@ export default function VoicePage() {
 
     if (!socket) return;
 
-    if (presenter === me.username) {
+    if (presenter === me.id) {
       await stopSharing();
       socket.emit('screen:release', { session_id: session.id });
       setPresenter(null);
@@ -436,7 +436,7 @@ export default function VoicePage() {
     try {
       const result = await emitWithAck<{
         ok: boolean;
-        presenter_username?: string;
+        presenter_core_user_id?: string;
         max_viewers?: number;
         error?: string;
       }>(socket, 'screen:claim', { session_id: session.id });
@@ -475,7 +475,7 @@ export default function VoicePage() {
         setPresenter(null);
       };
 
-      setPresenter(me.username);
+      setPresenter(me.id);
     } catch (caught) {
       if (caught instanceof DOMException) {
         // ผู้ใช้กดยกเลิกหน้าต่างเลือกจอ — ต้องคืนสิทธิ์ ไม่งั้นห้องจะล็อกไว้
@@ -516,7 +516,7 @@ export default function VoicePage() {
 
       if (current) {
         // คืนสิทธิ์แชร์หน้าจอก่อน ไม่งั้นห้องจะล็อกไว้ให้คนที่ออกไปแล้ว
-        if (presenterRef.current === me.username) {
+        if (presenterRef.current === me.id) {
           socketRef.current?.emit('screen:release', {
             session_id: current.id,
           });
@@ -529,7 +529,7 @@ export default function VoicePage() {
 
       teardown();
     },
-    [teardown, me.username],
+    [teardown, me.id],
   );
 
   const voiceChannels = channels.filter(
@@ -648,7 +648,7 @@ function ActiveSession({
   onLeave: () => void;
 }) {
   const [live, setLive] = useState<VoiceSession | null>(null);
-  const me = getIdentity();
+  const me = useMe();
 
   // ดึงรายชื่อผู้เข้าร่วมซ้ำเป็นระยะ เพราะการเข้า/ออกห้องเป็น REST
   // ไม่มี event บอก — TODO(PL): เสนอหลังบ้านเพิ่ม voice:participants
@@ -687,10 +687,10 @@ function ActiveSession({
           <AnimatedTooltip
             size={40}
             items={participants.map((participant) => ({
-              id: participant.username,
-              name: participant.username,
+              id: participant.coreUserId,
+              name: participant.coreUserId,
               designation:
-                participant.username === presenter
+                participant.coreUserId === presenter
                   ? 'กำลังแชร์หน้าจอ'
                   : 'อยู่ในสาย',
               online: true,
@@ -701,20 +701,20 @@ function ActiveSession({
         <ul className="grid gap-2 sm:grid-cols-2">
           {participants.map((participant) => {
             const peer = peers.find(
-              (row) => row.username === participant.username,
+              (row) => row.coreUserId === participant.coreUserId,
             );
-            const isMe = participant.username === me.username;
+            const isMe = participant.coreUserId === me.id;
 
             return (
               <li
-                key={participant.username}
+                key={participant.coreUserId}
                 className="flex items-center gap-2.5 rounded-lg bg-muted/60 px-3 py-2"
               >
-                <Avatar username={participant.username} size={32} />
+                <Avatar coreUserId={participant.coreUserId} size={32} />
 
                 <span className="min-w-0 flex-1">
                   <UserName
-                    username={participant.username}
+                    coreUserId={participant.coreUserId}
                     className="block truncate text-sm"
                   />
                   <span className="block text-[11px] text-muted-foreground">
@@ -730,7 +730,7 @@ function ActiveSession({
                   </span>
                 </span>
 
-                {participant.username === presenter && (
+                {participant.coreUserId === presenter && (
                   <MonitorUp className="size-4 shrink-0 text-primary" />
                 )}
               </li>
@@ -743,17 +743,17 @@ function ActiveSession({
       {peers.map((peer) =>
         peer.stream ? (
           <RemoteAudio
-            key={peer.username}
+            key={peer.coreUserId}
             stream={peer.stream}
-            username={peer.username}
+            coreUserId={peer.coreUserId}
           />
         ) : null,
       )}
 
-      {presenter && presenter !== me.username && (
+      {presenter && presenter !== me.id && (
         <ScreenView
           stream={
-            peers.find((peer) => peer.username === presenter)?.stream ?? null
+            peers.find((peer) => peer.coreUserId === presenter)?.stream ?? null
           }
           presenter={presenter}
         />
@@ -776,20 +776,20 @@ function ActiveSession({
         <button
           type="button"
           onClick={onToggleScreen}
-          disabled={presenter !== null && presenter !== me.username}
+          disabled={presenter !== null && presenter !== me.id}
           className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-accent disabled:opacity-40"
           title={
-            presenter !== null && presenter !== me.username
+            presenter !== null && presenter !== me.id
               ? `${presenter} กำลังแชร์อยู่ — หนึ่งห้องแชร์ได้ทีละคน`
               : undefined
           }
         >
-          {presenter === me.username ? (
+          {presenter === me.id ? (
             <MonitorX className="size-4" />
           ) : (
             <MonitorUp className="size-4" />
           )}
-          {presenter === me.username ? 'หยุดแชร์หน้าจอ' : 'แชร์หน้าจอ'}
+          {presenter === me.id ? 'หยุดแชร์หน้าจอ' : 'แชร์หน้าจอ'}
         </button>
 
         <button
@@ -807,10 +807,10 @@ function ActiveSession({
 
 function RemoteAudio({
   stream,
-  username,
+  coreUserId,
 }: {
   stream: MediaStream;
-  username: string;
+  coreUserId: string;
 }) {
   const ref = useRef<HTMLAudioElement | null>(null);
 
@@ -822,7 +822,7 @@ function RemoteAudio({
 
   return (
     <audio ref={ref} autoPlay playsInline className="hidden">
-      <track kind="captions" label={`เสียงของ ${username}`} />
+      <track kind="captions" label={`เสียงของ ${coreUserId}`} />
     </audio>
   );
 }

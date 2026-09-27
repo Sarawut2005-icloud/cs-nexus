@@ -4,7 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { GatewayUser } from '../../common/auth/gateway-user.js';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { ChannelsService } from '../channels/channels.service.js';
 import {
@@ -28,7 +28,7 @@ export class VoiceService {
   /// ถ้าปล่อยให้ UI เป็นคนคุม คนที่เขียนสคริปต์เรียก API ตรงจะเข้าเกินเพดานได้
   /// แล้วเสียงของทั้งห้องจะขาดโดยที่ไม่มีใครรู้ว่าทำไม
   async join(
-    user: GatewayUser,
+    user: CoreHubUser,
     channelId: string,
   ): Promise<JoinVoiceResponseDto> {
     await this.channels.requireMembership(user, channelId);
@@ -68,7 +68,7 @@ export class VoiceService {
         where: { sessionId: active.id, leftAt: null },
       });
 
-      const alreadyIn = present.find((p) => p.username === user.username);
+      const alreadyIn = present.find((p) => p.coreUserId === user.coreUserId);
 
       if (alreadyIn) {
         return active;
@@ -82,7 +82,7 @@ export class VoiceService {
       }
 
       await tx.voiceParticipant.create({
-        data: { sessionId: active.id, username: user.username },
+        data: { sessionId: active.id, coreUserId: user.coreUserId },
       });
 
       return active;
@@ -101,9 +101,9 @@ export class VoiceService {
     };
   }
 
-  async leave(user: GatewayUser, sessionId: string): Promise<void> {
+  async leave(user: CoreHubUser, sessionId: string): Promise<void> {
     const participant = await this.prisma.voiceParticipant.findFirst({
-      where: { sessionId, username: user.username, leftAt: null },
+      where: { sessionId, coreUserId: user.coreUserId, leftAt: null },
     });
 
     if (!participant) {
@@ -131,13 +131,13 @@ export class VoiceService {
   }
 
   async listActive(
-    user: GatewayUser,
+    user: CoreHubUser,
     channelId?: string,
   ): Promise<VoiceSessionDto[]> {
     // เห็นได้เฉพาะห้องที่ตัวเองเป็นสมาชิก — ไม่งั้นจะรู้ว่าใครติวกับใครอยู่
     const memberships = await this.prisma.channelMember.findMany({
       where: {
-        username: user.username,
+        coreUserId: user.coreUserId,
         ...(channelId ? { channelId } : {}),
       },
       select: { channelId: true },
@@ -163,7 +163,7 @@ export class VoiceService {
       channel_id: session.channelId,
       started_at: session.startedAt.toISOString(),
       participants: session.participants.map((p) => ({
-        username: p.username,
+        coreUserId: p.coreUserId,
         joined_at: p.joinedAt.toISOString(),
       })),
       max_seats: session.channel.maxSeats,
@@ -176,16 +176,16 @@ export class VoiceService {
   /// ถ้าไม่เช็ค จะส่ง SDP ไปหาใครก็ได้ในระบบ ซึ่งเป็นทั้งช่องกวนคนอื่น
   /// และช่องให้รู้ IP ของคนอื่น (§9-V5 ของสเปกสถาปัตยกรรม)
   async sharesVoiceSession(
-    usernameA: string,
-    usernameB: string,
+    coreUserIdA: string,
+    coreUserIdB: string,
   ): Promise<string | null> {
     const rows = await this.prisma.voiceParticipant.findMany({
       where: {
         leftAt: null,
-        username: { in: [usernameA, usernameB] },
+        coreUserId: { in: [coreUserIdA, coreUserIdB] },
         session: { endedAt: null },
       },
-      select: { sessionId: true, username: true },
+      select: { sessionId: true, coreUserId: true },
     });
 
     const bySession = new Map<string, Set<string>>();
@@ -193,12 +193,12 @@ export class VoiceService {
     for (const row of rows) {
       const set = bySession.get(row.sessionId) ?? new Set<string>();
 
-      set.add(row.username);
+      set.add(row.coreUserId);
       bySession.set(row.sessionId, set);
     }
 
-    for (const [sessionId, usernames] of bySession) {
-      if (usernames.has(usernameA) && usernames.has(usernameB)) {
+    for (const [sessionId, coreUserIds] of bySession) {
+      if (coreUserIds.has(coreUserIdA) && coreUserIds.has(coreUserIdB)) {
         return sessionId;
       }
     }
@@ -216,9 +216,9 @@ export class VoiceService {
     return session?.channelId ?? null;
   }
 
-  async activeSessionOf(username: string): Promise<string | null> {
+  async activeSessionOf(coreUserId: string): Promise<string | null> {
     const participant = await this.prisma.voiceParticipant.findFirst({
-      where: { username, leftAt: null, session: { endedAt: null } },
+      where: { coreUserId, leftAt: null, session: { endedAt: null } },
       orderBy: { joinedAt: 'desc' },
       select: { sessionId: true },
     });
@@ -227,9 +227,9 @@ export class VoiceService {
   }
 
   /// ปิดการเข้าร่วมที่ค้างเมื่อ socket หลุดโดยไม่ได้กดออก
-  async leaveAllFor(username: string): Promise<string[]> {
+  async leaveAllFor(coreUserId: string): Promise<string[]> {
     const open = await this.prisma.voiceParticipant.findMany({
-      where: { username, leftAt: null },
+      where: { coreUserId, leftAt: null },
       select: { id: true, sessionId: true },
     });
 
@@ -263,7 +263,7 @@ export class VoiceService {
       channel_id: session.channelId,
       started_at: session.startedAt.toISOString(),
       participants: session.participants.map((p) => ({
-        username: p.username,
+        coreUserId: p.coreUserId,
         joined_at: p.joinedAt.toISOString(),
       })),
       max_seats: maxSeats,
@@ -303,7 +303,7 @@ export class VoiceService {
     if (turnUrl) {
       servers.push({
         urls: turnUrl.split(',').map((url) => url.trim()),
-        username: process.env.TURN_USERNAME,
+        coreUserId: process.env.TURN_USERNAME,
         credential: process.env.TURN_CREDENTIAL,
       });
     } else {

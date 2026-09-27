@@ -1,6 +1,6 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import type { GatewayUser } from '../../common/auth/gateway-user.js';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
 
 /// ตั๋วเข้า WebSocket — วิธียืนยันตัวตนของ socket ที่ไม่ต้องแตะ JWT
 ///
@@ -11,7 +11,7 @@ import type { GatewayUser } from '../../common/auth/gateway-user.js';
 /// วิธีแก้ที่ไม่ผิดกฎ:
 ///   1. client เรียก POST /api/v1/realtime-tickets ผ่าน REST — ทางนี้วิ่งผ่าน
 ///      Gateway แน่นอน จึงรู้ตัวตนจาก header ตามปกติ
-///   2. เราออกตั๋วสุ่มอายุสั้น ผูกกับ username นั้น เก็บไว้ในหน่วยความจำ
+///   2. เราออกตั๋วสุ่มอายุสั้น ผูกกับ coreUserId นั้น เก็บไว้ในหน่วยความจำ
 ///   3. client เอาตั๋วไปต่อ socket แล้วเราแลกตั๋วเป็นตัวตน
 ///
 /// ตั๋วใช้ได้ครั้งเดียวและหมดอายุใน 60 วินาที ถ้ารั่วออกไปก็ใช้ไม่ได้แล้ว
@@ -23,7 +23,7 @@ import type { GatewayUser } from '../../common/auth/gateway-user.js';
 const TICKET_TTL_MS = 60_000;
 
 interface Ticket {
-  user: GatewayUser;
+  user: CoreHubUser;
   expiresAt: number;
 }
 
@@ -32,7 +32,7 @@ export class RealtimeTicketsService {
   private readonly logger = new Logger(RealtimeTicketsService.name);
   private readonly tickets = new Map<string, Ticket>();
 
-  issue(user: GatewayUser): { ticket: string; expires_at: string } {
+  issue(user: CoreHubUser): { ticket: string; expires_at: string } {
     this.pruneExpired();
 
     const ticket = randomBytes(32).toString('base64url');
@@ -44,7 +44,7 @@ export class RealtimeTicketsService {
   }
 
   /// แลกตั๋วเป็นตัวตน — ตั๋วถูกลบทิ้งทันทีเพื่อให้ใช้ได้ครั้งเดียว
-  redeem(ticket: string | undefined): GatewayUser {
+  redeem(ticket: string | undefined): CoreHubUser {
     if (!ticket) {
       throw new UnauthorizedException(
         'ต้องแนบ ticket มาด้วย — ขอได้จาก POST /api/v1/realtime-tickets',

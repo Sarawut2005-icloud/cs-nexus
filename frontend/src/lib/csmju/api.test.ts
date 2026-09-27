@@ -161,7 +161,7 @@ describe('api', () => {
     expect(apiError.message).not.toContain('Failed to fetch');
   });
 
-  it('แนบ header ตัวตนไปทุกคำขอ', async () => {
+  it('ส่งคุกกี้ไปด้วยทุกคำขอ และไม่แนบ header ตัวตนเอง', async () => {
     const spy = mockFetch({ json: { success: true, data: null } });
 
     globalThis.fetch = spy;
@@ -171,10 +171,16 @@ describe('api', () => {
     const [, init] = spy.mock.calls[0] as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
 
-    // ขาดตัวใดตัวหนึ่ง หลังบ้านจะตอบ 401 ทั้งที่ผู้ใช้ล็อกอินอยู่
-    expect(headers['x-user-id']).toBeTruthy();
-    expect(headers['x-layer1-role']).toBeTruthy();
+    // token อยู่ในคุกกี้ httpOnly ที่ JavaScript อ่านไม่ได้ — ไม่ใส่บรรทัดนี้
+    // เบราว์เซอร์จะไม่ส่งคุกกี้ข้ามพอร์ตให้ แล้วทุกคำขอจะได้ 401
+    // ทั้งที่ผู้ใช้ล็อกอินอยู่
+    expect(init.credentials).toBe('include');
     expect(headers['content-type']).toBe('application/json');
+
+    // header ตัวตนที่หน้าบ้านเขียนเองต้องไม่มีอีกแล้ว — ถ้ากลับมาเมื่อไหร่
+    // แปลว่ามีคนรื้อ API Gateway ที่ไม่มีอยู่จริงกลับเข้ามา
+    expect(headers['x-user-id']).toBeUndefined();
+    expect(headers['x-core-role']).toBeUndefined();
   });
 
   it('isUserFixable แยก 4xx ออกจาก 5xx', () => {

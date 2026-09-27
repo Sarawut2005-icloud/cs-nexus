@@ -1,13 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { UserCog } from 'lucide-react';
 import AuthSwitch from '@/components/ui/auth-switch';
-import {
-  DEV_IDENTITIES,
-  setIdentity,
-  type Identity,
-} from '@/lib/csmju/identity';
 
 /// หน้าทางเข้าระบบ — **ไม่ใช่หน้ารับรหัสผ่าน**
 ///
@@ -43,18 +36,7 @@ import {
 const CORE_LOGIN_URL = process.env.NEXT_PUBLIC_CORE_LOGIN_URL ?? '';
 const CORE_SIGNUP_URL = process.env.NEXT_PUBLIC_CORE_SIGNUP_URL ?? '';
 
-/// โหมดพัฒนาเท่านั้น — ของจริงตัวตนมาจาก header ที่ Gateway แนบมา
-const IS_DEV = process.env.NODE_ENV !== 'production';
-
 export default function LoginPage() {
-  const router = useRouter();
-
-
-  function signInAsDevIdentity(identity: Identity) {
-    setIdentity(identity);
-    router.push('/feed');
-  }
-
   return (
     <main className="grid min-h-dvh place-items-center bg-secondary/40 px-4 py-10">
       <div className="w-full max-w-md">
@@ -75,45 +57,6 @@ export default function LoginPage() {
           className="max-w-none"
         />
 
-        {IS_DEV && (
-          <section className="mt-4 rounded-2xl border border-dashed border-border bg-card/60 p-5">
-            <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <UserCog className="size-4 text-muted-foreground" />
-              โหมดพัฒนา — เลือกตัวตนเพื่อทดสอบ
-            </h2>
-
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              ใช้ระหว่างที่ยังไม่ได้ต่อ Gateway เท่านั้น ของจริงตัวตนมาจาก
-              header ที่ Gateway แนบมาให้ ส่วนนี้จะไม่ถูกสร้างตอน build
-              สำหรับใช้งานจริง
-            </p>
-
-            <ul className="mt-3 space-y-1.5">
-              {DEV_IDENTITIES.map((identity) => (
-                <li key={identity.username}>
-                  <button
-                    type="button"
-                    onClick={() => signInAsDevIdentity(identity)}
-                    className="flex w-full items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate font-medium">
-                        {identity.displayName}
-                      </span>
-                      <span className="block truncate font-mono text-[11px] text-muted-foreground">
-                        {identity.username}
-                      </span>
-                    </span>
-
-                    <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] text-secondary-foreground">
-                      {identity.layer1Role}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
       </div>
     </main>
   );
