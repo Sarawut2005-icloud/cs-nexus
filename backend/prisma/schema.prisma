@@ -178,7 +178,14 @@ model ProfileCache {
   coreUserId    String   @id @map("core_user_id")
   displayName String   @map("display_name")
   avatarUrl   String?  @map("avatar_url")
-  syncedAt    DateTime @default(now()) @map("synced_at") @db.Timestamptz(3)
+  /// `null` = **ยังไม่เคยซิงก์ชื่อจริงจาก Core Hub**
+  ///
+  /// ชื่อที่เก็บไว้ตอนนี้อาจมาจากส่วนหน้าของอีเมลใน token ซึ่งอ่านออกกว่า
+  /// `user-002` แต่ไม่ใช่ชื่อจริงของคน หน้าบ้านดูค่านี้เพื่อบอกผู้ใช้ตามตรง
+  ///
+  /// เดิมเป็น `@default(now())` ซึ่งแปลว่าทุกแถวดู "ซิงก์แล้ว" เสมอ
+  /// ทั้งที่ไม่เคยมีการซิงก์เกิดขึ้นจริงสักครั้ง
+  syncedAt    DateTime? @map("synced_at") @db.Timestamptz(3)
 
   @@map("profile_cache")
 }

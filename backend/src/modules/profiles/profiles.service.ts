@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
+import type { ProfileCacheModel } from '../../generated/prisma/models.js';
 import {
   STORAGE_PROVIDER,
   type StorageProvider,
@@ -111,7 +112,12 @@ export class ProfilesService {
     const stale = unique.filter((coreUserId) => {
       const row = byCoreUserId.get(coreUserId);
 
-      return !row || Date.now() - row.syncedAt.getTime() > CACHE_TTL_MS;
+      // ไม่มีแถว หรือยังไม่เคยซิงก์จริง (`syncedAt` เป็น null) ก็ถือว่าเก่า
+      return (
+        !row ||
+        !row.syncedAt ||
+        Date.now() - row.syncedAt.getTime() > CACHE_TTL_MS
+      );
     });
 
     if (stale.length > 0) {
@@ -131,7 +137,8 @@ export class ProfilesService {
         // แล้วให้หน้าบ้านเรนเดอร์ช่องว่างโดยไม่รู้ว่าเป็นบั๊กหรือไม่มีชื่อจริง
         display_name: row?.displayName ?? coreUserId,
         avatar_url: row?.avatarUrl ?? null,
-        synced_at: row?.syncedAt.toISOString() ?? null,
+        // null = ยังไม่เคยซิงก์ชื่อจริงจาก Core Hub — หน้าบ้านเอาไปบอกผู้ใช้
+        synced_at: row?.syncedAt?.toISOString() ?? null,
         badge: badgeFor(roleByCoreUserId.get(coreUserId)),
       };
     });
@@ -250,78 +257,36 @@ export class ProfilesService {
     return this.me(user);
   }
 
-  /// ดึงชื่อจริงจาก Core แล้วเขียนลงแคช
+  /// ซิงก์ชื่อที่แสดงผลจาก Core Hub
   ///
-  /// Blueprint หน้า 10 กำหนดว่า Core เป็นแหล่งความจริงของชื่อและคณะ ระบบย่อย
-  /// ห้ามให้ผู้ใช้แก้ชื่อที่นี่ ตารางนี้จึงเขียนได้จากทางเดียวคือซิงก์ขาเข้า
+  /// **ตอนนี้ยังทำไม่ได้ และนี่คือสาเหตุที่แน่ชัด** (ตรวจกับ Core Hub ตัวจริง
+  /// commit 88a600f เมื่อ 27 ก.ย. 2569 โดยยิงด้วย token ของแต่ละบทบาท):
   ///
-  /// TODO(PL): ยืนยันรูปแบบจริงกับ PM — ตอนนี้เดาว่าเป็น
-  ///   GET {CSMJU_CORE_API_URL}/api/v1/users/{coreUserId}
-  ///   → { data: { display_name, avatar_url } }
-  /// ถ้ายังไม่มี Core ให้เรียก (ช่วงพัฒนา) เมธอดนี้จะคืนอาเรย์ว่างอย่างเงียบ ๆ
-  /// แล้วชั้นบนจะ fallback ไปใช้ coreUserId ซึ่งทำให้ระบบเดินต่อได้
-  private async syncFromCore(coreUserIds: string[]) {
-    const baseUrl = process.env.CSMJU_CORE_API_URL;
-    const clientId = process.env.CSMJU_CLIENT_ID;
-    const clientSecret = process.env.CSMJU_CLIENT_SECRET;
-
-    if (!baseUrl || !clientId || !clientSecret) {
-      return [];
+  ///   GET /api/v1/users/:id          → 200 แต่คืนแค่ id/email/role ไม่มีชื่อ
+  ///   GET /api/v1/people/:personCode → 403 ต้องมี people:read ซึ่งเราไม่มี
+  ///   GET /api/v1/people             → 403 เช่นเดียวกัน
+  ///
+  /// ชื่อจริง (`fullNameTh` `academicTitle` `photoUrl`) อยู่ในตาราง `Person`
+  /// ของ Core Hub และมี `coreUserId` ผูกกับ `sub` อยู่แล้ว — ติดแค่ว่าระบบย่อย
+  /// เรียกไม่ได้ ขอ endpoint ไว้แล้วที่ docs/ถึง-PM-สิ่งที่ต้องเพิ่ม.md ข้อ 1
+  ///
+  /// **โค้ดเดิมตรงนี้ยิงไปที่ `x-client-id` / `x-client-secret`** ซึ่งเป็นกลไก
+  /// ของสถาปัตยกรรม API Gateway ที่สัญญา v1.0 บอกว่าไม่เคยมีอยู่จริง และต่อให้
+  /// ยิงติดก็จะได้ `display_name` เป็น undefined อยู่ดี ลบออกเพราะโค้ดที่
+  /// "ดูเหมือนทำงานแต่ไม่เคยทำงาน" อันตรายกว่าไม่มีโค้ดเลย — คนอ่านจะคิดว่า
+  /// การซิงก์มีอยู่แล้วและไปหาสาเหตุผิดที่
+  ///
+  /// ระหว่างนี้ชื่อมาจากส่วนหน้าของอีเมลใน token ซึ่งเก็บไว้ตอนผู้ใช้เข้ามา
+  /// ครั้งแรก (`ensureProfileName` ใน common/auth/member-role.ts)
+  /// `6704101382@mju.ac.th` จึงแสดงเป็น `6704101382` ซึ่งคือรหัสนักศึกษาจริง
+  private syncFromCore(coreUserIds: string[]): Promise<ProfileCacheModel[]> {
+    if (coreUserIds.length > 0) {
+      this.logger.debug(
+        `ยังซิงก์ชื่อจาก Core Hub ไม่ได้ (${coreUserIds.length} คน) — ` +
+          'รอ endpoint ตาม docs/ถึง-PM-สิ่งที่ต้องเพิ่ม.md ข้อ 1',
+      );
     }
 
-    const results = await Promise.all(
-      coreUserIds.map(async (coreUserId) => {
-        try {
-          const response = await fetch(
-            `${baseUrl}/api/v1/users/${encodeURIComponent(coreUserId)}`,
-            {
-              headers: {
-                'x-client-id': clientId,
-                'x-client-secret': clientSecret,
-              },
-              signal: AbortSignal.timeout(3000),
-            },
-          );
-
-          if (!response.ok) {
-            return null;
-          }
-
-          const body = (await response.json()) as {
-            data?: { display_name?: string; avatar_url?: string | null };
-          };
-          const displayName = body.data?.display_name;
-
-          if (!displayName) {
-            return null;
-          }
-
-          return this.prisma.profileCache.upsert({
-            where: { coreUserId },
-            create: {
-              coreUserId,
-              displayName,
-              avatarUrl: body.data?.avatar_url ?? null,
-            },
-            update: {
-              displayName,
-              avatarUrl: body.data?.avatar_url ?? null,
-              syncedAt: new Date(),
-            },
-          });
-        } catch (error) {
-          // Core ล่มไม่ควรทำให้ฟีดของเราล่มตาม — ใช้ค่าที่แคชไว้ต่อไป
-          this.logger.warn(
-            `ซิงก์โปรไฟล์ ${coreUserId} จาก Core ไม่สำเร็จ: ${
-              error instanceof Error ? error.message : 'ไม่ทราบสาเหตุ'
-            }`,
-          );
-
-          return null;
-        }
-      }),
-    );
-
-    return results.filter((row) => row !== null);
+    return Promise.resolve([]);
   }
 }

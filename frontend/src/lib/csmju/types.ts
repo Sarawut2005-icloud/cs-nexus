@@ -19,7 +19,9 @@ export type MeetingStatus = 'SCHEDULED' | 'LIVE' | 'ENDED' | 'CANCELLED';
 export interface Me {
   coreUserId: string;
   core_role: string;
-  faculty: string | null;
+  // ไม่มี `faculty` — token ของ Core Hub ไม่มี claim นี้
+  // (data-dictionary.md ข้อ 1.2) เดิมค่านี้มาจาก header X-Faculty
+  // ของ API Gateway ที่ไม่มีอยู่จริง
   layer2_role: Layer2Role;
   storage_used_bytes: string;
   storage_quota_bytes: string;
