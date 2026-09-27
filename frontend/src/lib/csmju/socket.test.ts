@@ -111,14 +111,6 @@ vi.mock('./api', () => ({
   ApiError: class extends Error {},
 }));
 
-vi.mock('./identity', () => ({
-  getIdentity: () => ({
-    coreUserId: 'tester',
-    coreRole: 'student',
-    faculty: 'science',
-    displayName: 'ผู้ทดสอบ',
-  }),
-}));
 
 beforeEach(() => {
   sockets.length = 0;
