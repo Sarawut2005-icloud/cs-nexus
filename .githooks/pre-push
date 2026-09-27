@@ -18,14 +18,19 @@ cd "$root"
 fail=0
 step() { printf '\033[36m› %s\033[0m\n' "$1"; }
 
+# ทั้งสามด่านนี้ต้องเป็น pnpm --filter ไม่ใช่ npx — ตั้งแต่ย้ายมาเป็น pnpm
+# workspace เครื่องมือหน้าบ้านไม่ได้อยู่ที่รากแล้ว `npx <ชื่อ>` จะหาไม่เจอ
+# แล้วไปโหลดแพ็กเกจชื่อเดียวกันจาก npm มารันแทน (npx tsc โหลด tsc@2.0.4
+# ซึ่งเป็นคนละตัวกับ TypeScript) นอกจากนี้ script ของ frontend รัน
+# `next typegen` ให้ก่อน typecheck ซึ่งการเรียกเครื่องมือตรง ๆ ไม่ทำ
 step 'หน้าบ้าน — ชนิดข้อมูล'
-npx tsc --noEmit || fail=1
+pnpm --filter frontend typecheck || fail=1
 
 step 'หน้าบ้าน — กฎการเขียนโค้ด'
-npx eslint . || fail=1
+pnpm --filter frontend lint || fail=1
 
 step 'หน้าบ้าน — เทสต์'
-npx vitest run --silent || fail=1
+pnpm --filter frontend test || fail=1
 
 step 'หลังบ้าน — ชนิดข้อมูล'
 (pnpm --filter backend typecheck --silent) || fail=1

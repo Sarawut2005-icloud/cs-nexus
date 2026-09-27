@@ -8,6 +8,7 @@ import {
   useSpring,
   useTransform,
 } from 'framer-motion';
+import { BadgeCheck, ShieldCheck } from 'lucide-react';
 
 /// คนหนึ่งคนในกองรูปโปรไฟล์
 export interface TooltipItem {
@@ -92,8 +93,15 @@ export function AnimatedTooltip({
                 <span className="text-xs font-semibold">
                   {item.name}
                   {item.badge && (
-                    <span className="ml-1 text-primary">
-                      {item.badge === 'ADMIN' ? '✓✓' : '✓'}
+                    <span className="ml-1 inline-flex align-middle text-primary">
+                      {item.badge === 'ADMIN' ? (
+                        <ShieldCheck aria-hidden className="size-3.5" />
+                      ) : (
+                        <BadgeCheck aria-hidden className="size-3.5" />
+                      )}
+                      <span className="sr-only">
+                        {item.badge === 'ADMIN' ? 'ผู้ดูแลระบบ' : 'เจ้าหน้าที่'}
+                      </span>
                     </span>
                   )}
                 </span>

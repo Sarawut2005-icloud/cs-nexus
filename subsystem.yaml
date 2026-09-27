@@ -79,6 +79,50 @@ api:
     # docs/ช่องว่างกับมาตรฐาน-v1.0.md ระยะ 3
     auth: legacy_header_or_short_lived_ticket
 
+# ── ชั้นหน้าจอ (ui-design-system.md ข้อ 19.2) ─────────────────────────
+#
+# ประกาศตามจริง: **ยังไม่ได้ใช้ @csmju2030/design-system**
+# สองเหตุผล และทั้งสองข้อไม่ได้อยู่ในมือเรา
+#
+#   1. ติดตั้งไม่ได้ — package อยู่บน GitHub Packages ต้องมี PAT ที่มีสิทธิ์
+#      read:packages ซึ่งยังไม่ได้รับ
+#   2. design-system v1.3.0 สร้างตามสัญญาที่ standards v1.0.0 ยกเลิกไปแล้ว
+#      (/oauth/token · claim username/faculty · meta per_page) รอ PM ชี้ขาด
+#
+# รายละเอียดพร้อมหลักฐาน: docs/design-system-กับสัญญาที่ขัดกัน.md
+ui:
+  design_system_version: null # ยังไม่ได้ติดตั้ง — ดูเหตุผลด้านบน
+  design_system_status: blocked_on_pat_and_pm_ruling
+  theme: light+dark # globals.css มีครบทั้งสองโหมด
+  tailwind: "4" # preset ของ design system เป็น v3 — ต้องยืนยันก่อนย้าย
+  app_shell: false # ยังวาด header/sidebar เอง (DS-01) เพราะไม่มี <CsmjuAppShell>
+
+  # เมนูหลัก — ต้องตรงกับ NAV ใน frontend/src/app/(app)/layout.tsx
+  nav:
+    - { label: "ฟีดชุมชน", path: "/feed" }
+    - { label: "คลิปสั้น", path: "/reels" }
+    - { label: "ข้อความ", path: "/messages" }
+    - { label: "การแจ้งเตือน", path: "/notifications" }
+    - { label: "ห้องแชท", path: "/chat" }
+    - { label: "ห้องเสียง", path: "/voice" }
+    - { label: "นัดประชุม", path: "/meetings" }
+    - { label: "ค้นหา", path: "/search" }
+    - { label: "ที่บันทึกไว้", path: "/saved" }
+    - { label: "แผงผู้ดูแล", path: "/admin" }
+
+  # component ที่เราเขียนเอง — ตาม ui-design-system.md ทุกตัวต้องมีเลข issue
+  # กำกับ ตอนนี้ยังไม่มี เพราะยังไม่ได้ยื่นขอ (ยื่นไม่ได้จนกว่าจะติดตั้ง package
+  # แล้วรู้ว่าตัวไหนซ้ำกับของส่วนกลางจริง)
+  local_components: pending_issue
+
+  # ผลตรวจด้วย csmju-ui-lint ของ design system (รันเมื่อ 27 ก.ย. 2569)
+  ui_lint:
+    tool_version: "1.3.0"
+    enforced_by_ci: false # PR check-ui-designsystem.sh ยังไม่ถูก merge เข้า standards
+    errors: 35
+    warnings: 145
+    # ที่เหลือแยกเป็นสามกอง ดูรายละเอียดใน docs/design-system-กับสัญญาที่ขัดกัน.md
+
 modules:
   - subsystem-members # สิทธิ์ Layer 2 + โควตาพื้นที่
   - profiles # โปรไฟล์ + แคชชื่อจาก Core

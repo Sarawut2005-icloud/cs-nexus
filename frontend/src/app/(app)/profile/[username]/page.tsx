@@ -2,7 +2,7 @@
 
 import { use, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, UserMinus, UserPlus } from 'lucide-react';
+import { Eye, Heart, Loader2, UserMinus, UserPlus } from 'lucide-react';
 import { EditProfileDialog } from '@/components/csmju/edit-profile-dialog';
 import { Avatar, UserName } from '@/components/csmju/user-name';
 import { api, ApiError, qs } from '@/lib/csmju/api';
@@ -285,8 +285,18 @@ export default function ProfilePage({
                 className="rounded-xl border border-border bg-card p-3"
               >
                 <p className="truncate text-sm font-medium">{reel.title}</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  ❤ {reel.like_count} · 👁 {reel.view_count}
+                <p className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Heart aria-hidden className="size-3" />
+                    <span className="sr-only">ถูกใจ</span>
+                    {reel.like_count}
+                  </span>
+                  <span aria-hidden>·</span>
+                  <span className="flex items-center gap-1">
+                    <Eye aria-hidden className="size-3" />
+                    <span className="sr-only">ผู้ชม</span>
+                    {reel.view_count}
+                  </span>
                 </p>
               </li>
             ))}
