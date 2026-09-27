@@ -274,9 +274,12 @@ export default function VoicePage() {
         channel_id: channel.id,
       });
 
+      // ชื่อฟิลด์ต้องเป็น `username` ตามมาตรฐาน WebRTC เป๊ะ ๆ
+      // เบราว์เซอร์ไม่บ่นถ้าใส่ชื่ออื่น มันแค่มองข้าม แล้ว TURN ปฏิเสธ
+      // การเชื่อมต่อ — อาการคือ "บางคนเชื่อมเสียงไม่ติด" โดยไม่มี error
       iceServers.current = joined.ice_servers.map((server) => ({
         urls: server.urls,
-        coreUserId: server.coreUserId,
+        username: server.username,
         credential: server.credential,
       }));
 

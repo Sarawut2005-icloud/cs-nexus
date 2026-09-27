@@ -219,9 +219,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       shouldOffer: boolean,
     ) => {
       const connectionInstance = new RTCPeerConnection({
+        // `username` เป็นชื่อฟิลด์ของมาตรฐาน WebRTC ไม่ใช่ตัวตนผู้ใช้
         iceServers: session.ice_servers.map((server) => ({
           urls: server.urls,
-          coreUserId: server.coreUserId,
+          username: server.username,
           credential: server.credential,
         })),
       });

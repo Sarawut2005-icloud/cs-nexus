@@ -7977,7 +7977,7 @@
               "type": "string"
             }
           },
-          "coreUserId": {
+          "username": {
             "type": "string"
           },
           "credential": {

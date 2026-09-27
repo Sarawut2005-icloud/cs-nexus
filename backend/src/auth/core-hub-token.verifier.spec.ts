@@ -112,7 +112,8 @@ describe('token ที่ถูกต้อง', () => {
 
   it('ใช้ชื่อ coreUserId ตามที่ DD-01 บังคับ ไม่ใช่ชื่ออื่น', async () => {
     // กฎ DD-01 — Global Identity ต้องชื่อ core_user_id / coreUserId เท่านั้น
-    // เทสต์นี้กันไม่ให้ใครเผลอเปลี่ยนชื่อกลับไปเป็น coreUserId ตอน refactor
+    // เทสต์นี้กันไม่ให้ใครเผลอเปลี่ยนชื่อกลับไปเป็น `username` ตอน refactor
+    // (ชื่อนั้นยังผิดกว่าเดิมด้วย เพราะ token ไม่มี claim `username` เลย)
     const { user } = await verifier.verify(await signToken());
 
     expect(Object.keys(user).sort()).toEqual([

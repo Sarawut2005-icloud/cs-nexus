@@ -61,7 +61,7 @@ export function ConnectivityCheck() {
     try {
       // ขอรายการเซิร์ฟเวอร์ชุดเดียวกับที่การโทรจริงใช้ ไม่ใช่ชุดที่ hardcode ไว้
       // ไม่งั้นผลตรวจจะไม่ตรงกับของจริงเมื่อผู้ดูแลเปลี่ยนค่า TURN
-      const servers = await api.get<IceServer[]>('/voice-ice-servers');
+      const servers = await api.get<IceServer[]>('/voice-sessions/ice-servers');
 
       setReport(await checkConnectivity(servers));
     } catch (caught) {

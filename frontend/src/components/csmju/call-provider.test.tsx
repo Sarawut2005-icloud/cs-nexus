@@ -621,7 +621,7 @@ describe('WebRTC', () => {
         ice_servers: [
           {
             urls: ['turn:turn.example:3478'],
-            coreUserId: 'u1',
+            username: 'u1',
             credential: 'c1',
           },
         ],
@@ -631,8 +631,28 @@ describe('WebRTC', () => {
     await renderProvider();
     await callOut();
 
-    expect(FakePeerConnection.latest().config.iceServers).toEqual([
-      { urls: ['turn:turn.example:3478'], coreUserId: 'u1', credential: 'c1' },
+    // **ชื่อฟิลด์ต้องเป็น `username` ตามมาตรฐาน WebRTC เป๊ะ ๆ**
+    //
+    // เทสต์นี้เคยยืนยัน `coreUserId` เพราะโดนกวาดเปลี่ยนชื่อไปพร้อมกับโค้ด
+    // ตอนย้ายคีย์ตัวตนทั้งระบบ — มันจึง **ล็อกบั๊กเอาไว้** แทนที่จะจับมัน
+    //
+    // บั๊กนั้นร้ายเพราะไม่มีอะไรดังเลย: เบราว์เซอร์มองข้ามฟิลด์ที่ไม่รู้จัก
+    // แล้ว TURN ปฏิเสธการยืนยันตัวตน คนหลัง NAT เข้มงวดจึงเชื่อมเสียงไม่ติด
+    // โดยไม่มี error ให้ใครเห็น
+    const servers = FakePeerConnection.latest().config.iceServers ?? [];
+    const server = servers[0] as unknown as Record<string, unknown>;
+
+    expect(server).toEqual({
+      urls: ['turn:turn.example:3478'],
+      username: 'u1',
+      credential: 'c1',
+    });
+
+    // กันชื่ออื่นที่ WebRTC ไม่รู้จักหลุดเข้าไป
+    expect(Object.keys(server).sort()).toEqual([
+      'credential',
+      'urls',
+      'username',
     ]);
   });
 

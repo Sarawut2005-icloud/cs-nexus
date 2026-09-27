@@ -303,7 +303,7 @@ export class VoiceService {
     if (turnUrl) {
       servers.push({
         urls: turnUrl.split(',').map((url) => url.trim()),
-        coreUserId: process.env.TURN_USERNAME,
+        username: process.env.TURN_USERNAME,
         credential: process.env.TURN_CREDENTIAL,
       });
     } else {

@@ -30,7 +30,14 @@ export class IceServerDto {
   @ApiProperty({ example: ['stun:stun.l.google.com:19302'] })
   urls!: string[];
 
-  @ApiPropertyOptional() coreUserId?: string;
+  /// **`username` ที่นี่คือฟิลด์ของมาตรฐาน WebRTC (`RTCIceServer.username`)
+  /// ไม่ใช่ชื่อผู้ใช้ของเรา** — มันคือรหัสที่ใช้ยืนยันกับเซิร์ฟเวอร์ TURN
+  /// ซึ่งมาจาก env `TURN_USERNAME` ที่ผู้ดูแลระบบตั้งไว้
+  ///
+  /// เคยถูกเปลี่ยนชื่อเป็น `coreUserId` ตอนย้ายคีย์ตัวตนทั้งระบบ ซึ่งผิด
+  /// และทำให้การยืนยันกับ TURN ล้มเหลวเงียบ ๆ (เบราว์เซอร์ไม่บ่น มันแค่
+  /// มองข้ามฟิลด์ที่ไม่รู้จัก แล้วผู้ใช้หลัง NAT เข้มงวดก็เชื่อมเสียงไม่ติด)
+  @ApiPropertyOptional() username?: string;
   @ApiPropertyOptional() credential?: string;
 }
 

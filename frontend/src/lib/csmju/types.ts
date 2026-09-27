@@ -209,7 +209,10 @@ export interface Meeting {
 
 export interface IceServer {
   urls: string[];
-  coreUserId?: string;
+  /// **ฟิลด์ของมาตรฐาน WebRTC (`RTCIceServer.username`) ไม่ใช่ตัวตนผู้ใช้**
+  /// เป็นรหัสที่ใช้ยืนยันกับเซิร์ฟเวอร์ TURN — ชื่อต้องตรงกับที่ WebRTC
+  /// กำหนดเป๊ะ ไม่งั้นเบราว์เซอร์มองข้ามแล้ว TURN ปฏิเสธการเชื่อมต่อ
+  username?: string;
   credential?: string;
 }
 
