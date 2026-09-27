@@ -20,9 +20,25 @@ import {
 /// 36 ที่ ระบบย่อยไหนหลุดที่เดียวก็หลุดหมด และการเปลี่ยนรหัสครั้งเดียว
 /// ต้องไปเปลี่ยน 36 รอบ — ศูนย์กลางตัวตนจึงต้องมีที่เดียวคือ Core
 ///
-/// TODO(PL): ปลายทางที่ส่งไปยังรอ PM ยืนยัน (ดู docs/คำถามถึง-PM.md ข้อ 3)
-/// ตอนนี้อ่านจาก NEXT_PUBLIC_CORE_LOGIN_URL ถ้ายังไม่ตั้ง ปุ่มจะปิดไว้
-/// พร้อมบอกเหตุผล แทนที่จะพาไปหน้าตาย
+/// **ปลายทางยืนยันแล้ว** — อ่านจากโค้ดจริงของ `CSMJU2030/csmju-core-hub`
+/// เมื่อ 27 ก.ย. 2569 และทดสอบวิ่งจริงครบวงจรแล้ว (`backend/test/core-hub-sso.e2e-spec.ts`)
+///
+/// ปลายทางคือ **SSO launcher** ของหน้าบ้าน Core Hub ไม่ใช่หน้า login ของมัน:
+///
+///   `<CORE_HUB_UI>/api/sso/csmju-social-reels`
+///
+/// (`csmju-core-hub/frontend/app/api/sso/[subsystem]/route.ts`)
+/// เส้นนี้ทำสองอย่างให้ในตัวเดียว จึงไม่ต้องแยกปุ่ม:
+///
+///   ยังไม่ล็อกอิน → เด้งไป `/login?next=/api/sso/csmju-social-reels`
+///   ล็อกอินแล้ว   → เรียก `GET /api/v1/auth/sso/handoff` ด้วยคุกกี้ session
+///                    แล้วเด้งกลับมาที่ `callback_url` ที่ Registry ถือไว้
+///
+/// เหตุผลที่ต้องผ่าน launcher: เบราว์เซอร์แนบ `Authorization: Bearer` ไปกับ
+/// การคลิกลิงก์ไม่ได้ แต่ `/auth/sso/authorize` ของ Core API บังคับให้มี
+///
+/// ค่าอยู่ใน `NEXT_PUBLIC_CORE_LOGIN_URL` (ดู frontend/.env.example)
+/// ถ้ายังไม่ตั้ง ปุ่มจะปิดไว้พร้อมบอกเหตุผล แทนที่จะพาไปหน้าตาย
 
 const CORE_LOGIN_URL = process.env.NEXT_PUBLIC_CORE_LOGIN_URL ?? '';
 const CORE_SIGNUP_URL = process.env.NEXT_PUBLIC_CORE_SIGNUP_URL ?? '';

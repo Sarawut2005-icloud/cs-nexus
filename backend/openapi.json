@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.0",
   "paths": {
-    "/notifications": {
+    "/api/v1/notifications": {
       "get": {
         "operationId": "NotificationsController_list",
         "parameters": [
@@ -77,7 +77,7 @@
         ]
       }
     },
-    "/notifications/unread-count": {
+    "/api/v1/notifications/unread-count": {
       "get": {
         "description": "แยกเป็น endpoint ของตัวเองเพราะหน้าบ้านต้องการแค่เลขเดียวทุกครั้งที่เปลี่ยนหน้า ไม่ควรต้องโหลดรายการทั้งหน้ามาเพื่อนับ",
         "operationId": "NotificationsController_unreadCount",
@@ -113,7 +113,7 @@
         ]
       }
     },
-    "/notifications/read-all": {
+    "/api/v1/notifications/read-all": {
       "patch": {
         "operationId": "NotificationsController_markAllRead",
         "parameters": [],
@@ -128,7 +128,7 @@
         ]
       }
     },
-    "/notifications/{id}/read": {
+    "/api/v1/notifications/{id}/read": {
       "patch": {
         "operationId": "NotificationsController_markRead",
         "parameters": [
@@ -215,7 +215,7 @@
         ]
       }
     },
-    "/me": {
+    "/api/v1/me": {
       "get": {
         "operationId": "MeController_me",
         "parameters": [],
@@ -245,7 +245,7 @@
         ]
       }
     },
-    "/subsystem-members/me": {
+    "/api/v1/subsystem-members/me": {
       "get": {
         "operationId": "MembersController_me",
         "parameters": [],
@@ -280,7 +280,7 @@
         ]
       }
     },
-    "/profiles": {
+    "/api/v1/profiles": {
       "get": {
         "description": "ไม่มี endpoint นี้ หน้าบ้านจะต้องยิงทีละคนตอนเรนเดอร์ฟีด = 20 คำขอต่อหนึ่งหน้า",
         "operationId": "ProfilesController_resolve",
@@ -307,7 +307,7 @@
         ]
       }
     },
-    "/profiles/me": {
+    "/api/v1/profiles/me": {
       "get": {
         "description": "managed_by_core บอกว่า field ไหนแก้ที่ระบบย่อยนี้ไม่ได้ เพราะ Core เป็นแหล่งความจริง (Blueprint หน้า 10)",
         "operationId": "ProfilesController_me",
@@ -473,7 +473,7 @@
         ]
       }
     },
-    "/profiles/{username}": {
+    "/api/v1/profiles/{username}": {
       "get": {
         "operationId": "ProfilesController_detail",
         "parameters": [
@@ -560,7 +560,7 @@
         ]
       }
     },
-    "/profiles/{username}/followers": {
+    "/api/v1/profiles/{username}/followers": {
       "get": {
         "operationId": "ProfilesController_followers",
         "parameters": [
@@ -607,7 +607,7 @@
         ]
       }
     },
-    "/profiles/{username}/following": {
+    "/api/v1/profiles/{username}/following": {
       "get": {
         "operationId": "ProfilesController_following",
         "parameters": [
@@ -654,7 +654,7 @@
         ]
       }
     },
-    "/follows/followers": {
+    "/api/v1/follows/followers": {
       "get": {
         "operationId": "FollowsController_myFollowers",
         "parameters": [
@@ -720,7 +720,7 @@
         ]
       }
     },
-    "/follows/following": {
+    "/api/v1/follows/following": {
       "get": {
         "operationId": "FollowsController_myFollowing",
         "parameters": [
@@ -786,7 +786,7 @@
         ]
       }
     },
-    "/follows/suggestions": {
+    "/api/v1/follows/suggestions": {
       "get": {
         "description": "คืนอาเรย์ว่างถ้าผู้ใช้ยังไม่ได้ติดตามใครเลย — ตั้งใจไม่ตกไปหาอันดับยอดนิยม เพราะจะทำให้ผู้ใช้ใหม่ทุกคนเห็นรายชื่อเดียวกันหมด",
         "operationId": "FollowsController_suggestions",
@@ -802,7 +802,7 @@
         ]
       }
     },
-    "/follows": {
+    "/api/v1/follows": {
       "post": {
         "operationId": "FollowsController_follow",
         "parameters": [],
@@ -890,7 +890,7 @@
         ]
       }
     },
-    "/follows/{username}": {
+    "/api/v1/follows/{username}": {
       "delete": {
         "operationId": "FollowsController_unfollow",
         "parameters": [
@@ -934,7 +934,7 @@
         ]
       }
     },
-    "/assets": {
+    "/api/v1/assets": {
       "get": {
         "operationId": "AssetsController_list",
         "parameters": [
@@ -1000,7 +1000,7 @@
         ]
       }
     },
-    "/assets/maintenance/sweeps": {
+    "/api/v1/assets/maintenance/sweeps": {
       "post": {
         "description": "ปกติตัวกวาดทำงานเองทุก 30 นาที — endpoint นี้มีไว้ให้กวาดทันทีตอนตรวจปัญหาพื้นที่เก็บไฟล์เต็ม",
         "operationId": "AssetsController_sweep",
@@ -1056,7 +1056,7 @@
         ]
       }
     },
-    "/assets/upload-intents": {
+    "/api/v1/assets/upload-intents": {
       "post": {
         "operationId": "AssetsController_createUploadIntent",
         "parameters": [],
@@ -1187,7 +1187,7 @@
         ]
       }
     },
-    "/assets/{id}/commit": {
+    "/api/v1/assets/{id}/commit": {
       "post": {
         "operationId": "AssetsController_commit",
         "parameters": [
@@ -1317,7 +1317,7 @@
         ]
       }
     },
-    "/assets/{id}/download-url": {
+    "/api/v1/assets/{id}/download-url": {
       "get": {
         "operationId": "AssetsController_downloadUrl",
         "parameters": [
@@ -1404,7 +1404,7 @@
         ]
       }
     },
-    "/assets/{id}": {
+    "/api/v1/assets/{id}": {
       "delete": {
         "operationId": "AssetsController_remove",
         "parameters": [
@@ -1468,7 +1468,7 @@
         ]
       }
     },
-    "/reels": {
+    "/api/v1/reels": {
       "get": {
         "description": "feed=following = เฉพาะคนที่ติดตาม · author_username = หน้าโปรไฟล์ของคนนั้น",
         "operationId": "ReelsController_list",
@@ -1688,7 +1688,7 @@
         ]
       }
     },
-    "/reels/{id}": {
+    "/api/v1/reels/{id}": {
       "get": {
         "operationId": "ReelsController_findOne",
         "parameters": [
@@ -1837,7 +1837,7 @@
         ]
       }
     },
-    "/reels/{id}/likes": {
+    "/api/v1/reels/{id}/likes": {
       "post": {
         "operationId": "ReelsController_like",
         "parameters": [
@@ -1923,7 +1923,7 @@
         ]
       }
     },
-    "/reels/{id}/views": {
+    "/api/v1/reels/{id}/views": {
       "post": {
         "description": "นับคนที่เคยดู ไม่ใช่จำนวนครั้งที่เล่น — คนเดิมเรียกซ้ำยอดไม่ขยับ จึงปั่นด้วยการรีเฟรชไม่ได้",
         "operationId": "ReelsController_markViewed",
@@ -2011,7 +2011,7 @@
         ]
       }
     },
-    "/reels/{id}/comments": {
+    "/api/v1/reels/{id}/comments": {
       "get": {
         "operationId": "ReelsController_listComments",
         "parameters": [
@@ -2180,7 +2180,7 @@
         ]
       }
     },
-    "/reels/{id}/comments/{commentId}": {
+    "/api/v1/reels/{id}/comments/{commentId}": {
       "delete": {
         "operationId": "ReelsController_removeComment",
         "parameters": [
@@ -2252,7 +2252,7 @@
         ]
       }
     },
-    "/realtime-tickets": {
+    "/api/v1/realtime-tickets": {
       "post": {
         "operationId": "RealtimeTicketsController_issue",
         "parameters": [],
@@ -2287,7 +2287,7 @@
         ]
       }
     },
-    "/presence": {
+    "/api/v1/presence": {
       "get": {
         "operationId": "PresenceController_get",
         "parameters": [
@@ -2333,7 +2333,7 @@
         ]
       }
     },
-    "/channels": {
+    "/api/v1/channels": {
       "get": {
         "operationId": "ChannelsController_list",
         "parameters": [
@@ -2485,7 +2485,7 @@
         ]
       }
     },
-    "/channels/{id}": {
+    "/api/v1/channels/{id}": {
       "get": {
         "operationId": "ChannelsController_findOne",
         "parameters": [
@@ -2572,7 +2572,7 @@
         ]
       }
     },
-    "/channels/{id}/members": {
+    "/api/v1/channels/{id}/members": {
       "post": {
         "operationId": "ChannelsController_addMembers",
         "parameters": [
@@ -2626,7 +2626,7 @@
         ]
       }
     },
-    "/channels/{id}/members/me": {
+    "/api/v1/channels/{id}/members/me": {
       "delete": {
         "operationId": "ChannelsController_leave",
         "parameters": [
@@ -2650,7 +2650,7 @@
         ]
       }
     },
-    "/channels/{id}/read-markers": {
+    "/api/v1/channels/{id}/read-markers": {
       "post": {
         "operationId": "ChannelsController_markRead",
         "parameters": [
@@ -2704,7 +2704,7 @@
         ]
       }
     },
-    "/direct-channels": {
+    "/api/v1/direct-channels": {
       "post": {
         "operationId": "DirectChannelsController_create",
         "parameters": [],
@@ -2792,7 +2792,7 @@
         ]
       }
     },
-    "/channels/{channelId}/messages": {
+    "/api/v1/channels/{channelId}/messages": {
       "get": {
         "operationId": "MessagesController_list",
         "parameters": [
@@ -3057,7 +3057,7 @@
         ]
       }
     },
-    "/channels/{channelId}/messages/pinned": {
+    "/api/v1/channels/{channelId}/messages/pinned": {
       "get": {
         "operationId": "MessagesController_listPinned",
         "parameters": [
@@ -3131,7 +3131,7 @@
         ]
       }
     },
-    "/channels/{channelId}/messages/{messageId}/thread": {
+    "/api/v1/channels/{channelId}/messages/{messageId}/thread": {
       "get": {
         "operationId": "MessagesController_listThread",
         "parameters": [
@@ -3256,7 +3256,7 @@
         ]
       }
     },
-    "/channels/{channelId}/messages/{messageId}": {
+    "/api/v1/channels/{channelId}/messages/{messageId}": {
       "patch": {
         "description": "ผู้ดูแลห้องแก้ข้อความคนอื่นไม่ได้โดยตั้งใจ — ลบได้ แต่แก้ไม่ได้ เพราะการแก้คำพูดของคนอื่นแล้วยังแสดงชื่อเขาเป็นผู้เขียนคือการปลอมคำพูด",
         "operationId": "MessagesController_edit",
@@ -3475,7 +3475,7 @@
         ]
       }
     },
-    "/channels/{channelId}/messages/{messageId}/pin": {
+    "/api/v1/channels/{channelId}/messages/{messageId}/pin": {
       "put": {
         "operationId": "MessagesController_pin",
         "parameters": [
@@ -3663,7 +3663,7 @@
         ]
       }
     },
-    "/voice-sessions/ice-servers": {
+    "/api/v1/voice-sessions/ice-servers": {
       "get": {
         "operationId": "VoiceController_iceServers",
         "parameters": [],
@@ -3698,7 +3698,7 @@
         ]
       }
     },
-    "/voice-sessions": {
+    "/api/v1/voice-sessions": {
       "get": {
         "operationId": "VoiceController_list",
         "parameters": [
@@ -3879,7 +3879,7 @@
         ]
       }
     },
-    "/voice-sessions/{id}/participants/me": {
+    "/api/v1/voice-sessions/{id}/participants/me": {
       "delete": {
         "operationId": "VoiceController_leave",
         "parameters": [
@@ -3903,7 +3903,7 @@
         ]
       }
     },
-    "/posts": {
+    "/api/v1/posts": {
       "get": {
         "operationId": "PostsController_list",
         "parameters": [
@@ -4045,7 +4045,7 @@
         ]
       }
     },
-    "/posts/{id}": {
+    "/api/v1/posts/{id}": {
       "get": {
         "operationId": "PostsController_findOne",
         "parameters": [
@@ -4194,7 +4194,7 @@
         ]
       }
     },
-    "/posts/{id}/comments": {
+    "/api/v1/posts/{id}/comments": {
       "get": {
         "operationId": "PostsController_listComments",
         "parameters": [
@@ -4320,7 +4320,7 @@
         ]
       }
     },
-    "/posts/{id}/comments/{commentId}": {
+    "/api/v1/posts/{id}/comments/{commentId}": {
       "delete": {
         "operationId": "PostsController_removeComment",
         "parameters": [
@@ -4392,7 +4392,7 @@
         ]
       }
     },
-    "/reactions": {
+    "/api/v1/reactions": {
       "get": {
         "operationId": "ReactionsController_summary",
         "parameters": [
@@ -4660,7 +4660,7 @@
         ]
       }
     },
-    "/reactions/summaries": {
+    "/api/v1/reactions/summaries": {
       "get": {
         "description": "แก้ N+1 ของหน้าจอแชท — เดิมต้องยิงหนึ่งคำขอต่อหนึ่งข้อความ · หลังบ้านทำงานสองคิวรีไม่ว่าจะขอกี่ id",
         "operationId": "ReactionsController_summaries",
@@ -4764,7 +4764,7 @@
         ]
       }
     },
-    "/bookmarks": {
+    "/api/v1/bookmarks": {
       "get": {
         "operationId": "BookmarksController_list",
         "parameters": [
@@ -4964,7 +4964,7 @@
         ]
       }
     },
-    "/meetings": {
+    "/api/v1/meetings": {
       "get": {
         "operationId": "MeetingsController_list",
         "parameters": [
@@ -5178,7 +5178,7 @@
         ]
       }
     },
-    "/meetings/{id}": {
+    "/api/v1/meetings/{id}": {
       "get": {
         "operationId": "MeetingsController_findOne",
         "parameters": [
@@ -5351,7 +5351,7 @@
         ]
       }
     },
-    "/reports": {
+    "/api/v1/reports": {
       "post": {
         "operationId": "ReportsController_create",
         "parameters": [],
@@ -5619,7 +5619,7 @@
         ]
       }
     },
-    "/reports/mine": {
+    "/api/v1/reports/mine": {
       "get": {
         "operationId": "ReportsController_listMine",
         "parameters": [
@@ -5714,7 +5714,7 @@
         ]
       }
     },
-    "/reports/{id}": {
+    "/api/v1/reports/{id}": {
       "patch": {
         "operationId": "ReportsController_resolve",
         "parameters": [
@@ -5854,7 +5854,7 @@
         ]
       }
     },
-    "/search": {
+    "/api/v1/search": {
       "get": {
         "description": "kind=all คืนตัวอย่างทุกหมวดพร้อมยอดรวม (ไม่แบ่งหน้า) · ระบุหมวดเดียวจะแบ่งหน้าปกติ · ข้อความแชทค้นได้เฉพาะห้องที่ผู้เรียกเป็นสมาชิก",
         "operationId": "SearchController_run",
@@ -5941,7 +5941,7 @@
         ]
       }
     },
-    "/stories": {
+    "/api/v1/stories": {
       "get": {
         "description": "เห็นของตัวเองและของคนที่ติดตาม · สตอรี่ที่หมดอายุถูกกรองออกตอนอ่าน จึงหายตรงเวลาแม้ตัวเก็บกวาดไม่ได้รัน · ของตัวเองอยู่ซ้ายสุด แล้วเรียงคนที่ยังมีของไม่ได้ดูขึ้นก่อน",
         "operationId": "StoriesController_tray",
@@ -6106,7 +6106,7 @@
         ]
       }
     },
-    "/stories/{id}/views": {
+    "/api/v1/stories/{id}/views": {
       "post": {
         "description": "กดซ้ำไม่เพิ่มยอด · ยอดผู้ชมที่คืนมาเป็น 0 ถ้าผู้เรียกไม่ใช่เจ้าของ เพราะคนอื่นไม่ควรรู้ว่าสตอรี่นี้มีคนดูกี่คน",
         "operationId": "StoriesController_markViewed",
@@ -6171,7 +6171,7 @@
         ]
       }
     },
-    "/stories/{id}/viewers": {
+    "/api/v1/stories/{id}/viewers": {
       "get": {
         "operationId": "StoriesController_viewers",
         "parameters": [
@@ -6258,7 +6258,7 @@
         ]
       }
     },
-    "/stories/{id}": {
+    "/api/v1/stories/{id}": {
       "delete": {
         "operationId": "StoriesController_remove",
         "parameters": [
@@ -6322,7 +6322,7 @@
         ]
       }
     },
-    "/stories/maintenance/sweeps": {
+    "/api/v1/stories/maintenance/sweeps": {
       "post": {
         "description": "ปกติทำงานเองทุก 30 นาที · ไม่ใช่สิ่งที่ทำให้ฟีเจอร์ถูกต้อง (การหมดอายุบังคับตอนอ่านไปแล้ว) แต่เป็นการคืนพื้นที่เก็บไฟล์ให้เจ้าของ",
         "operationId": "StoriesController_sweep",
@@ -6378,7 +6378,7 @@
         ]
       }
     },
-    "/audit-logs": {
+    "/api/v1/audit-logs": {
       "get": {
         "description": "กรองได้ตามผู้กระทำ การกระทำ และช่วงเวลา · การกระทำที่บันทึกไว้: reel.delete, post.delete, message.delete, report.resolved, report.rejected, member.role_change, member.quota_change",
         "operationId": "AuditLogsController_list",
@@ -6527,7 +6527,7 @@
         ]
       }
     },
-    "/subsystem-members": {
+    "/api/v1/subsystem-members": {
       "get": {
         "operationId": "MembersAdminController_list",
         "parameters": [
@@ -6659,7 +6659,7 @@
         ]
       }
     },
-    "/subsystem-members/{username}/role": {
+    "/api/v1/subsystem-members/{username}/role": {
       "patch": {
         "description": "แก้ได้เฉพาะสิทธิ์ในระบบย่อยนี้ (Layer 2) เพราะเป็น Local Data ตาม Blueprint หน้า 11 · สิทธิ์ระดับองค์กร (Layer 1) ต้องไปแก้ที่ Admin Panel กลาง",
         "operationId": "MembersAdminController_updateRole",
@@ -6757,7 +6757,7 @@
         ]
       }
     },
-    "/subsystem-members/{username}/storage-quota": {
+    "/api/v1/subsystem-members/{username}/storage-quota": {
       "patch": {
         "description": "ค่าเริ่มต้น 200 MB พอสำหรับนักศึกษา แต่ไม่พอสำหรับอาจารย์ที่อัปคลิปสอน · เพดานที่ตั้งได้คือ 5 GB · ตั้งล่วงหน้าก่อนเจ้าตัวเข้าระบบครั้งแรกได้ เพื่อเตรียมไว้ก่อนเปิดเทอม",
         "operationId": "MembersAdminController_updateQuota",
@@ -6855,7 +6855,7 @@
         ]
       }
     },
-    "/admin-overview": {
+    "/api/v1/admin-overview": {
       "get": {
         "operationId": "AdminOverviewController_overview",
         "parameters": [],

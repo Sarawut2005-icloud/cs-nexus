@@ -20,6 +20,7 @@
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "openapi": "nest build && node dist/scripts/write-openapi.js",
+    "generate:openapi": "pnpm run openapi",
     "openapi:check": "node dist/scripts/check-openapi.js",
     "typecheck": "tsc --noEmit",
     "db:up": "docker compose up -d --wait",

@@ -3,7 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { SwaggerModule } from '@nestjs/swagger';
 import { writeFile } from 'node:fs/promises';
 import { AppModule } from './app.module.js';
-import { configureApp, PREFIX_EXCLUDE } from './bootstrap.js';
+import { configureApp, GLOBAL_PREFIX, PREFIX_EXCLUDE } from './bootstrap.js';
 import { buildOpenApiDocument, OPENAPI_FILE } from './openapi.js';
 
 async function bootstrap(): Promise<void> {
@@ -54,7 +54,21 @@ async function bootstrap(): Promise<void> {
 
   // URL มาตรฐาน: /api/v1/<คำนามพหูพจน์แบบ kebab-case>
   // (api-conventions.md ข้อ 1 · contracts/vocabulary.json `naming.api.prefix`)
+  // **ต้องเป็นสตริงตรง ๆ ห้ามใช้ตัวแปร** — `check-api-conventions.sh` (API-02)
+  // grep หา /setGlobalPrefix\(\s*['"]api(\/v1)?['"]/ ในไฟล์นี้ไฟล์เดียว
+  // เปลี่ยนเป็น setGlobalPrefix(GLOBAL_PREFIX, ...) แล้วมันจะตีตกทันที
+  // ทั้งที่ทำงานถูก (ลองมาแล้วเมื่อ 27 ก.ย. 2569)
+  //
+  // ค่าซ้ำกับ GLOBAL_PREFIX ใน bootstrap.ts โดยจำใจ — กันค่าหลุดจากกันด้วย
+  // การ assert ข้างล่าง ถ้าใครแก้ที่เดียว เซิร์ฟเวอร์จะไม่ยอมบูตพร้อมบอกเหตุผล
   app.setGlobalPrefix('api/v1', { exclude: PREFIX_EXCLUDE });
+
+  if (GLOBAL_PREFIX !== 'api/v1') {
+    throw new Error(
+      `GLOBAL_PREFIX ใน bootstrap.ts เป็น "${GLOBAL_PREFIX}" แต่ main.ts ตั้ง "api/v1" — ` +
+        'สองค่านี้ต้องตรงกันเสมอ ไม่งั้น openapi.json จะไม่ตรงกับที่เสิร์ฟจริง',
+    );
+  }
 
   configureApp(app);
 

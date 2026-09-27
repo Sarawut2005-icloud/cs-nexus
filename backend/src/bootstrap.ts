@@ -45,7 +45,25 @@ function corsOrigin(): string[] | RegExp | boolean {
 ///
 /// ชุดทดสอบ e2e จึงต้องเรียก setGlobalPrefix เองด้วย โดยใช้ค่าคงที่ชุดนี้
 /// ไม่ใช่พิมพ์ค่าซ้ำ — ถ้าค่าหลุดจากกัน เทสต์ที่ยิง /api/v1/... จะแดงทันที
+export const GLOBAL_PREFIX = 'api/v1';
 export const PREFIX_EXCLUDE = ['api/health', 'auth/callback'];
+
+/// ตั้ง prefix ให้ทุกทางที่สร้าง openapi.json ได้ผลเหมือนกัน
+///
+/// **บั๊กที่ตัวนี้แก้ (พบ 27 ก.ย. 2569):** `main.ts` ตั้ง prefix **ก่อน** สร้าง
+/// เอกสาร Swagger แต่ `write-openapi.ts` กับ `check-openapi.ts` เรียกแค่
+/// `configureApp()` ซึ่งไม่ได้ตั้ง — ไฟล์ที่ได้จากสองทางจึงต่างกัน:
+///
+///   บูตเซิร์ฟเวอร์จริง  →  "/api/v1/notifications"   (ตรงกับที่เสิร์ฟจริง)
+///   pnpm run openapi   →  "/notifications"          (ขาด prefix)
+///
+/// ที่ commit ไว้คือแบบหลัง แปลว่า**ระบบย่อยอื่นที่อ่าน contract ของเรา
+/// จะยิงผิด path ทุกเส้น** และ `openapi:check` ก็เทียบผิดกับผิดจนเขียว
+/// ส่วน `check-openapi-sync.sh` ของมาตรฐานมองหา script ชื่อ `generate:openapi`
+/// ซึ่งเราตั้งชื่อว่า `openapi` มันจึง **ข้ามมาตลอด** ไม่เคยจับได้เลย
+export function applyGlobalPrefix(app: INestApplication): void {
+  app.setGlobalPrefix(GLOBAL_PREFIX, { exclude: PREFIX_EXCLUDE });
+}
 
 export function configureApp(app: INestApplication): void {
   /// เปิด CORS ให้หน้าบ้านคนละพอร์ตยิงเข้ามาได้

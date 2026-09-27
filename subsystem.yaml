@@ -37,9 +37,15 @@ default_role_mapping:
   staff: EDITOR
   admin: ADMIN
 
+# `reason` **บังคับ** — `RequestedExceptionDto` ของ Core Hub ใช้ @MinLength(1)
+# ถ้าไม่มี POST /api/v1/subsystems จะตอบ 400 (ยืนยันจากโค้ดจริงเมื่อ 27 ก.ย. 2569)
 requested_exceptions:
   - username: 6704101382-anuchat
-    role: ADMIN # เจ้าของระบบต้องเข้าหน้าจัดการเนื้อหาของระบบย่อยได้
+    role: ADMIN
+    reason: >-
+      เจ้าของระบบต้องเข้าหน้าจัดการเนื้อหาของระบบย่อยได้ (ลบคลิปที่ถูกรายงาน
+      ปลดแบนผู้ใช้ ดู audit log) แต่ core role เป็น student ซึ่ง
+      default_role_mapping แปลงเป็น GUEST
 
 # ── probes ที่ conformance ใช้ตรวจสัญญา API ระดับ L2 ขึ้นไป ───────────
 #
@@ -200,8 +206,42 @@ limits:
   story_notify_follower_cap: 50 # เกินนี้ไม่แจ้งเตือน กันช่องแจ้งเตือนล้น
   bio_max_chars: 300
 
+# ── การลงทะเบียนกับ Core Hub ตัวจริง ─────────────────────────────────
+#
+# ยืนยันกับ github.com/CSMJU2030/csmju-core-hub commit 88a600f เมื่อ 27 ก.ย. 2569
+# โดย clone มารันในเครื่องจริง ลงทะเบียนจริง แล้วรับ token จริงมาตรวจ
+# ผล: ผ่านครบ · ดู docs/ต่อกับ-core-hub.md และ backend/test/core-hub-live.e2e-spec.ts
+#
+# ฟิลด์ข้างล่างคือชื่อที่ `CreateSubsystemDto` ของ Core Hub ใช้ (camelCase)
+# ซึ่งต่างจากชื่อในไฟล์นี้ (snake_case) — แมปไว้ให้ชัดเพื่อไม่ให้คัดลอกผิด
+core_hub_registration:
+  endpoint: POST /api/v1/subsystems
+  requires_permission: subsystem:create # admin หรือ staff เท่านั้น
+  field_mapping:
+    name: name
+    displayName: display_name
+    repo: repo
+    standardsVersion: standards_version
+    defaultRoleMapping: default_role_mapping
+    requestedExceptions: requested_exceptions # ต้องมี reason ไม่งั้น 400
+    callbackUrl: base_url + callback_path
+    baseUrl: base_url # Monitor จะยิง <baseUrl>/api/health
+  # ต้องอนุมัติและเปิดใช้งานก่อน ไม่งั้น sso/handoff ตอบ 409
+  after_create:
+    - POST /api/v1/subsystems/{id}/approve # approvalStatus -> APPROVED
+    - POST /api/v1/subsystems/{id}/activate # status -> ACTIVE
+  # key ของ default_role_mapping คือ **รายชื่อคนที่เข้าระบบนี้ได้**
+  # core role ที่ไม่อยู่ใน key จะโดน 403 ตั้งแต่ก่อนออก token
+  # (SsoService.allowedCoreRoles) ทดสอบแล้ว: ลบ alumni ออก -> alumni ได้ 403
+  role_mapping_is_access_list: true
+  # TODO(PL): `owner` ต้องเป็น username ของ PL ที่มีบัญชีใน Core Hub
+  # ตอนทดสอบใช้ `admin` จาก seed ไปก่อน ยังไม่มีบัญชีจริง
+  owner: TBD
+
 depends_on_core:
-  - sso_authorize # GET /api/v1/auth/sso/authorize
+  - sso_authorize # GET /api/v1/auth/sso/authorize (เบราว์เซอร์เดินทางผ่าน 302)
+  - sso_handoff # GET /api/v1/auth/sso/handoff (แบบ JSON — SSO launcher ใช้ตัวนี้)
+  - subsystem_registry # POST /api/v1/subsystems + approve + activate
   - jwks # GET /api/v1/.well-known/jwks.json
   # TODO(PL): ต้องการ endpoint ที่แปลง `sub` เป็นชื่อที่แสดงผล
   # data-dictionary.md ข้อ 1.2 บอกว่า GET /api/v1/users/:id ต้องมี permission

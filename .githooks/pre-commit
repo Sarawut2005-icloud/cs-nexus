@@ -33,9 +33,12 @@ if [ "$touched_frontend" -gt 0 ]; then
   pnpm --filter frontend typecheck || fail=1
 fi
 
+# `--silent` ต้องอยู่**ก่อน**ชื่อ script ไม่งั้น pnpm ส่งต่อไปให้ตัวเครื่องมือ
+# แล้ว tsc จะตอบ "Unknown compiler option '--silent'" แล้วบล็อก commit
+# (ของเดิมเขียน `pnpm --filter backend typecheck --silent` ซึ่งพังแบบนั้น)
 if [ "$touched_backend" -gt 0 ]; then
   printf '\033[36m› ตรวจชนิดข้อมูลหลังบ้าน…\033[0m\n'
-  (pnpm --filter backend typecheck --silent) || fail=1
+  (pnpm --silent --filter backend typecheck) || fail=1
 fi
 
 # ไฟล์ที่ไม่ควรหลุดขึ้น repo เด็ดขาด
