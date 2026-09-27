@@ -71,7 +71,7 @@ export default function SavedPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
       <header className="mb-4">
-        <h1 className="text-xl font-semibold">ที่บันทึกไว้</h1>
+        <h1 className="text-csmju-display">ที่บันทึกไว้</h1>
         <p className="text-sm text-muted-foreground">
           เห็นได้เฉพาะคุณ · คนอื่นดูรายการนี้ไม่ได้
         </p>
@@ -100,7 +100,7 @@ export default function SavedPage() {
         {items.map((item) => (
           <li
             key={`${item.target_kind}-${item.target_id}`}
-            className="flex items-start gap-2.5 rounded-xl border border-border bg-card p-3"
+            className="flex items-start gap-2.5 csmju-surface p-3"
           >
             {item.target_kind === 'REEL' ? (
               <Film className="mt-0.5 size-4 shrink-0 text-muted-foreground" />

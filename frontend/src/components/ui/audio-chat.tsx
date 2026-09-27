@@ -70,7 +70,7 @@ export function VoiceChat({
   return (
     <div
       className={cn(
-        'flex w-full max-w-md flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm',
+        'flex w-full max-w-md flex-col gap-4 csmju-surface p-5 shadow-sm',
         className,
       )}
     >

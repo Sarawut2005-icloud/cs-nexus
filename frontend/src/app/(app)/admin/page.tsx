@@ -32,7 +32,7 @@ export default function AdminPage() {
   if (!canSeePanel) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10">
-        <div className="flex items-start gap-3 rounded-xl border border-border bg-card p-4">
+        <div className="flex items-start gap-3 csmju-surface p-4">
           <ShieldAlert className="mt-0.5 size-5 shrink-0 text-warning" />
           <div>
             <h1 className="font-semibold">ไม่มีสิทธิ์เข้าแผงนี้</h1>
@@ -56,7 +56,7 @@ export default function AdminPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-6">
       <header className="mb-4">
-        <h1 className="text-xl font-semibold">แผงผู้ดูแล</h1>
+        <h1 className="text-csmju-display">แผงผู้ดูแล</h1>
         <p className="text-sm text-muted-foreground">
           แก้ได้เฉพาะสิทธิ์ในระบบย่อยนี้ (Layer 2) · สิทธิ์ระดับองค์กรแก้ที่
           Admin Panel กลาง
@@ -167,7 +167,7 @@ function Overview() {
             ].map((stat) => (
               <div
                 key={stat.label}
-                className="rounded-xl border border-border bg-card px-3 py-2.5"
+                className="csmju-surface px-3 py-2.5"
               >
                 <dd className="text-xl font-semibold tabular-nums">
                   {stat.value}
@@ -178,7 +178,7 @@ function Overview() {
           </dl>
 
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <div className="rounded-xl border border-border bg-card px-3 py-2.5">
+            <div className="csmju-surface px-3 py-2.5">
               <p className="text-xs text-muted-foreground">พื้นที่ที่ใช้ไป</p>
               <p className="text-lg font-semibold">
                 {formatBytes(data.storage_used_bytes)}
@@ -199,7 +199,7 @@ function Overview() {
             </div>
           </div>
 
-          <div className="mt-3 rounded-xl border border-border bg-card p-3">
+          <div className="mt-3 csmju-surface p-3">
             <p className="text-sm font-medium">
               การแปลงสิทธิ์ Layer 1 → Layer 2
             </p>
@@ -278,7 +278,7 @@ function Reports() {
           {reports.map((report) => (
             <li
               key={report.id}
-              className="rounded-xl border border-border bg-card p-3"
+              className="csmju-surface p-3"
             >
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span className="rounded bg-muted px-1.5 py-0.5 font-mono">
@@ -376,7 +376,7 @@ function AuditTrail() {
             {logs.map((log) => (
               <li
                 key={log.id}
-                className="rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                className="csmju-surface px-3 py-2 text-sm"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <Trash className="size-3.5 shrink-0 text-muted-foreground" />

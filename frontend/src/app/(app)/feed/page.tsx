@@ -130,9 +130,9 @@ export default function FeedPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
-      <header className="mb-4">
-        <h1 className="text-xl font-semibold">ฟีดชุมชน</h1>
-        <p className="text-sm text-muted-foreground">
+      <header className="mb-6">
+        <h1 className="text-csmju-display">ฟีดชุมชน</h1>
+        <p className="mt-1 text-csmju-body text-muted-foreground">
           กระดานถามตอบและประกาศของสาขา · แท็กตามรายวิชาได้
         </p>
       </header>
@@ -192,7 +192,7 @@ export default function FeedPage() {
         {posts.map((post) => (
           <li
             key={post.id}
-            className="rounded-xl border border-border bg-card p-4"
+            className="csmju-surface csmju-card-interactive p-4"
           >
             <div className="flex items-start gap-3">
               <Avatar coreUserId={post.author_core_user_id} />
@@ -299,7 +299,7 @@ function Composer({ onCreated }: { onCreated: (post: Post) => void }) {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-3">
+    <div className="csmju-surface p-3 shadow-csmju-md">
       <input
         value={title}
         onChange={(event) => setTitle(event.target.value)}

@@ -89,7 +89,7 @@ export default function MeetingsPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
       <header className="mb-4">
-        <h1 className="text-xl font-semibold">นัดประชุม</h1>
+        <h1 className="text-csmju-display">นัดประชุม</h1>
         <p className="text-sm text-muted-foreground">
           นัดติวหรือประชุมล่วงหน้า แล้วเข้าห้องเสียงของห้องนั้นเมื่อถึงเวลา
         </p>
@@ -137,7 +137,7 @@ export default function MeetingsPage() {
           return (
             <li
               key={meeting.id}
-              className={`rounded-xl border border-border bg-card p-4 ${cancelled ? 'opacity-60' : ''}`}
+              className={`csmju-surface p-4 ${cancelled ? 'opacity-60' : ''}`}
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -301,7 +301,7 @@ function Scheduler({
   }
 
   return (
-    <div className="space-y-2 rounded-xl border border-border bg-card p-3">
+    <div className="space-y-2 csmju-surface p-3">
       <select
         value={channelId}
         onChange={(event) => setChannelId(event.target.value)}

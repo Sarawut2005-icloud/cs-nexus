@@ -148,7 +148,7 @@ export function DialogContent({
         }
       }}
       className={cn(
-        'w-[calc(100vw-2rem)] max-w-lg rounded-xl border border-border bg-card p-0 text-card-foreground shadow-xl',
+        'w-[calc(100vw-2rem)] max-w-lg csmju-surface p-0 text-card-foreground shadow-xl',
         'backdrop:bg-black/50 backdrop:backdrop-blur-sm',
         'open:animate-in open:fade-in-0 open:zoom-in-95',
         className,

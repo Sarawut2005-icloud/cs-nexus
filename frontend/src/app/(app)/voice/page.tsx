@@ -539,7 +539,7 @@ export default function VoicePage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-6">
       <header className="mb-4">
-        <h1 className="text-xl font-semibold">ห้องเสียง</h1>
+        <h1 className="text-csmju-display">ห้องเสียง</h1>
         <p className="text-sm text-muted-foreground">
           เสียงวิ่งตรงระหว่างเบราว์เซอร์ (mesh P2P) เซิร์ฟเวอร์ไม่แตะเสียงเลย ·
           รับได้ห้องละ 8 คน
@@ -568,7 +568,7 @@ export default function VoicePage() {
           <p className="mb-2 text-sm font-medium">เลือกห้องที่จะเข้า</p>
 
           {voiceChannels.length === 0 ? (
-            <p className="rounded-lg border border-border bg-card px-3 py-6 text-center text-sm text-muted-foreground">
+            <p className="csmju-surface px-3 py-6 text-center text-sm text-muted-foreground">
               ยังไม่มีห้องที่เข้าได้ — ไปสร้างห้องกลุ่มหรือห้องเสียงที่หน้า
               &quot;ห้องแชท&quot; ก่อน
             </p>
@@ -577,7 +577,7 @@ export default function VoicePage() {
               {voiceChannels.map((channel) => (
                 <li
                   key={channel.id}
-                  className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5"
+                  className="flex items-center gap-3 csmju-surface px-3 py-2.5"
                 >
                   <Volume2 className="size-4 shrink-0 text-muted-foreground" />
 
@@ -670,7 +670,7 @@ function ActiveSession({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="csmju-surface p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm font-medium">
             อยู่ในห้องเสียง · {participants.length}/{session.max_seats} ที่นั่ง

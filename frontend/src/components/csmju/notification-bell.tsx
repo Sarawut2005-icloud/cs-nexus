@@ -128,7 +128,7 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="relative grid size-9 place-items-center rounded-lg border border-border bg-card transition-colors hover:bg-accent"
+        className="relative grid size-9 place-items-center csmju-surface transition-colors hover:bg-accent"
         aria-label={`การแจ้งเตือน${unread > 0 ? ` (${unread} ยังไม่อ่าน)` : ''}`}
       >
         <Bell className="size-4" />

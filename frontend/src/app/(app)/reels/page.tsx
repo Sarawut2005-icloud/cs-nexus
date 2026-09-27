@@ -144,7 +144,7 @@ export default function ReelsPage() {
     <div className="mx-auto max-w-xl px-4 py-6">
       <header className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">คลิปสั้น</h1>
+          <h1 className="text-csmju-display">คลิปสั้น</h1>
           <p className="text-sm text-muted-foreground">
             คลิปไม่เกิน 60 วินาที · ยอดผู้ชมนับตามจำนวนคน ไม่ใช่จำนวนครั้ง
           </p>
@@ -193,7 +193,7 @@ export default function ReelsPage() {
         {reels.map((reel) => (
           <li
             key={reel.id}
-            className="overflow-hidden rounded-xl border border-border bg-card"
+            className="overflow-hidden csmju-surface"
           >
             <div className="flex items-center gap-2.5 px-3 py-2.5">
               <Avatar coreUserId={reel.author_core_user_id} size={32} />

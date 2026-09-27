@@ -106,7 +106,7 @@ export function AuthSwitch({
   return (
     <div
       className={cn(
-        'w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-sm',
+        'w-full max-w-md csmju-surface p-5 shadow-sm',
         className,
       )}
     >

@@ -75,7 +75,7 @@ export default function SearchPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
       <header className="mb-4">
-        <h1 className="text-xl font-semibold">ค้นหา</h1>
+        <h1 className="text-csmju-display">ค้นหา</h1>
         <p className="text-sm text-muted-foreground">
           ข้อความแชทค้นได้เฉพาะห้องที่คุณเป็นสมาชิก
         </p>
@@ -186,7 +186,7 @@ function HitList({ hits }: { hits: SearchHit[] }) {
           <li key={`${hit.kind}-${hit.id}`}>
             <Link
               href={href}
-              className="flex items-start gap-2.5 rounded-xl border border-border bg-card p-3 transition-colors hover:bg-accent"
+              className="flex items-start gap-2.5 csmju-surface p-3 transition-colors hover:bg-accent"
             >
               <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
 

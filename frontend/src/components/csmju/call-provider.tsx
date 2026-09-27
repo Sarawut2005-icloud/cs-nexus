@@ -918,7 +918,7 @@ function IncomingCallSheet({
       role="dialog"
       aria-modal="true"
       aria-label={`สายเรียกเข้าจาก ${from}`}
-      className="fixed inset-x-0 bottom-4 z-100 mx-auto w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-border bg-card p-4 shadow-xl outline-none"
+      className="fixed inset-x-0 bottom-4 z-100 mx-auto w-[min(24rem,calc(100vw-2rem))] csmju-surface p-4 shadow-xl outline-none"
     >
       <div className="flex items-center gap-3">
         <span className="grid size-12 shrink-0 animate-pulse place-items-center rounded-full bg-primary text-lg font-semibold text-primary-foreground">

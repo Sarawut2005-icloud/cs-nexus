@@ -100,7 +100,7 @@ export default function NotificationsPage() {
     <div className="mx-auto max-w-2xl px-4 py-6">
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">การแจ้งเตือน</h1>
+          <h1 className="text-csmju-display">การแจ้งเตือน</h1>
           <p className="text-sm text-muted-foreground">
             เห็นเฉพาะของคุณ · เรียงจากใหม่ไปเก่า
           </p>

@@ -172,7 +172,7 @@ export default function ProfilePage({
         </div>
       )}
 
-      <header className="flex flex-wrap items-start gap-4 rounded-xl border border-border bg-card p-4">
+      <header className="flex flex-wrap items-start gap-4 csmju-surface p-4">
         <Avatar coreUserId={profile.coreUserId} size={64} />
 
         <div className="min-w-0 flex-1">
@@ -250,7 +250,7 @@ export default function ProfilePage({
         ].map((stat) => (
           <div
             key={stat.label}
-            className="rounded-xl border border-border bg-card px-3 py-2 text-center"
+            className="csmju-surface px-3 py-2 text-center"
           >
             <dd className="text-lg font-semibold tabular-nums">{stat.value}</dd>
             <dt className="text-[11px] text-muted-foreground">{stat.label}</dt>
@@ -282,7 +282,7 @@ export default function ProfilePage({
             {reels.map((reel) => (
               <li
                 key={reel.id}
-                className="rounded-xl border border-border bg-card p-3"
+                className="csmju-surface p-3"
               >
                 <p className="truncate text-sm font-medium">{reel.title}</p>
                 <p className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -311,7 +311,7 @@ export default function ProfilePage({
             {posts.map((post) => (
               <li
                 key={post.id}
-                className="rounded-xl border border-border bg-card p-3"
+                className="csmju-surface p-3"
               >
                 <p className="font-medium leading-snug">{post.title}</p>
                 <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
