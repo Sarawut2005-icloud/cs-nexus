@@ -111,6 +111,15 @@ async function request<T>(
   }
 
   if (!response.ok || payload.success === false) {
+    // 401 กลางทาง = token หมดอายุ (อายุ 15 นาทีตาม auth-contract.md ข้อ 7)
+    //
+    // แจ้งจุดเดียวแทนที่จะให้ทุกหน้าจัดการเอง — ไม่งั้นผู้ใช้จะเจอข้อความดิบ
+    // อย่าง "ยืนยันตัวตนไม่สำเร็จ" โผล่ตรงไหนก็ได้ที่บังเอิญยิง API ตอนนั้น
+    // โดยไม่รู้ว่าต้องทำอะไรต่อ
+    if (response.status === 401) {
+      notifyUnauthorized();
+    }
+
     throw new ApiError(
       response.status,
       payload.error?.code ?? 'unknown',
@@ -179,4 +188,26 @@ export function qs(params: Record<string, string | number | boolean | undefined>
   const query = search.toString();
 
   return query ? `?${query}` : '';
+}
+
+/// ────────────────────────────────────────────────────────────────
+/// แจ้งว่า session หมดอายุ
+///
+/// `api.ts` ไม่รู้จัก React และไม่ควรรู้ — มันแค่ประกาศว่า "เกิด 401"
+/// แล้วให้ `SessionProvider` เป็นคนตัดสินใจว่าจะพาผู้ใช้ไปไหนต่อ
+///
+/// ใช้ตัวแปรระดับโมดูลตัวเดียว ไม่ใช่ event emitter เพราะมีผู้ฟังได้แค่
+/// คนเดียวอยู่แล้ว (provider ตัวเดียวครอบทั้งแอป) และการมีหลายคนฟังจะทำให้
+/// เกิดการพาไป SSO ซ้อนกันหลายรอบ
+/// ────────────────────────────────────────────────────────────────
+type UnauthorizedHandler = () => void;
+
+let onUnauthorized: UnauthorizedHandler | null = null;
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
+  onUnauthorized = handler;
+}
+
+function notifyUnauthorized() {
+  onUnauthorized?.();
 }
