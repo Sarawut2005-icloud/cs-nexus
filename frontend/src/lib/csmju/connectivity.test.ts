@@ -52,7 +52,7 @@ function installFakePeer(types: CandidateType[]) {
 const STUN_ONLY = [{ urls: ['stun:stun.example:3478'] }];
 const WITH_TURN = [
   { urls: ['stun:stun.example:3478'] },
-  { urls: ['turn:turn.example:3478'], coreUserId: 'u', credential: 'c' },
+  { urls: ['turn:turn.example:3478'], username: 'u', credential: 'c' },
 ];
 
 describe('checkConnectivity', () => {
@@ -164,5 +164,62 @@ describe('checkConnectivity', () => {
 
     expect(created).toHaveLength(1);
     expect(created[0].closed).toBe(true);
+  });
+
+  it('**ส่งชื่อฟิลด์ตามมาตรฐาน WebRTC ให้ RTCPeerConnection**', async () => {
+    // สเปกบังคับว่า URL ที่ขึ้นต้นด้วย turn:/turns: ต้องมาคู่กับ `username`
+    // และ `credential` ถ้าขาดตัวใดตัวหนึ่ง ตัวสร้างจะโยน InvalidAccessError
+    //
+    // เคยส่งชื่อ `coreUserId` เพราะโดนกวาดเปลี่ยนชื่อไปตอนย้ายคีย์ตัวตน
+    // ทั้งระบบ ผลคือปุ่ม "ตรวจว่าเครือข่ายนี้โทรได้ไหม" พังทันทีที่ผู้ดูแล
+    // ตั้ง TURN — ซึ่งเป็นช่วงเวลาที่คนต้องการเครื่องมือนี้มากที่สุดพอดี
+    const seen: RTCConfiguration[] = [];
+
+    class RecordingPeer {
+      onicecandidate: ((event: { candidate: unknown }) => void) | null = null;
+
+      constructor(config: RTCConfiguration) {
+        seen.push(config);
+
+        // เลียนแบบสเปก: turn: ที่ไม่มี username ต้องโยนทันที
+        for (const server of config.iceServers ?? []) {
+          const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+          const needsAuth = urls.some((url) => url.startsWith('turn'));
+
+          if (needsAuth && !server.username) {
+            throw new Error('InvalidAccessError');
+          }
+        }
+      }
+
+      createDataChannel() {
+        return {};
+      }
+
+      async createOffer() {
+        return { type: 'offer', sdp: '' };
+      }
+
+      async setLocalDescription() {
+        queueMicrotask(() => this.onicecandidate?.({ candidate: null }));
+      }
+
+      close() {}
+    }
+
+    globalThis.RTCPeerConnection =
+      RecordingPeer as unknown as typeof RTCPeerConnection;
+
+    // ต้องไม่โยน — ถ้าโยนแปลว่าส่งชื่อฟิลด์ผิด
+    await checkConnectivity(WITH_TURN);
+
+    const turn = seen[0].iceServers?.find((server) => {
+      const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+
+      return urls.some((url) => url.startsWith('turn'));
+    });
+
+    expect(turn?.username).toBe('u');
+    expect(turn?.credential).toBe('c');
   });
 });

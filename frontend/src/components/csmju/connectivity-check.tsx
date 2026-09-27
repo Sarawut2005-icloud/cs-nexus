@@ -65,10 +65,20 @@ export function ConnectivityCheck() {
 
       setReport(await checkConnectivity(servers));
     } catch (caught) {
+      // **เครื่องมือวินิจฉัยต้องบอกสาเหตุ ไม่ใช่บอกว่า "ไม่สำเร็จ"**
+      //
+      // ปุ่มนี้มีไว้ให้คนหาสาเหตุที่โทรไม่ติด ถ้ามันตอบแค่ "ลองใหม่อีกครั้ง"
+      // มันก็ไร้ประโยชน์พอ ๆ กับอาการที่มันควรจะช่วยอธิบาย
+      //
+      // เคสที่เจอจริง: ผู้ดูแลตั้ง TURN แต่ตั้ง username ไม่ครบ ตัวสร้าง
+      // RTCPeerConnection โยน InvalidAccessError ทันที — ข้อความนั้นคือ
+      // คำตอบที่ผู้ดูแลต้องการ แต่เดิมถูกกลืนหายไป
       setError(
         caught instanceof ApiError
           ? caught.message
-          : 'ตรวจไม่สำเร็จ — ลองใหม่อีกครั้ง',
+          : caught instanceof Error
+            ? `ตรวจไม่สำเร็จ: ${caught.message}`
+            : 'ตรวจไม่สำเร็จ — ลองใหม่อีกครั้ง',
       );
     } finally {
       setBusy(false);

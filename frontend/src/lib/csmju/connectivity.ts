@@ -38,7 +38,9 @@ export interface ConnectivityReport {
 
 interface IceServerLike {
   urls: string[];
-  coreUserId?: string | null;
+  /// **ฟิลด์ของมาตรฐาน WebRTC (`RTCIceServer.username`) ไม่ใช่ตัวตนผู้ใช้**
+  /// รหัสที่ใช้ยืนยันกับเซิร์ฟเวอร์ TURN
+  username?: string | null;
   credential?: string | null;
 }
 
@@ -93,10 +95,15 @@ export async function checkConnectivity(
     };
   }
 
+  // **ชื่อฟิลด์ต้องเป็น `username` เป๊ะ ๆ** ไม่ใช่แค่เรื่องความถูกต้อง:
+  // สเปกบังคับว่า URL ที่ขึ้นต้นด้วย turn:/turns: ต้องมาคู่กับ username และ
+  // credential ถ้าขาดตัวใดตัวหนึ่ง ตัวสร้าง RTCPeerConnection จะ **โยน
+  // InvalidAccessError ทันที** — ซึ่งเป็นอาการที่เกิดขึ้นจริง: ตอนผู้ดูแล
+  // ตั้ง TURN ปุ่ม "ตรวจว่าเครือข่ายนี้โทรได้ไหม" พังทันทีโดยไม่บอกสาเหตุ
   const peer = new RTCPeerConnection({
     iceServers: iceServers.map((server) => ({
       urls: server.urls,
-      coreUserId: server.coreUserId ?? undefined,
+      username: server.username ?? undefined,
       credential: server.credential ?? undefined,
     })),
   });
