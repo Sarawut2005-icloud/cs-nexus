@@ -69,7 +69,7 @@ export class MeetingResponseDto {
   @ApiProperty({ example: '2026-09-15T13:00:00+07:00' }) starts_at!: string;
   @ApiProperty() ends_at!: string;
   @ApiProperty({ enum: MeetingStatus }) status!: MeetingStatus;
-  @ApiProperty() created_by_username!: string;
+  @ApiProperty() created_by_core_user_id!: string;
 
   @ApiProperty({
     description:
@@ -92,7 +92,7 @@ export function toMeetingResponse(row: MeetingModel): MeetingResponseDto {
     starts_at: row.startsAt.toISOString(),
     ends_at: row.endsAt.toISOString(),
     status: row.status,
-    created_by_username: row.createdByUsername,
+    created_by_core_user_id: row.createdByCoreUserId,
     joinable_now:
       row.status !== 'CANCELLED' &&
       now >= row.startsAt.getTime() - 10 * 60 * 1000 && // เข้าได้ก่อนเวลา 10 นาที

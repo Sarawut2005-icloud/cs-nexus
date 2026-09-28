@@ -11,7 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { CurrentUser, type GatewayUser } from '../../common/auth/gateway-user.js';
+import { CurrentUser, type CoreHubUser } from '../../common/auth/core-user.js';
 import {
   ApiEnvelope,
   ApiEnvelopeError,
@@ -36,14 +36,14 @@ export class PostsController {
   @Get()
   @ApiOperation({ summary: 'กระดานข่าวทั้งหมด กรองตามแท็กวิชาได้' })
   @ApiEnvelopeList(PostResponseDto)
-  list(@CurrentUser() user: GatewayUser, @Query() query: ListPostsQuery) {
+  list(@CurrentUser() user: CoreHubUser, @Query() query: ListPostsQuery) {
     return this.posts.list(user, query);
   }
 
   @Post()
   @ApiOperation({ summary: 'ตั้งกระทู้ใหม่' })
   @ApiEnvelope(PostResponseDto, { status: 201 })
-  create(@CurrentUser() user: GatewayUser, @Body() dto: CreatePostDto) {
+  create(@CurrentUser() user: CoreHubUser, @Body() dto: CreatePostDto) {
     return this.posts.create(user, dto);
   }
 
@@ -52,7 +52,7 @@ export class PostsController {
   @ApiEnvelope(PostResponseDto)
   @ApiEnvelopeError(404, 'ไม่พบกระทู้')
   findOne(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.posts.findOne(user, id);
@@ -63,7 +63,7 @@ export class PostsController {
   @ApiOperation({ summary: 'ลบกระทู้ (เจ้าของ บุคลากร หรือผู้ดูแล)' })
   @ApiEnvelopeError(403, 'ลบกระทู้ของคนอื่นไม่ได้')
   async remove(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     await this.posts.remove(user, id);
@@ -83,7 +83,7 @@ export class PostsController {
   @ApiOperation({ summary: 'ตอบกระทู้' })
   @ApiEnvelope(PostCommentResponseDto, { status: 201 })
   addComment(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CreateCommentDto,
   ) {
@@ -95,7 +95,7 @@ export class PostsController {
   @ApiOperation({ summary: 'ลบความคิดเห็น' })
   @ApiEnvelopeError(403, 'ลบความคิดเห็นของคนอื่นไม่ได้')
   async removeComment(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('commentId', ParseUUIDPipe) commentId: string,
   ) {

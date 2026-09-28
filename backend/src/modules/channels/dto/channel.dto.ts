@@ -51,13 +51,13 @@ export class CreateChannelDto {
 export class CreateDirectChannelDto {
   @ApiProperty({
     example: '6704101999-somchai',
-    description: 'username ของอีกฝ่าย ตาม Shared Identity ของ CSMJU2030',
+    description: 'coreUserId ของอีกฝ่าย ตาม Shared Identity ของ CSMJU2030',
   })
   @IsString()
   @Matches(/^[A-Za-z0-9._-]{3,64}$/, {
-    message: 'username ไม่ถูกต้องตามรูปแบบของระบบกลาง',
+    message: 'coreUserId ไม่ถูกต้องตามรูปแบบของระบบกลาง',
   })
-  peer_username!: string;
+  peer_core_user_id!: string;
 }
 
 export class AddMembersDto {
@@ -65,7 +65,7 @@ export class AddMembersDto {
   @IsArray()
   @ArrayMaxSize(50, { message: 'เพิ่มได้ครั้งละไม่เกิน 50 คน' })
   @IsString({ each: true })
-  usernames!: string[];
+  coreUserIds!: string[];
 }
 
 export class ChannelResponseDto {
@@ -82,12 +82,32 @@ export class ChannelResponseDto {
   @ApiProperty({ description: 'จำนวนข้อความที่ยังไม่ได้อ่าน' })
   unread_count!: number;
 
+  /// คู่สนทนาของห้อง DM — null สำหรับห้องชนิดอื่น
+  ///
+  /// **ถ้าไม่มีค่านี้ ปุ่มโทรในหน้าแชทส่วนตัวจะกดไม่ได้เลย** เพราะหน้าบ้าน
+  /// ไม่มีทางรู้ว่าจะโทรหา `coreUserId` ไหน ก่อนหน้านี้มันเดาจาก `name` ของ
+  /// ห้อง ซึ่งห้อง DM ไม่เคยตั้งชื่อ ปุ่มจึงถูกปิดใช้งานถาวรทุกห้อง
+  ///
+  /// ส่งเฉพาะห้อง DM เพราะห้องกลุ่มไม่มี "คู่" และการส่งรายชื่อสมาชิกทั้งหมด
+  /// มากับรายการห้องจะกลายเป็นคิวรีต่อหนึ่งห้อง (N+1) ตอนโหลดรายการ
+  @ApiProperty({
+    nullable: true,
+    description: 'coreUserId ของคู่สนทนา (เฉพาะห้อง DM)',
+  })
+  peer_core_user_id!: string | null;
+
   @ApiProperty() created_at!: string;
 }
 
 export function toChannelResponse(
   channel: ChannelModel,
-  extra: { memberCount: number; myRole: string; unreadCount: number },
+  extra: {
+    memberCount: number;
+    myRole: string;
+    unreadCount: number;
+    /// ผู้เรียกที่รู้จักคู่สนทนาส่งมาให้ — ไม่ส่งมาก็ถือว่าไม่มี
+    peerCoreUserId?: string | null;
+  },
 ): ChannelResponseDto {
   return {
     id: channel.id,
@@ -98,6 +118,7 @@ export function toChannelResponse(
     member_count: extra.memberCount,
     my_role: extra.myRole,
     unread_count: extra.unreadCount,
+    peer_core_user_id: extra.peerCoreUserId ?? null,
     created_at: channel.createdAt.toISOString(),
   };
 }

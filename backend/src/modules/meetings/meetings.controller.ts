@@ -11,8 +11,8 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CurrentUser,
-  type GatewayUser,
-} from '../../common/auth/gateway-user.js';
+  type CoreHubUser,
+} from '../../common/auth/core-user.js';
 import {
   ApiEnvelope,
   ApiEnvelopeError,
@@ -36,7 +36,7 @@ export class MeetingsController {
   })
   @ApiEnvelopeList(MeetingResponseDto)
   list(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Query() query: ListMeetingsQuery,
   ) {
     return this.meetings.list(user, query);
@@ -47,7 +47,7 @@ export class MeetingsController {
   @ApiEnvelope(MeetingResponseDto)
   @ApiEnvelopeError(404, 'ไม่พบนัด หรือไม่ได้เป็นสมาชิกห้องนั้น')
   findOne(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.meetings.findOne(user, id);
@@ -58,7 +58,7 @@ export class MeetingsController {
   @ApiEnvelope(MeetingResponseDto, { status: 201, description: 'นัดแล้ว' })
   @ApiEnvelopeError(400, 'ช่วงเวลาไม่ถูกต้อง (สั้นกว่า 5 นาที หรือยาวเกิน 8 ชั่วโมง)')
   @ApiEnvelopeError(403, 'นักศึกษาที่ไม่ใช่ผู้ดูแลห้องนัดประชุมไม่ได้')
-  create(@CurrentUser() user: GatewayUser, @Body() dto: CreateMeetingDto) {
+  create(@CurrentUser() user: CoreHubUser, @Body() dto: CreateMeetingDto) {
     return this.meetings.create(user, dto);
   }
 
@@ -70,7 +70,7 @@ export class MeetingsController {
   @ApiEnvelope(MeetingResponseDto)
   @ApiEnvelopeError(403, 'ยกเลิกได้เฉพาะนัดที่ตัวเองสร้าง')
   cancel(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.meetings.cancel(user, id);

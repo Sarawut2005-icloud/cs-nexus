@@ -9,8 +9,8 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CurrentUser,
-  type GatewayUser,
-} from '../../common/auth/gateway-user.js';
+  type CoreHubUser,
+} from '../../common/auth/core-user.js';
 import {
   ApiEnvelope,
   ApiEnvelopeError,
@@ -32,7 +32,7 @@ export class NotificationsController {
   @ApiOperation({ summary: 'การแจ้งเตือนของฉัน เรียงใหม่ไปเก่า' })
   @ApiEnvelopeList(NotificationResponseDto)
   list(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Query() query: ListNotificationsQuery,
   ) {
     return this.notifications.list(user, query);
@@ -45,13 +45,13 @@ export class NotificationsController {
       'แยกเป็น endpoint ของตัวเองเพราะหน้าบ้านต้องการแค่เลขเดียวทุกครั้งที่เปลี่ยนหน้า ไม่ควรต้องโหลดรายการทั้งหน้ามาเพื่อนับ',
   })
   @ApiEnvelope(UnreadCountDto)
-  unreadCount(@CurrentUser() user: GatewayUser) {
+  unreadCount(@CurrentUser() user: CoreHubUser) {
     return this.notifications.unreadCount(user);
   }
 
   @Patch('read-all')
   @ApiOperation({ summary: 'ทำเครื่องหมายว่าอ่านแล้วทั้งหมด' })
-  markAllRead(@CurrentUser() user: GatewayUser) {
+  markAllRead(@CurrentUser() user: CoreHubUser) {
     return this.notifications.markAllRead(user);
   }
 
@@ -60,7 +60,7 @@ export class NotificationsController {
   @ApiEnvelope(UnreadCountDto)
   @ApiEnvelopeError(404, 'ไม่พบการแจ้งเตือนนี้')
   markRead(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.notifications.markRead(user, id);

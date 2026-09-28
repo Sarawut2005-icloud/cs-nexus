@@ -13,14 +13,14 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CurrentUser,
-  type GatewayUser,
-} from '../../common/auth/gateway-user.js';
+  type CoreHubUser,
+} from '../../common/auth/core-user.js';
 import {
   ApiEnvelope,
   ApiEnvelopeError,
   ApiEnvelopeList,
 } from '../../common/http/api-envelope.decorator.js';
-import { Layer1Roles } from '../../common/auth/layer1-roles.decorator.js';
+import { CoreRoles } from '../../common/auth/core-roles.decorator.js';
 import { PaginationQuery } from '../../common/http/pagination.dto.js';
 import { AssetsSweeper } from './assets-sweeper.service.js';
 import { AssetsService } from './assets.service.js';
@@ -42,12 +42,12 @@ export class AssetsController {
   @Get()
   @ApiOperation({ summary: 'ไฟล์ของฉันที่อัปโหลดสำเร็จแล้ว' })
   @ApiEnvelopeList(AssetResponseDto)
-  list(@CurrentUser() user: GatewayUser, @Query() query: PaginationQuery) {
+  list(@CurrentUser() user: CoreHubUser, @Query() query: PaginationQuery) {
     return this.assets.listMine(user, query);
   }
 
   @Post('maintenance/sweeps')
-  @Layer1Roles('admin')
+  @CoreRoles('admin')
   @ApiOperation({
     summary: 'สั่งเก็บกวาดรายการอัปโหลดที่ค้างทันที (ผู้ดูแลองค์กร)',
     description:
@@ -66,7 +66,7 @@ export class AssetsController {
   @ApiEnvelopeError(400, 'นามสกุลไฟล์ที่รับไม่ได้')
   @ApiEnvelopeError(413, 'พื้นที่เก็บไฟล์ไม่พอ')
   createUploadIntent(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Body() dto: CreateUploadIntentDto,
   ) {
     return this.assets.createUploadIntent(user, dto);
@@ -81,7 +81,7 @@ export class AssetsController {
   @ApiEnvelopeError(400, 'ยังไม่พบไฟล์ในที่เก็บ หรือเนื้อไฟล์ไม่ตรงกับนามสกุล')
   @ApiEnvelopeError(413, 'ไฟล์จริงใหญ่เกินพื้นที่ที่เหลือ')
   commit(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.assets.commit(user, id);
@@ -92,7 +92,7 @@ export class AssetsController {
   @ApiEnvelope(DownloadUrlResponseDto)
   @ApiEnvelopeError(403, 'ไม่มีสิทธิ์เข้าถึงไฟล์นี้')
   downloadUrl(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.assets.createDownloadUrl(user, id);
@@ -103,7 +103,7 @@ export class AssetsController {
   @ApiOperation({ summary: 'ลบไฟล์และคืนพื้นที่ให้เจ้าของ' })
   @ApiEnvelopeError(400, 'ไฟล์ถูกใช้เป็นคลิป Reels อยู่')
   async remove(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     await this.assets.remove(user, id);

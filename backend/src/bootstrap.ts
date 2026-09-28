@@ -1,7 +1,8 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { GATEWAY_HEADERS } from './common/auth/gateway-user.js';
-import { GatewayAuthGuard } from './common/auth/gateway-auth.guard.js';
+import { CoreHubJwtGuard } from './auth/core-hub-jwt.guard.js';
+import { CoreHubTokenVerifier } from './auth/core-hub-token.verifier.js';
+import { JwksService } from './auth/jwks.service.js';
 import { RolesGuard } from './common/auth/roles.guard.js';
 import { EnvelopeInterceptor } from './common/http/envelope.js';
 import { HttpExceptionFilter } from './common/http/http-exception.filter.js';
@@ -32,6 +33,39 @@ function corsOrigin(): string[] | RegExp | boolean {
   return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 }
 
+/// เส้นทางที่ต้องอยู่ **นอก** prefix /api/v1
+///
+///   /api/health     — ไม่มีเลขเวอร์ชัน เพราะตัวตรวจสถานะต้องเรียกได้เหมือนเดิม
+///                     ตลอดไปแม้ API ธุรกิจจะขึ้น v2 (vocabulary.json)
+///   /auth/callback  — ต้องตรงกับ callback_url ที่ลงทะเบียนไว้กับ Core Hub
+///
+/// **การเรียก `setGlobalPrefix` อยู่ที่ `main.ts` ไม่ใช่ที่นี่** ทั้งที่ของอื่น
+/// ที่ทำให้ response ตรงมาตรฐานอยู่ในไฟล์นี้หมด — เพราะสคริปต์ `API-02` ของ
+/// มาตรฐานอ่านเฉพาะ `backend/src/main.ts` ไฟล์เดียว ถ้าซ่อนไว้ที่นี่จะถูก
+/// ตีตกทั้งที่ตั้ง prefix ถูกต้อง (แจ้ง standards ไว้แล้วในร่าง issue ข้อ 2.4)
+///
+/// ชุดทดสอบ e2e จึงต้องเรียก setGlobalPrefix เองด้วย โดยใช้ค่าคงที่ชุดนี้
+/// ไม่ใช่พิมพ์ค่าซ้ำ — ถ้าค่าหลุดจากกัน เทสต์ที่ยิง /api/v1/... จะแดงทันที
+export const GLOBAL_PREFIX = 'api/v1';
+export const PREFIX_EXCLUDE = ['api/health', 'auth/callback'];
+
+/// ตั้ง prefix ให้ทุกทางที่สร้าง openapi.json ได้ผลเหมือนกัน
+///
+/// **บั๊กที่ตัวนี้แก้ (พบ 27 ก.ย. 2569):** `main.ts` ตั้ง prefix **ก่อน** สร้าง
+/// เอกสาร Swagger แต่ `write-openapi.ts` กับ `check-openapi.ts` เรียกแค่
+/// `configureApp()` ซึ่งไม่ได้ตั้ง — ไฟล์ที่ได้จากสองทางจึงต่างกัน:
+///
+///   บูตเซิร์ฟเวอร์จริง  →  "/api/v1/notifications"   (ตรงกับที่เสิร์ฟจริง)
+///   pnpm run openapi   →  "/notifications"          (ขาด prefix)
+///
+/// ที่ commit ไว้คือแบบหลัง แปลว่า**ระบบย่อยอื่นที่อ่าน contract ของเรา
+/// จะยิงผิด path ทุกเส้น** และ `openapi:check` ก็เทียบผิดกับผิดจนเขียว
+/// ส่วน `check-openapi-sync.sh` ของมาตรฐานมองหา script ชื่อ `generate:openapi`
+/// ซึ่งเราตั้งชื่อว่า `openapi` มันจึง **ข้ามมาตลอด** ไม่เคยจับได้เลย
+export function applyGlobalPrefix(app: INestApplication): void {
+  app.setGlobalPrefix(GLOBAL_PREFIX, { exclude: PREFIX_EXCLUDE });
+}
+
 export function configureApp(app: INestApplication): void {
   /// เปิด CORS ให้หน้าบ้านคนละพอร์ตยิงเข้ามาได้
   ///
@@ -45,28 +79,27 @@ export function configureApp(app: INestApplication): void {
   app.enableCors({
     origin: corsOrigin(),
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-      'content-type',
-      'authorization',
-      GATEWAY_HEADERS.username,
-      GATEWAY_HEADERS.layer1Role,
-      GATEWAY_HEADERS.faculty,
-      'x-gateway-secret',
-    ],
-    // ตัวตนมาจาก header ไม่ใช่ cookie จึงไม่ต้องเปิด credentials
-    // (เปิดแล้วจะใช้ origin แบบ wildcard ไม่ได้ด้วย)
-    credentials: false,
+    // ไม่มี header ตัวตนอีกแล้ว — X-User-Id / X-Layer1-Role / X-Faculty
+    // ถูกถอดออกพร้อมกับ API Gateway ที่สัญญา v1.0 บอกว่าไม่เคยมีอยู่จริง
+    // เหลือ `authorization` สำหรับ Bearer และคุกกี้ที่เบราว์เซอร์แนบเอง
+    allowedHeaders: ['content-type', 'authorization'],
+
+    // **ต้องเป็น true** เพราะ session คือคุกกี้ `core_hub_access_token`
+    // ที่ /auth/callback ตั้งไว้บนโดเมนของหลังบ้าน (:4000) ส่วนหน้าบ้าน
+    // อยู่คนละพอร์ต (:4100) ถ้าไม่เปิด เบราว์เซอร์จะไม่ส่งคุกกี้มาให้เลย
+    // แล้วทุก request จะได้ 401 ทั้งที่ผู้ใช้ล็อกอินแล้ว
+    //
+    // ผลข้างเคียงที่ต้องรู้: เปิดแล้วใช้ origin เป็น `*` ไม่ได้ —
+    // corsOrigin() จึงต้องคืนรายการโดเมนหรือ RegExp เสมอ ห้ามคืน true
+    credentials: true,
     maxAge: 86400,
   });
-
-  // URL มาตรฐาน: /api/v1/<คำนามพหูพจน์แบบ kebab-case> (Blueprint หน้า 7)
-  app.setGlobalPrefix('api/v1', { exclude: ['health'] });
 
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       // ปฏิเสธ field ที่ไม่อยู่ใน DTO ไม่ใช่แค่ตัดออกเงียบ ๆ
-      // เพื่อไม่ให้ client ยัดค่าอย่าง owner_username เข้ามาแล้วคิดว่ามันมีผล
+      // เพื่อไม่ให้ client ยัดค่าอย่าง owner_core_user_id เข้ามาแล้วคิดว่ามันมีผล
       forbidNonWhitelisted: true,
       transform: true,
       transformOptions: { enableImplicitConversion: false },
@@ -75,8 +108,18 @@ export function configureApp(app: INestApplication): void {
 
   const reflector = app.get(Reflector);
 
+  // ด่านแรกคือ "คุณเป็นใคร" — ตรวจลายเซ็น JWT ของ Core Hub ด้วยกุญแจจาก JWKS
+  // ด่านที่สองคือ "คุณทำสิ่งนี้ได้ไหม" — สิทธิ์ Layer 2 ของระบบย่อยเอง
+  //
+  // เดิมด่านแรกคือ GatewayAuthGuard ซึ่งเชื่อ header `X-User-Id` ที่ใครยิงตรง
+  // เข้าหลังบ้านก็ปลอมได้ และมีโหมด DEV_FAKE_GATEWAY ที่สร้างตัวตนขึ้นมาเอง
+  // จาก env — ทั้งสองอย่างถูกลบทิ้งแล้ว ตัวตนมาจาก token ที่ Core Hub เซ็น
+  // ทางเดียวเท่านั้น
   app.useGlobalGuards(
-    new GatewayAuthGuard(reflector),
+    new CoreHubJwtGuard(
+      reflector,
+      new CoreHubTokenVerifier(new JwksService()),
+    ),
     new RolesGuard(reflector, app.get(PrismaService)),
   );
   app.useGlobalInterceptors(new EnvelopeInterceptor());

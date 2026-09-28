@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { GatewayUser } from '../../common/auth/gateway-user.js';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { RealtimeBus } from '../../common/realtime/realtime-bus.js';
 import type { ReactionTarget } from '../../generated/prisma/enums.js';
@@ -13,7 +13,7 @@ import {
 
 /// เจ้าของของเป้าหมาย ใช้ตัดสินว่าจะแจ้งเตือนใคร
 interface TargetOwner {
-  ownerUsername: string;
+  ownerCoreUserId: string;
   /// บริบทที่ใส่ลง payload ของแจ้งเตือน เพื่อให้หน้าบ้านพาไปหน้าที่ถูกต้องได้
   context: Record<string, unknown>;
   /// ห้องที่ต้องกระจายแถบรีแอ็กชันใหม่เข้าไป มีเฉพาะเป้าหมายที่เป็นข้อความ
@@ -34,7 +34,7 @@ export class ReactionsService {
   /// คนหนึ่งกดได้หลายอิโมจิบนของชิ้นเดียว (แบบ Discord/Teams) ไม่ใช่แบบ
   /// Facebook ที่เลือกได้อย่างเดียว เพราะกฎ unique อยู่ที่
   /// (target, user, emoji) ไม่ใช่ (target, user)
-  async react(user: GatewayUser, dto: ReactDto): Promise<ReactionSummaryDto> {
+  async react(user: CoreHubUser, dto: ReactDto): Promise<ReactionSummaryDto> {
     const owner = await this.resolveTarget(user, dto.target_kind, dto.target_id);
 
     const result = await this.prisma.reaction.createMany({
@@ -42,7 +42,7 @@ export class ReactionsService {
         {
           targetKind: dto.target_kind,
           targetId: dto.target_id,
-          username: user.username,
+          coreUserId: user.coreUserId,
           emoji: dto.emoji,
         },
       ],
@@ -51,10 +51,10 @@ export class ReactionsService {
 
     if (result.count > 0) {
       await this.notifications.push({
-        username: owner.ownerUsername,
+        coreUserId: owner.ownerCoreUserId,
         kind: 'REACTION',
         refId: dto.target_id,
-        actorUsername: user.username,
+        actorCoreUserId: user.coreUserId,
         payload: {
           target_kind: dto.target_kind,
           emoji: dto.emoji,
@@ -67,7 +67,7 @@ export class ReactionsService {
   }
 
   async unreact(
-    user: GatewayUser,
+    user: CoreHubUser,
     dto: ReactDto,
   ): Promise<ReactionSummaryDto> {
     // ตรวจสิทธิ์ตอนถอนด้วย ไม่ใช่แค่ตอนกด — คนที่ถูกเชิญออกจากห้องแล้ว
@@ -78,7 +78,7 @@ export class ReactionsService {
       where: {
         targetKind: dto.target_kind,
         targetId: dto.target_id,
-        username: user.username,
+        coreUserId: user.coreUserId,
         emoji: dto.emoji,
       },
     });
@@ -90,7 +90,7 @@ export class ReactionsService {
   ///
   /// แถบรีแอ็กชันที่ไม่อัปเดตสดคือจุดที่ผู้ใช้กดซ้ำเพราะคิดว่าไม่ติด
   private async publishSummary(
-    user: GatewayUser,
+    user: CoreHubUser,
     dto: ReactDto,
     channelId?: string,
   ): Promise<ReactionSummaryDto> {
@@ -108,7 +108,7 @@ export class ReactionsService {
   }
 
   async summaryFor(
-    user: GatewayUser,
+    user: CoreHubUser,
     target: ReactionTargetQuery,
   ): Promise<ReactionSummaryDto> {
     const [summaries] = await this.summariesFor(
@@ -133,7 +133,7 @@ export class ReactionsService {
   /// ต่อการโหลดฟีดหนึ่งครั้ง — นี่คือ N+1 ที่ทำให้ฟีดช้าแบบหาสาเหตุไม่เจอ
   /// เมธอดนี้จึงรับหลาย id พร้อมกันแล้วให้ groupBy ทำงานทีเดียว
   async summariesFor(
-    user: GatewayUser,
+    user: CoreHubUser,
     targetKind: ReactionTarget,
     targetIds: string[],
   ): Promise<ReactionSummaryDto[]> {
@@ -163,13 +163,13 @@ export class ReactionsService {
       this.prisma.reaction.groupBy({
         by: ['targetId', 'emoji'],
         where: { targetKind, targetId: { in: visibleIds } },
-        _count: { username: true },
+        _count: { coreUserId: true },
       }),
       this.prisma.reaction.findMany({
         where: {
           targetKind,
           targetId: { in: visibleIds },
-          username: user.username,
+          coreUserId: user.coreUserId,
         },
         select: { targetId: true, emoji: true },
       }),
@@ -191,7 +191,7 @@ export class ReactionsService {
       const totals = rows
         .map((row) => ({
           emoji: row.emoji,
-          count: row._count.username,
+          count: row._count.coreUserId,
           reacted_by_me: myEmoji.has(row.emoji),
         }))
         .sort((a, b) => b.count - a.count || a.emoji.localeCompare(b.emoji));
@@ -207,14 +207,14 @@ export class ReactionsService {
 
   /// คัดเฉพาะ message id ที่ผู้เรียกมีสิทธิ์เห็น — คิวรีเดียวสำหรับทั้งชุด
   private async visibleMessageIds(
-    user: GatewayUser,
+    user: CoreHubUser,
     ids: string[],
   ): Promise<string[]> {
     const rows = await this.prisma.message.findMany({
       where: {
         id: { in: ids },
         deletedAt: null,
-        channel: { members: { some: { username: user.username } } },
+        channel: { members: { some: { coreUserId: user.coreUserId } } },
       },
       select: { id: true },
     });
@@ -228,14 +228,14 @@ export class ReactionsService {
   /// foreign key ให้ฐานข้อมูลช่วยตรวจ ถ้าไม่เช็คที่นี่ จะกดรีแอ็กชันใส่ id
   /// ที่ไม่มีอยู่จริงได้ แล้วตารางจะค่อย ๆ เต็มไปด้วยแถวขยะที่ไม่มีใครลบ
   private async resolveTarget(
-    user: GatewayUser,
+    user: CoreHubUser,
     kind: ReactionTarget,
     id: string,
   ): Promise<TargetOwner> {
     if (kind === 'POST') {
       const post = await this.prisma.post.findUnique({
         where: { id },
-        select: { authorUsername: true, title: true },
+        select: { authorCoreUserId: true, title: true },
       });
 
       if (!post) {
@@ -243,7 +243,7 @@ export class ReactionsService {
       }
 
       return {
-        ownerUsername: post.authorUsername,
+        ownerCoreUserId: post.authorCoreUserId,
         context: { preview: post.title },
       };
     }
@@ -251,7 +251,7 @@ export class ReactionsService {
     if (kind === 'REEL') {
       const reel = await this.prisma.reel.findUnique({
         where: { id },
-        select: { authorUsername: true, title: true },
+        select: { authorCoreUserId: true, title: true },
       });
 
       if (!reel) {
@@ -259,14 +259,14 @@ export class ReactionsService {
       }
 
       return {
-        ownerUsername: reel.authorUsername,
+        ownerCoreUserId: reel.authorCoreUserId,
         context: { preview: reel.title },
       };
     }
 
     const message = await this.prisma.message.findFirst({
       where: { id, deletedAt: null },
-      select: { authorUsername: true, channelId: true, content: true },
+      select: { authorCoreUserId: true, channelId: true, content: true },
     });
 
     if (!message) {
@@ -281,7 +281,7 @@ export class ReactionsService {
     await this.channels.requireMembership(user, message.channelId);
 
     return {
-      ownerUsername: message.authorUsername,
+      ownerCoreUserId: message.authorCoreUserId,
       channelId: message.channelId,
       context: {
         channel_id: message.channelId,

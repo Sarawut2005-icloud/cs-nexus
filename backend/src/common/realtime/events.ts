@@ -11,7 +11,7 @@ export const SOCKET_NAMESPACE = '/realtime';
 ///
 /// ใช้ส่งของที่ "ถึงคน" ไม่ใช่ "ถึงห้อง" เช่นการแจ้งเตือน โดยไม่ต้องวนหา
 /// socket id ทีละตัว และทำให้คนที่เปิดทั้งมือถือและคอมได้รับพร้อมกัน
-export const userRoom = (username: string) => `user:${username}`;
+export const userRoom = (coreUserId: string) => `user:${coreUserId}`;
 
 /// client → server
 export interface ClientEvents {
@@ -51,23 +51,23 @@ export interface ClientEvents {
   /// คือขั้น "ก่อนรับสาย" ซึ่งเดิมไม่มีเลย ผู้ใช้จึงต้องนัดกันนอกระบบว่า
   /// ใครจะเข้าห้องเสียงตอนไหน
   'call:ring': (
-    payload: { session_id: string; to_username: string },
+    payload: { session_id: string; to_core_user_id: string },
     ack: (result: { ok: boolean; error?: string }) => void,
   ) => void;
 
   'call:answer': (payload: {
     session_id: string;
-    to_username: string;
+    to_core_user_id: string;
     accepted: boolean;
   }) => void;
 
   /// ผู้โทรกดยกเลิกก่อนอีกฝ่ายรับ
-  'call:cancel': (payload: { session_id: string; to_username: string }) => void;
+  'call:cancel': (payload: { session_id: string; to_core_user_id: string }) => void;
 }
 
 export interface RtcSignalPayload {
   /// ปลายทาง — เซิร์ฟเวอร์จะส่งต่อก็ต่อเมื่อสองคนอยู่ห้องเสียงเดียวกันจริง
-  to_username: string;
+  to_core_user_id: string;
   /// `renegotiate` = "ผมเพิ่มแทร็กใหม่ แต่ผมไม่ใช่ฝ่ายที่ยื่นข้อเสนอ
   /// ช่วยเปิดรอบเจรจาใหม่ให้ที" — จำเป็นเพราะฝ่ายผู้ยื่นถูกตัดสินด้วยชื่อผู้ใช้
   /// ถ้าฝ่ายที่ไม่ได้ยื่นเริ่มแชร์หน้าจอ จะไม่มีใครสร้าง offer ให้เลย
@@ -79,7 +79,7 @@ export interface RtcSignalPayload {
 export interface ScreenClaimResult {
   ok: boolean;
   /// ใครกำลังแชร์อยู่ ถ้ามีคนอื่นจับจองไปแล้ว
-  presenter_username?: string;
+  presenter_core_user_id?: string;
   max_viewers?: number;
   error?: string;
 }
@@ -89,7 +89,7 @@ export interface ServerEvents {
   'message:new': (payload: MessageEvent) => void;
   'message:deleted': (payload: { channel_id: string; message_id: string }) => void;
   'presence:sync': (payload: PresencePayload) => void;
-  'typing:sync': (payload: { channel_id: string; username: string }) => void;
+  'typing:sync': (payload: { channel_id: string; coreUserId: string }) => void;
   'error:notice': (payload: { code: string; message: string }) => void;
 
   /// ข้อความถูกแก้ — payload เป็น MessageResponse เต็มตัว ให้ client แทนที่ทั้งก้อน
@@ -117,20 +117,20 @@ export interface ServerEvents {
   'call:incoming': (payload: {
     session_id: string;
     channel_id: string;
-    from_username: string;
+    from_core_user_id: string;
   }) => void;
 
   /// ผลของการโทร — ส่งกลับให้ผู้โทร
   'call:answered': (payload: {
     session_id: string;
-    from_username: string;
+    from_core_user_id: string;
     accepted: boolean;
   }) => void;
 
   /// ผู้โทรวางก่อนรับ — ให้ฝั่งผู้รับเลิกส่งเสียงกริ่ง
   'call:cancelled': (payload: {
     session_id: string;
-    from_username: string;
+    from_core_user_id: string;
   }) => void;
 
   /// ใครออนไลน์/ออฟไลน์ทั้งระบบ — ต่างจาก `presence:sync` ที่บอกเฉพาะในห้อง
@@ -139,20 +139,20 @@ export interface ServerEvents {
   /// ที่เปิดอยู่ · ยิงเฉพาะตอนนับ socket ของคนนั้นเปลี่ยนจาก 0→1 หรือ 1→0
   /// ไม่ใช่ทุกครั้งที่เปิดแท็บใหม่ ไม่งั้นเปิดสามแท็บจะยิงสามรอบ
   'presence:changed': (payload: {
-    username: string;
+    coreUserId: string;
     online: boolean;
   }) => void;
 
   /// ---- WebRTC signaling ----
   'rtc:signal': (
-    payload: RtcSignalPayload & { from_username: string },
+    payload: RtcSignalPayload & { from_core_user_id: string },
   ) => void;
 
   'voice:participants': (payload: VoiceParticipantsPayload) => void;
 
   'screen:changed': (payload: {
     session_id: string;
-    presenter_username: string | null;
+    presenter_core_user_id: string | null;
   }) => void;
 }
 
@@ -160,7 +160,7 @@ export interface VoiceParticipantsPayload {
   session_id: string;
   channel_id: string;
   /// รายชื่อคนที่อยู่ในห้องเสียงตอนนี้ — client ใช้ตัดสินว่าต้องเปิดสายกับใครบ้าง
-  usernames: string[];
+  coreUserIds: string[];
 }
 
 export interface SendMessagePayload {
@@ -195,7 +195,7 @@ export interface MessageEvent {
   id: string;
   seq: number;
   channel_id: string;
-  author_username: string;
+  author_core_user_id: string;
   content: string | null;
   attachments: {
     id: string;
@@ -211,7 +211,7 @@ export interface MessageEvent {
 
 export interface PresencePayload {
   channel_id: string;
-  online_usernames: string[];
+  online_core_user_ids: string[];
 }
 
 export interface ReactionChangedPayload {
@@ -227,7 +227,7 @@ export interface NotificationPayload {
     id: string;
     kind: string;
     ref_id: string;
-    actor_username: string | null;
+    actor_core_user_id: string | null;
     payload: unknown;
     created_at: string;
   };

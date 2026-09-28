@@ -4,21 +4,21 @@ import { RelationDto } from '../../follows/dto/follow.dto.js';
 
 export class ResolveProfilesQuery {
   @ApiPropertyOptional({
-    description: 'รายชื่อ username คั่นด้วยลูกน้ำ สูงสุด 100 ชื่อต่อครั้ง',
+    description: 'รายชื่อ coreUserId คั่นด้วยลูกน้ำ สูงสุด 100 ชื่อต่อครั้ง',
     example: '6704101382-anuchat,6700000001-ajarn',
   })
   @IsOptional()
   @IsString()
   @Length(1, 6500)
-  usernames?: string;
+  coreUserIds?: string;
 }
 
 export class ProfileSummaryDto {
-  @ApiProperty({ example: '6704101382-anuchat' }) username!: string;
+  @ApiProperty({ example: '6704101382-anuchat' }) coreUserId!: string;
 
   @ApiProperty({
     description:
-      'ชื่อที่แสดง มาจาก Core ผ่านแคช — ถ้ายังไม่เคยซิงก์จะคืน username ไปก่อน',
+      'ชื่อที่แสดง มาจาก Core ผ่านแคช — ถ้ายังไม่เคยซิงก์จะคืน coreUserId ไปก่อน',
     example: 'อนุชาติ ณัฐธยานนท์',
   })
   display_name!: string;
@@ -35,7 +35,7 @@ export class ProfileSummaryDto {
     enum: ['ADMIN', 'STAFF'],
     nullable: true,
     description:
-      'เครื่องหมายยืนยันข้างชื่อ · null = สมาชิกทั่วไป · มาจาก layer2_role ของระบบย่อยนี้ ไม่ใช่ layer1_role (ซึ่งเราห้ามเก็บตามหน้า 10)',
+      'เครื่องหมายยืนยันข้างชื่อ · null = สมาชิกทั่วไป · มาจาก layer2_role ของระบบย่อยนี้ ไม่ใช่ core_role (ซึ่งเราห้ามเก็บตามหน้า 10)',
   })
   badge!: 'ADMIN' | 'STAFF' | null;
 }
@@ -114,7 +114,7 @@ export class MyProfileDto extends ProfileDetailDto {
   @ApiProperty({
     description:
       'field ที่แก้ที่ระบบย่อยนี้ไม่ได้ เพราะ Core เป็นแหล่งความจริง (หน้า 10)',
-    example: ['display_name', 'avatar_url', 'faculty', 'layer1_role'],
+    example: ['display_name', 'avatar_url', 'faculty', 'core_role'],
   })
   managed_by_core!: string[];
 }

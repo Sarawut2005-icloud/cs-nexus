@@ -52,17 +52,17 @@ export class RealtimeBus {
 export interface RoomEviction {
   /// ห้องที่ต้องถูกเตะออก (= channelId)
   room: string;
-  username: string;
+  coreUserId: string;
 }
 
 export interface NotificationPush {
-  /// ผู้รับ — ชั้น socket จะส่งเข้าห้องส่วนตัวของ username นี้
-  username: string;
+  /// ผู้รับ — ชั้น socket จะส่งเข้าห้องส่วนตัวของ coreUserId นี้
+  coreUserId: string;
   notification: {
     id: string;
     kind: string;
     ref_id: string;
-    actor_username: string | null;
+    actor_core_user_id: string | null;
     payload: unknown;
     created_at: string;
   };

@@ -12,8 +12,8 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, Min } from 'class-validator';
-import { CurrentUser, type GatewayUser } from '../../common/auth/gateway-user.js';
+import { IsInt, Max, Min } from 'class-validator';
+import { CurrentUser, type CoreHubUser } from '../../common/auth/core-user.js';
 import {
   ApiEnvelope,
   ApiEnvelopeError,
@@ -28,11 +28,21 @@ import {
   CreateDirectChannelDto,
 } from './dto/channel.dto.js';
 
+/// เพดานของคอลัมน์ `Int` ในฐานข้อมูล
+///
+/// **ต้องมี ไม่งั้นค่าที่เกินช่วงจะกลายเป็น 500** — Prisma ส่งต่อให้ Postgres
+/// แล้ว Postgres ปฏิเสธเพราะล้นช่วง ซึ่งโผล่เป็น Internal Server Error
+/// ทั้งที่เป็นข้อมูลจากผู้ใช้ที่ไม่ถูกต้อง (ต้องเป็น 400 และบอกว่าผิดตรงไหน)
+///
+/// เจอจริงตอนหน้าบ้านเผลอส่ง `Number.MAX_SAFE_INTEGER` ของข้อความชั่วคราว
+const MAX_SEQ = 2_147_483_647;
+
 export class MarkReadDto {
-  @ApiProperty({ example: 1421 })
+  @ApiProperty({ example: 1421, maximum: MAX_SEQ })
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(MAX_SEQ, { message: 'ลำดับข้อความเกินช่วงที่เป็นไปได้' })
   seq!: number;
 }
 
@@ -52,7 +62,7 @@ export class ChannelsController {
   @Get()
   @ApiOperation({ summary: 'ห้องทั้งหมดที่ฉันเป็นสมาชิก พร้อมจำนวนที่ยังไม่อ่าน' })
   @ApiEnvelopeList(ChannelResponseDto)
-  list(@CurrentUser() user: GatewayUser, @Query() query: PaginationQuery) {
+  list(@CurrentUser() user: CoreHubUser, @Query() query: PaginationQuery) {
     return this.channels.listMine(user, query);
   }
 
@@ -60,7 +70,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'สร้างห้องกลุ่ม ห้องประจำวิชา หรือห้องเสียง' })
   @ApiEnvelope(ChannelResponseDto, { status: 201 })
   @ApiEnvelopeError(403, 'นักศึกษาสร้างห้องประจำวิชาไม่ได้')
-  create(@CurrentUser() user: GatewayUser, @Body() dto: CreateChannelDto) {
+  create(@CurrentUser() user: CoreHubUser, @Body() dto: CreateChannelDto) {
     return this.channels.create(user, dto);
   }
 
@@ -69,7 +79,7 @@ export class ChannelsController {
   @ApiEnvelope(ChannelResponseDto)
   @ApiEnvelopeError(404, 'ไม่พบห้อง หรือไม่ได้เป็นสมาชิก')
   findOne(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.channels.findOne(user, id);
@@ -79,7 +89,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'เพิ่มสมาชิกเข้าห้อง (เฉพาะผู้ดูแลห้อง)' })
   @ApiEnvelope(AddMembersResponseDto, { status: 201 })
   addMembers(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AddMembersDto,
   ) {
@@ -90,7 +100,7 @@ export class ChannelsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'ออกจากห้อง' })
   async leave(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     await this.channels.leave(user, id);
@@ -100,7 +110,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'บันทึกว่าอ่านถึงข้อความลำดับใดแล้ว' })
   @ApiEnvelope(MarkReadResponseDto, { status: 201 })
   markRead(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: MarkReadDto,
   ) {
@@ -120,7 +130,7 @@ export class DirectChannelsController {
   @ApiEnvelope(ChannelResponseDto, { status: 201 })
   @ApiEnvelopeError(400, 'สร้างห้องกับตัวเองไม่ได้')
   create(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Body() dto: CreateDirectChannelDto,
   ) {
     return this.channels.createOrFindDirect(user, dto);

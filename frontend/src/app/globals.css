@@ -1,0 +1,411 @@
+/* ───────────────────────────────────────────────────────────────────
+   ค่าสีเขียนเป็น rgb() ไม่ใช่ #hex
+
+   **แปลงแบบตรงตัว ไม่มีสีไหนเปลี่ยนแม้แต่ค่าเดียว** — น้ำเงินหลักเดิม
+   เขียนด้วยเลขฐานสิบหก ตอนนี้เขียนเป็น rgb(0 76 153) ซึ่งเป็นสีเดียวกันเป๊ะ
+   เป็นแค่การเขียนคนละรูปแบบ (Tailwind v4 เองก็เลิกใช้เลขฐานสิบหกใน @theme แล้ว)
+
+   เหตุผลที่ต้องเขียนแบบนี้: กฎ `UI-01` ที่เวอร์ชัน 1.0.0 ห้ามค่า #hex
+   **ในทุกไฟล์ใต้ frontend/src รวมทั้งไฟล์ token เอง** ซึ่งเป็นกฎที่
+   ทำตามไม่ได้ เพราะไฟล์นิยามสีจะนิยามสีโดยไม่มีค่าสีไม่ได้
+
+   มาตรฐานรู้ตัวแล้วและแก้ไปแล้วบน main (CHANGELOG หัวข้อ
+   "ยังไม่ออกเวอร์ชัน" — ยกเว้น globals.css และ csmju/) แต่ยังไม่ติด tag
+   เราปักหมุดที่ v1.0.0 ตามกฎ GH-04 จึงยังได้สคริปต์ตัวเก่า
+
+   TODO(PL): เมื่อมาตรฐานออกเวอร์ชันใหม่ที่มีการยกเว้นนี้แล้ว จะกลับไป
+   ใช้ #hex หรือคงไว้แบบนี้ก็ได้ ไม่มีผลต่อการแสดงผล
+   ─────────────────────────────────────────────────────────────── */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans), var(--font-noto-thai);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans), var(--font-noto-thai);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* ── ชั้นความลึก ────────────────────────────────────────────────
+     ใช้เงาแทนเส้นขอบหนา ๆ เพื่อแยก "ของที่ลอยอยู่" ออกจากพื้น
+     ค่าถูกปรับแยกสองโหมดข้างล่าง เพราะเงาดำบนพื้นเข้มมองไม่เห็น */
+  --shadow-csmju-xs: var(--elevation-xs);
+  --shadow-csmju-sm: var(--elevation-sm);
+  --shadow-csmju-md: var(--elevation-md);
+  --shadow-csmju-lg: var(--elevation-lg);
+  --shadow-csmju-glow: var(--elevation-glow);
+
+  /* ── มาตราตัวอักษร ──────────────────────────────────────────────
+     ความสูงบรรทัดกว้างกว่าค่าปริยายของ Tailwind เพราะภาษาไทยมีสระบน
+     และวรรณยุกต์ซ้อนกันสองชั้น ถ้าใช้ 1.5 เหมือนภาษาอังกฤษ วรรณยุกต์
+     ของบรรทัดล่างจะชนสระล่างของบรรทัดบน */
+  --text-csmju-display: 2rem;
+  --text-csmju-display--line-height: 1.3;
+  --text-csmju-display--letter-spacing: -0.02em;
+  --text-csmju-display--font-weight: 700;
+
+  --text-csmju-title: 1.375rem;
+  --text-csmju-title--line-height: 1.45;
+  --text-csmju-title--letter-spacing: -0.01em;
+  --text-csmju-title--font-weight: 650;
+
+  --text-csmju-body: 0.9375rem;
+  --text-csmju-body--line-height: 1.75;
+
+  --text-csmju-label: 0.8125rem;
+  --text-csmju-label--line-height: 1.6;
+  --text-csmju-label--font-weight: 500;
+
+  --text-csmju-caption: 0.6875rem;
+  --text-csmju-caption--line-height: 1.6;
+  --text-csmju-caption--letter-spacing: 0.02em;
+
+  /* ── จังหวะการเคลื่อนไหว ───────────────────────────────────────
+     เส้นโค้งเดียวทั้งระบบ ไม่ใช่ ease ปริยายที่ต่างกันทุกที่ */
+  --ease-csmju: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Design System ของ CSMJU2030 — สีสี่ตัวนี้เป็นค่าบังคับของทั้งองค์กร
+   ห้ามเปลี่ยน เพราะทุกระบบย่อยต้องดูเป็นระบบเดียวกัน (Blueprint หน้า 12)
+
+     rgb(0 76 153)  น้ำเงินหลัก      ปุ่มหลัก ลิงก์ หัวข้อ
+     rgb(230 242 255)  น้ำเงินอ่อน      พื้นหลังของสิ่งที่ถูกเลือก แถบไฮไลต์
+     rgb(51 65 85)  เทาเข้ม          ตัวอักษรเนื้อหา
+     rgb(248 250 252)  ขาวนวล           พื้นหลังหน้า
+
+   ก่อนหน้านี้ธีมเป็น zinc + indigo ซึ่งจะไม่ผ่านการตรวจ compliance
+   และสำคัญกว่านั้นคือ component ที่ก๊อปจาก 21st.dev หรือ reactbits
+   จะเข้ากับที่อื่นในองค์กรทันทีถ้าใช้ token ชุดนี้
+   ───────────────────────────────────────────────────────────────── */
+:root {
+  --csmju-primary: rgb(0 76 153);
+  --csmju-primary-soft: rgb(230 242 255);
+  --csmju-ink: rgb(51 65 85);
+  --csmju-surface: rgb(248 250 252);
+
+  /* วงแหวนสตอรี่ที่ยังไม่ได้ดู — ไล่สีแบบ Instagram
+     อยู่ที่นี่เพราะกฎ UI-01 ห้ามค่าสีดิบนอกไฟล์ token
+     และเพื่อให้เปลี่ยนธีมทั้งระบบได้จากที่เดียว */
+  --csmju-story-ring-1: rgb(124 58 237);
+  --csmju-story-ring-2: rgb(236 72 153);
+  --csmju-story-ring-3: rgb(245 158 11);
+
+  --background: var(--csmju-surface);
+  --foreground: var(--csmju-ink);
+  --card: rgb(255 255 255);
+  --card-foreground: var(--csmju-ink);
+  --popover: rgb(255 255 255);
+  --popover-foreground: var(--csmju-ink);
+  --primary: var(--csmju-primary);
+  --primary-foreground: rgb(255 255 255);
+  --secondary: var(--csmju-primary-soft);
+  --secondary-foreground: var(--csmju-primary);
+  --muted: rgb(238 242 247);
+  --muted-foreground: rgb(100 116 139);
+  --accent: var(--csmju-primary-soft);
+  --accent-foreground: var(--csmju-primary);
+  --destructive: rgb(185 28 28);
+  --success: rgb(21 128 61);
+  --warning: rgb(180 83 9);
+  --border: rgb(219 227 236);
+  --input: rgb(203 213 225);
+  --ring: var(--csmju-primary);
+  --chart-1: var(--csmju-primary);
+  --chart-2: rgb(59 130 246);
+  --chart-3: rgb(96 165 250);
+  --chart-4: rgb(147 197 253);
+  --chart-5: rgb(191 219 254);
+  --radius: 0.625rem;
+  --sidebar: rgb(255 255 255);
+  --sidebar-foreground: var(--csmju-ink);
+  --sidebar-primary: var(--csmju-primary);
+  --sidebar-primary-foreground: rgb(255 255 255);
+  --sidebar-accent: var(--csmju-primary-soft);
+  --sidebar-accent-foreground: var(--csmju-primary);
+  --sidebar-border: rgb(219 227 236);
+  --sidebar-ring: var(--csmju-primary);
+
+  /* ── ชั้นความลึกของโหมดสว่าง ────────────────────────────────────
+     เงาสองชั้นเสมอ: ชั้นแคบคมให้ขอบชัด ชั้นกว้างนุ่มให้รู้สึกลอย
+     ใช้สีน้ำเงินอมเทาแทนดำล้วน เพราะเงาดำบนพื้นขาวนวลดูสกปรก */
+  --elevation-xs: 0 1px 2px rgb(15 35 60 / 0.05);
+  --elevation-sm: 0 1px 2px rgb(15 35 60 / 0.06), 0 2px 8px rgb(15 35 60 / 0.04);
+  --elevation-md: 0 1px 3px rgb(15 35 60 / 0.08), 0 8px 24px rgb(15 35 60 / 0.06);
+  --elevation-lg: 0 2px 6px rgb(15 35 60 / 0.08), 0 20px 48px rgb(15 35 60 / 0.1);
+  --elevation-glow: 0 6px 20px rgb(0 76 153 / 0.25);
+
+  /* ไล่สีจากน้ำเงินหลัก — **ไม่ใช่สีใหม่** เป็นสีเดิมไล่ไปหาโทนสว่างขึ้น
+     ใช้กับตราสัญลักษณ์และปุ่มหลักเท่านั้น เพื่อให้มีจุดเดียวที่โดดออกมา */
+  --csmju-gradient: linear-gradient(
+    135deg,
+    rgb(0 76 153) 0%,
+    rgb(21 101 192) 55%,
+    rgb(48 133 214) 100%
+  );
+
+  /* เส้นคั่นที่บางกว่าขอบการ์ด ใช้แบ่งส่วนภายในการ์ดเดียวกัน */
+  --hairline: rgb(15 35 60 / 0.07);
+}
+
+/* โหมดมืด — น้ำเงินหลักต้องสว่างขึ้นเพื่อให้ contrast ผ่านบนพื้นเข้ม
+   rgb(0 76 153) บนพื้นดำอ่านแทบไม่ออก จึงเลื่อนไปทาง rgb(77 155 255) แต่ยังเป็นน้ำเงิน
+   ตัวเดียวกันในสายตา ไม่ใช่เปลี่ยนสีประจำองค์กร */
+.dark {
+  --csmju-primary: rgb(77 155 255);
+  --csmju-primary-soft: rgb(18 35 59);
+  --csmju-ink: rgb(226 232 240);
+  --csmju-surface: rgb(13 20 31);
+
+  --background: var(--csmju-surface);
+  --foreground: var(--csmju-ink);
+  --card: rgb(20 29 43);
+  --card-foreground: var(--csmju-ink);
+  --popover: rgb(20 29 43);
+  --popover-foreground: var(--csmju-ink);
+  --primary: var(--csmju-primary);
+  --primary-foreground: rgb(6 18 31);
+  --secondary: var(--csmju-primary-soft);
+  --secondary-foreground: var(--csmju-primary);
+  --muted: rgb(27 38 53);
+  --muted-foreground: rgb(147 163 184);
+  --accent: var(--csmju-primary-soft);
+  --accent-foreground: var(--csmju-primary);
+  --destructive: rgb(248 113 113);
+  --success: rgb(74 222 128);
+  --warning: rgb(251 191 36);
+  --border: rgb(36 48 63);
+  --input: rgb(46 59 77);
+  --ring: var(--csmju-primary);
+  --chart-1: var(--csmju-primary);
+  --chart-2: rgb(59 130 246);
+  --chart-3: rgb(37 99 235);
+  --chart-4: rgb(29 78 216);
+  --chart-5: rgb(30 64 175);
+  --sidebar: rgb(16 25 39);
+  --sidebar-foreground: var(--csmju-ink);
+  --sidebar-primary: var(--csmju-primary);
+  --sidebar-primary-foreground: rgb(6 18 31);
+  --sidebar-accent: var(--csmju-primary-soft);
+  --sidebar-accent-foreground: var(--csmju-primary);
+  --sidebar-border: rgb(36 48 63);
+  --sidebar-ring: var(--csmju-primary);
+
+  /* ── ชั้นความลึกของโหมดมืด ──────────────────────────────────────
+     เงาดำบนพื้นเข้มมองไม่เห็น จึงต้องพึ่ง **เส้นสว่างด้านบน** แทน
+     (inset ขาวจาง ๆ) ซึ่งเลียนแบบแสงที่ตกบนขอบบนของวัตถุ
+     แล้วค่อยเสริมเงาดำเข้มเพื่อให้ยังรู้สึกว่ามีระยะ */
+  --elevation-xs: inset 0 1px 0 rgb(255 255 255 / 0.04);
+  --elevation-sm: inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 2px 8px rgb(0 0 0 / 0.4);
+  --elevation-md: inset 0 1px 0 rgb(255 255 255 / 0.06),
+    0 8px 24px rgb(0 0 0 / 0.5);
+  --elevation-lg: inset 0 1px 0 rgb(255 255 255 / 0.07),
+    0 24px 56px rgb(0 0 0 / 0.6);
+  --elevation-glow: 0 6px 24px rgb(77 155 255 / 0.3);
+
+  --csmju-gradient: linear-gradient(
+    135deg,
+    rgb(37 99 190) 0%,
+    rgb(59 130 220) 55%,
+    rgb(96 165 250) 100%
+  );
+
+  --hairline: rgb(255 255 255 / 0.07);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    /* กันหน้าเลื่อนกระตุกตอนสลับหน้าที่ยาวไม่เท่ากัน */
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    /* ตัวเลขในตารางและยอดต่าง ๆ ต้องกว้างเท่ากันทุกตัว ไม่งั้นเลขขยับ
+       ตอนค่าเปลี่ยน (1 กับ 8 กว้างไม่เท่ากันในฟอนต์ปกติ) */
+    font-variant-numeric: tabular-nums;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* โฟกัสที่มองเห็นชัด — ผู้ใช้คีย์บอร์ดต้องรู้ตลอดว่าอยู่ตรงไหน
+     ใช้ :focus-visible ไม่ใช่ :focus เพื่อไม่ให้ขึ้นตอนคลิกเมาส์ */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  ::selection {
+    background: var(--csmju-primary-soft);
+    color: var(--csmju-primary);
+  }
+
+  /* แถบเลื่อนบาง ๆ ที่กลมกลืนกับธีม ไม่ใช่แถบเทาของระบบปฏิบัติการ
+     ที่ตัดกับพื้นมืดจนสะดุดตา */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 0.625rem;
+    height: 0.625rem;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 9999px;
+    border: 0.1875rem solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
+    background-clip: content-box;
+  }
+
+  /* หัวข้อไม่ควรตัดคำทิ้งบรรทัดสุดท้ายไว้คำเดียว */
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   คลาสช่วยที่ใช้ซ้ำทั้งระบบ
+   อยู่ที่นี่เพราะเป็นรูปแบบที่ซ้ำกันหลายหน้า ถ้าเขียน utility ยาว ๆ
+   ซ้ำทุกที่ วันหนึ่งมันจะเพี้ยนจากกันทีละนิดจนไม่เหมือนระบบเดียวกัน
+   ───────────────────────────────────────────────────────────────── */
+@layer components {
+  /* พื้นผิวของ "ของที่ลอยอยู่" — การ์ด แผง กล่องลอย */
+  .csmju-surface {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--elevation-sm);
+  }
+
+  /* การ์ดที่กดได้ — ยกขึ้นเล็กน้อยตอนชี้ ให้รู้ว่าโต้ตอบได้ */
+  .csmju-card-interactive {
+    transition:
+      box-shadow 200ms var(--ease-csmju),
+      transform 200ms var(--ease-csmju),
+      border-color 200ms var(--ease-csmju);
+  }
+
+  .csmju-card-interactive:hover {
+    box-shadow: var(--elevation-md);
+    border-color: color-mix(in srgb, var(--primary) 22%, var(--border));
+    transform: translateY(-0.0625rem);
+  }
+
+  /* ตราสัญลักษณ์และปุ่มหลัก — จุดเดียวในหน้าที่ใช้ไล่สี
+     ถ้าใช้หลายที่ มันจะเลิกเป็นจุดเด่นทันที */
+  .csmju-brand {
+    background: var(--csmju-gradient);
+    color: rgb(255 255 255);
+  }
+
+  /* แถบบนแบบกระจกฝ้า — เนื้อหาเลื่อนผ่านข้างหลังได้แบบเบลอ ๆ */
+  .csmju-glass {
+    background: color-mix(in srgb, var(--background) 78%, transparent);
+    backdrop-filter: blur(0.75rem) saturate(1.6);
+    -webkit-backdrop-filter: blur(0.75rem) saturate(1.6);
+  }
+
+  /* เส้นคั่นภายในการ์ดเดียวกัน บางกว่าขอบการ์ด */
+  .csmju-hairline {
+    border-color: var(--hairline);
+  }
+
+  /* แถบบอกตำแหน่งปัจจุบันในเมนู — ขีดโค้งด้านซ้าย */
+  .csmju-nav-item {
+    position: relative;
+    transition:
+      background-color 180ms var(--ease-csmju),
+      color 180ms var(--ease-csmju);
+  }
+
+  .csmju-nav-item[data-active='true']::before {
+    content: '';
+    position: absolute;
+    inset-block: 0.375rem;
+    inset-inline-start: -0.5rem;
+    width: 0.1875rem;
+    border-radius: 9999px;
+    background: var(--csmju-gradient);
+  }
+}
+/* เคารพการตั้งค่า "ลดการเคลื่อนไหว" ของระบบปฏิบัติการ
+ *
+ * ผู้ใช้ที่มีอาการเวียนศีรษะจากการเคลื่อนไหว (vestibular disorder) ตั้งค่านี้
+ * ไว้ที่ระบบ แล้วคาดหวังว่าทุกเว็บจะเคารพมัน — ก่อนหน้านี้ทั้งโปรเจกต์ไม่มี
+ * จุดไหนเคารพเลย ทั้งสปริงของ framer-motion จุดกะพริบของสายเรียกเข้า
+ * และแถบความคืบหน้าของสตอรี่
+ *
+ * ไม่ตั้งเป็น 0s เพราะ transitionend/animationend จะไม่ยิง แล้วโค้ดที่รอ
+ * event นั้นอยู่จะค้าง — 0.01ms สั้นจนมองไม่เห็นแต่ยังยิง event ตามปกติ
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

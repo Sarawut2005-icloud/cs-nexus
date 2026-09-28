@@ -10,8 +10,8 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CurrentUser,
-  type GatewayUser,
-} from '../../common/auth/gateway-user.js';
+  type CoreHubUser,
+} from '../../common/auth/core-user.js';
 import {
   ApiEnvelope,
   ApiEnvelopeError,
@@ -34,20 +34,20 @@ export class FollowsController {
   @ApiOperation({ summary: 'คนที่ติดตามฉัน' })
   @ApiEnvelopeList(FollowEdgeDto)
   myFollowers(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Query() query: PaginationQuery,
   ) {
-    return this.follows.followers(user.username, query);
+    return this.follows.followers(user.coreUserId, query);
   }
 
   @Get('following')
   @ApiOperation({ summary: 'คนที่ฉันติดตาม' })
   @ApiEnvelopeList(FollowEdgeDto)
   myFollowing(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Query() query: PaginationQuery,
   ) {
-    return this.follows.following(user.username, query);
+    return this.follows.following(user.coreUserId, query);
   }
 
   @Get('suggestions')
@@ -56,7 +56,7 @@ export class FollowsController {
     description:
       'คืนอาเรย์ว่างถ้าผู้ใช้ยังไม่ได้ติดตามใครเลย — ตั้งใจไม่ตกไปหาอันดับยอดนิยม เพราะจะทำให้ผู้ใช้ใหม่ทุกคนเห็นรายชื่อเดียวกันหมด',
   })
-  suggestions(@CurrentUser() user: GatewayUser) {
+  suggestions(@CurrentUser() user: CoreHubUser) {
     return this.follows.suggestions(user, 10);
   }
 
@@ -64,17 +64,17 @@ export class FollowsController {
   @ApiOperation({ summary: 'กดติดตามคนหนึ่ง (กดซ้ำไม่แจ้งเตือนซ้ำ)' })
   @ApiEnvelope(RelationDto, { status: 201, description: 'ติดตามแล้ว' })
   @ApiEnvelopeError(400, 'ติดตามตัวเองไม่ได้')
-  follow(@CurrentUser() user: GatewayUser, @Body() dto: FollowDto) {
-    return this.follows.follow(user, dto.username);
+  follow(@CurrentUser() user: CoreHubUser, @Body() dto: FollowDto) {
+    return this.follows.follow(user, dto.coreUserId);
   }
 
-  @Delete(':username')
+  @Delete(':coreUserId')
   @ApiOperation({ summary: 'เลิกติดตาม' })
   @ApiEnvelope(RelationDto)
   unfollow(
-    @CurrentUser() user: GatewayUser,
-    @Param('username') username: string,
+    @CurrentUser() user: CoreHubUser,
+    @Param('coreUserId') coreUserId: string,
   ) {
-    return this.follows.unfollow(user, username);
+    return this.follows.unfollow(user, coreUserId);
   }
 }

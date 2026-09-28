@@ -18,16 +18,24 @@ services:
     runtime: node
     plan: free
     region: singapore # ใกล้ไทยที่สุดในชั้นใช้ฟรี
-    rootDir: backend
+    # รากของ workspace ไม่ใช่ backend/ — pnpm ต้องเห็น pnpm-workspace.yaml
+    # กับ pnpm-lock.yaml ที่ราก ไม่งั้นติดตั้ง dependency ไม่ได้เลย
+    rootDir: .
+
 
     # migrate deploy ไม่ใช่ migrate dev — dev จะสร้าง migration ใหม่เองถ้า
     # schema ไม่ตรง ซึ่งบนเซิร์ฟเวอร์แปลว่าแก้ฐานข้อมูลจริงโดยไม่มีใครตรวจ
-    buildCommand: npm ci && npx prisma generate && npm run build && npx prisma migrate deploy
-    startCommand: npm run start:prod
+    buildCommand: >-
+      corepack enable pnpm &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter backend exec prisma generate &&
+      pnpm --filter backend build &&
+      pnpm --filter backend exec prisma migrate deploy
+    startCommand: pnpm --filter backend start:prod
 
     # Render เรียกเส้นทางนี้เพื่อดูว่าบริการพร้อมหรือยัง
-    # /health มีอยู่แล้วตามมาตรฐาน CSMJU2030 หน้า 7
-    healthCheckPath: /health
+    # /api/health เป็นเส้นทางบังคับตาม contracts/vocabulary.json (requiredRoutes.health)
+    healthCheckPath: /api/health
 
     envVars:
       - key: NODE_ENV
@@ -49,10 +57,31 @@ services:
       - key: CORS_ORIGIN
         sync: false
 
-      # ระบบเชื่อ header ที่ส่งมา (Blueprint หน้า 9) จึงปลอดภัยก็ต่อเมื่อ
-      # พิสูจน์ได้ว่าคำขอมาจาก Gateway จริง — ถ้าไม่ตั้ง ใครก็ส่ง X-User-Id
-      # มาเป็นใครก็ได้ main.ts จะไม่ยอมบูตจนกว่าจะตั้งตัวนี้ หรือยืนยันว่า
-      # รู้ตัวด้วย ALLOW_UNPROTECTED_GATEWAY=true (เดโมวงปิดเท่านั้น)
+      # ── Core Hub (สัญญา v1.0) ────────────────────────────────────
+      #
+      # ระบบย่อยตรวจ JWT เองผ่าน JWKS จึงต้องรู้ที่อยู่ของ Core Hub
+      # ห้าตัวนี้คือ requiredEnvVars ตาม contracts/vocabulary.json
+      - key: CORE_HUB_URL
+        sync: false
+      - key: CORE_HUB_JWKS_URL
+        sync: false
+      - key: CORE_HUB_ISSUER
+        value: core-hub
+      - key: CORE_HUB_AUDIENCE
+        value: csmju2030
+      - key: SUBSYSTEM_ID
+        value: csmju-social-reels
+
+      # หน้าบ้านที่ /auth/callback จะพาผู้ใช้ไปต่อหลังตั้ง session สำเร็จ
+      - key: FRONTEND_URL
+        sync: false
+
+      # ── ชั้นเดิมที่ยังไม่ได้ถอด ───────────────────────────────────
+      #
+      # 68 endpoint ที่เหลือยังใช้ header จาก Gateway ซึ่งสัญญา v1.0
+      # ยกเลิกไปแล้ว (ดู docs/ช่องว่างกับมาตรฐาน-v1.0.md ระยะ 3)
+      # จนกว่าจะย้ายเสร็จ ด่านนี้ยังเป็นสิ่งเดียวที่กันคนแปลกหน้าออกไป
+      # **ห้ามถอดก่อนที่ทุก endpoint จะย้ายไปใช้ CoreHubJwtGuard**
       - key: GATEWAY_SHARED_SECRET
         sync: false
       - key: ALLOW_UNPROTECTED_GATEWAY

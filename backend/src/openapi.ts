@@ -13,10 +13,15 @@ export function buildOpenApiDocument(app: INestApplication) {
   return SwaggerModule.createDocument(
     app,
     new DocumentBuilder()
-      .setTitle('CS Nexus — aie4-social-reels')
+      .setTitle('CS Nexus — csmju-social-reels')
       .setDescription(
-        'ระบบย่อยภายใต้ CSMJU2030 · ตัวตนมาจาก API Gateway ผ่าน header X-User-Id / X-Layer1-Role / X-Faculty',
+        'ระบบย่อยภายใต้ CSMJU2030 · ตัวตนมาจาก JWT ของ Core Hub ' +
+          'ที่ระบบนี้ตรวจลายเซ็นเองด้วย JWKS ทุก request ' +
+          '(RS256 · iss=core-hub · aud=csmju2030 · kid=core-hub-2026) ' +
+          'ส่ง token มาได้สองทาง: Authorization: Bearer หรือคุกกี้ core_hub_access_token',
       )
+      .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' })
+      .addCookieAuth('core_hub_access_token')
       .setVersion('1.0.0')
       .build(),
   );

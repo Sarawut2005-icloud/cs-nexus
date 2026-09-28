@@ -3,8 +3,13 @@ import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 import { PaginationMeta } from './envelope.js';
 
-/// Query มาตรฐานของทุก list endpoint (Blueprint หน้า 7)
-///   GET /api/v1/equipment-items?page=2&per_page=50
+/// Query มาตรฐานของทุก list endpoint
+///
+///   GET /api/v1/reels?page=2&limit=50
+///
+/// ชื่อ `limit` มาจาก contracts/vocabulary.json (`paginationQuery`)
+/// **เดิมใช้ชื่อแบบเก่า ตามสัญญาฉบับที่ถูกยกเลิกไปแล้ว** — CHANGELOG 1.0.0
+/// ระบุการเปลี่ยนนี้ไว้ตรง ๆ และกฎ `API-07` ตีตกถ้ายังเจอคำเดิม
 export class PaginationQuery {
   @ApiPropertyOptional({ minimum: 1, default: 1, example: 2 })
   @IsOptional()
@@ -16,25 +21,30 @@ export class PaginationQuery {
   @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 20, example: 50 })
   @IsOptional()
   @Type(() => Number)
-  @IsInt({ message: 'per_page ต้องเป็นจำนวนเต็ม' })
+  @IsInt({ message: 'limit ต้องเป็นจำนวนเต็ม' })
   @Min(1)
-  @Max(100, { message: 'per_page สูงสุด 100 รายการ' })
-  per_page: number = 20;
+  @Max(100, { message: 'limit สูงสุด 100 รายการ' })
+  limit: number = 20;
 
   get skip(): number {
-    return (this.page - 1) * this.per_page;
+    return (this.page - 1) * this.limit;
   }
 
   get take(): number {
-    return this.per_page;
+    return this.limit;
   }
 
-  meta(totalItems: number): PaginationMeta {
+  meta(total: number): PaginationMeta {
     return {
-      current_page: this.page,
-      per_page: this.per_page,
-      total_pages: Math.max(1, Math.ceil(totalItems / this.per_page)),
-      total_items: totalItems,
+      total,
+      page: this.page,
+      limit: this.limit,
+
+      // ไม่มีข้อมูลเลย = 0 หน้า ไม่ใช่ 1 หน้าที่ว่างเปล่า
+      // (api-conventions.md ข้อ 5 ยกตัวอย่างไว้ชัดว่า totalPages เป็น 0)
+      // เดิมโค้ดนี้ครอบด้วย Math.max(1, …) ซึ่งทำให้หน้าบ้านวาดตัวเลือกหน้า
+      // ขึ้นมาหนึ่งหน้าทั้งที่ไม่มีอะไรให้ดู
+      totalPages: Math.ceil(total / this.limit),
     };
   }
 }

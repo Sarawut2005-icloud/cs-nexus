@@ -105,7 +105,7 @@ export class MessageResponseDto {
   seq!: number;
 
   @ApiProperty() channel_id!: string;
-  @ApiProperty() author_username!: string;
+  @ApiProperty() author_core_user_id!: string;
   @ApiProperty({ nullable: true }) content!: string | null;
   @ApiProperty({ type: [MessageAttachmentDto] })
   attachments!: MessageAttachmentDto[];
@@ -123,7 +123,7 @@ export class MessageResponseDto {
   reply_count!: number;
 
   @ApiProperty({ nullable: true }) pinned_at!: string | null;
-  @ApiProperty({ nullable: true }) pinned_by_username!: string | null;
+  @ApiProperty({ nullable: true }) pinned_by_core_user_id!: string | null;
 
   @ApiProperty() client_nonce!: string;
   @ApiProperty({ nullable: true }) edited_at!: string | null;

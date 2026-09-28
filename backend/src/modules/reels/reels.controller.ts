@@ -13,8 +13,8 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CurrentUser,
-  type GatewayUser,
-} from '../../common/auth/gateway-user.js';
+  type CoreHubUser,
+} from '../../common/auth/core-user.js';
 import {
   ApiEnvelope,
   ApiEnvelopeError,
@@ -41,10 +41,10 @@ export class ReelsController {
   @ApiOperation({
     summary: 'ฟีดคลิปสั้น เรียงใหม่ไปเก่า',
     description:
-      'feed=following = เฉพาะคนที่ติดตาม · author_username = หน้าโปรไฟล์ของคนนั้น',
+      'feed=following = เฉพาะคนที่ติดตาม · author_core_user_id = หน้าโปรไฟล์ของคนนั้น',
   })
   @ApiEnvelopeList(ReelResponseDto)
-  list(@CurrentUser() user: GatewayUser, @Query() query: ListReelsQuery) {
+  list(@CurrentUser() user: CoreHubUser, @Query() query: ListReelsQuery) {
     return this.reels.list(user, query);
   }
 
@@ -53,7 +53,7 @@ export class ReelsController {
   @ApiEnvelope(ReelResponseDto)
   @ApiEnvelopeError(404, 'ไม่พบคลิป')
   findOne(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.reels.findOne(user, id);
@@ -64,7 +64,7 @@ export class ReelsController {
   @ApiEnvelope(ReelResponseDto, { status: 201, description: 'สร้างคลิปสำเร็จ' })
   @ApiEnvelopeError(400, 'ไฟล์ยังไม่พร้อม หรือไม่ใช่วิดีโอ')
   @ApiEnvelopeError(403, 'ไฟล์นี้ไม่ใช่ของผู้เรียก')
-  create(@CurrentUser() user: GatewayUser, @Body() dto: CreateReelDto) {
+  create(@CurrentUser() user: CoreHubUser, @Body() dto: CreateReelDto) {
     return this.reels.create(user, dto);
   }
 
@@ -73,7 +73,7 @@ export class ReelsController {
   @ApiOperation({ summary: 'ลบคลิป (เจ้าของ หรือ admin ระดับองค์กร)' })
   @ApiEnvelopeError(403, 'ลบคลิปของคนอื่นไม่ได้')
   async remove(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     await this.reels.remove(user, id);
@@ -83,7 +83,7 @@ export class ReelsController {
   @ApiOperation({ summary: 'กดไลก์คลิป (กดซ้ำไม่เพิ่มยอด)' })
   @ApiEnvelope(LikeCountDto)
   like(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.reels.like(user, id);
@@ -93,7 +93,7 @@ export class ReelsController {
   @ApiOperation({ summary: 'เลิกไลก์คลิป' })
   @ApiEnvelope(LikeCountDto)
   unlike(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.reels.unlike(user, id);
@@ -108,7 +108,7 @@ export class ReelsController {
   @ApiEnvelope(ViewCountDto, { status: 201, description: 'บันทึกแล้ว' })
   @ApiEnvelopeError(404, 'ไม่พบคลิปนี้')
   markViewed(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.reels.markViewed(user, id);
@@ -129,7 +129,7 @@ export class ReelsController {
   @ApiEnvelope(ReelCommentResponseDto, { status: 201 })
   @ApiEnvelopeError(404, 'ไม่พบคลิปนี้')
   addComment(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CreateReelCommentDto,
   ) {
@@ -141,7 +141,7 @@ export class ReelsController {
   @ApiOperation({ summary: 'ลบความคิดเห็น (เจ้าของ หรือผู้ดูแล)' })
   @ApiEnvelopeError(403, 'ลบความคิดเห็นของคนอื่นไม่ได้')
   async removeComment(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('commentId', ParseUUIDPipe) commentId: string,
   ) {

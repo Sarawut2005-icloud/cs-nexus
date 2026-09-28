@@ -12,9 +12,9 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CurrentUser,
-  type GatewayUser,
-} from '../../common/auth/gateway-user.js';
-import { Layer1Roles } from '../../common/auth/layer1-roles.decorator.js';
+  type CoreHubUser,
+} from '../../common/auth/core-user.js';
+import { CoreRoles } from '../../common/auth/core-roles.decorator.js';
 import {
   ApiEnvelope,
   ApiEnvelopeError,
@@ -39,7 +39,7 @@ export class StoriesController {
       'เห็นของตัวเองและของคนที่ติดตาม · สตอรี่ที่หมดอายุถูกกรองออกตอนอ่าน จึงหายตรงเวลาแม้ตัวเก็บกวาดไม่ได้รัน · ของตัวเองอยู่ซ้ายสุด แล้วเรียงคนที่ยังมีของไม่ได้ดูขึ้นก่อน',
   })
   @ApiEnvelope(StoryTrayDto)
-  tray(@CurrentUser() user: GatewayUser) {
+  tray(@CurrentUser() user: CoreHubUser) {
     return this.stories.tray(user);
   }
 
@@ -50,7 +50,7 @@ export class StoriesController {
   @ApiEnvelope(StoryItemDto, { status: 201, description: 'โพสต์แล้ว' })
   @ApiEnvelopeError(400, 'ไฟล์ไม่ใช่รูปหรือวิดีโอ ยังไม่ commit หรือถูกใช้ไปแล้ว')
   @ApiEnvelopeError(403, 'โพสต์จากไฟล์ของคนอื่นไม่ได้')
-  create(@CurrentUser() user: GatewayUser, @Body() dto: CreateStoryDto) {
+  create(@CurrentUser() user: CoreHubUser, @Body() dto: CreateStoryDto) {
     return this.stories.create(user, dto);
   }
 
@@ -62,7 +62,7 @@ export class StoriesController {
   })
   @ApiEnvelopeError(404, 'ไม่พบสตอรี่ หมดอายุ หรือไม่ได้ติดตามเจ้าของ')
   markViewed(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.stories.markViewed(user, id);
@@ -75,7 +75,7 @@ export class StoriesController {
   @ApiEnvelope(StoryViewerDto)
   @ApiEnvelopeError(403, 'ดูรายชื่อผู้ชมของคนอื่นไม่ได้')
   viewers(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.stories.viewers(user, id);
@@ -86,14 +86,14 @@ export class StoriesController {
   @ApiOperation({ summary: 'ลบสตอรี่ (เจ้าของ หรือผู้ดูแลองค์กร)' })
   @ApiEnvelopeError(403, 'ลบสตอรี่ของคนอื่นไม่ได้')
   async remove(
-    @CurrentUser() user: GatewayUser,
+    @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     await this.stories.remove(user, id);
   }
 
   @Post('maintenance/sweeps')
-  @Layer1Roles('admin')
+  @CoreRoles('admin')
   @ApiOperation({
     summary: 'สั่งเก็บกวาดสตอรี่ที่หมดอายุทันที (ผู้ดูแลองค์กร)',
     description:

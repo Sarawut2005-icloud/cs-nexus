@@ -7,13 +7,13 @@ import { EventsGateway } from './events.gateway.js';
 export class PresenceQuery {
   @ApiPropertyOptional({
     description:
-      'รายชื่อ username คั่นด้วยลูกน้ำ · เว้นว่างเพื่อขอทุกคนที่ออนไลน์อยู่',
+      'รายชื่อ coreUserId คั่นด้วยลูกน้ำ · เว้นว่างเพื่อขอทุกคนที่ออนไลน์อยู่',
     example: '6704101382-anuchat,6700000001-ajarn',
   })
   @IsOptional()
   @IsString()
   @Length(1, 6500)
-  usernames?: string;
+  coreUserIds?: string;
 }
 
 export class PresenceResponseDto {
@@ -22,11 +22,11 @@ export class PresenceResponseDto {
     description: 'คนที่มี socket เปิดอยู่ตอนนี้',
     example: ['6704101382-anuchat'],
   })
-  online_usernames!: string[];
+  online_core_user_ids!: string[];
 
   @ApiProperty({
     example: 3,
-    description: 'จำนวนคนที่ออนไลน์ทั้งระบบ (ไม่ขึ้นกับตัวกรอง usernames)',
+    description: 'จำนวนคนที่ออนไลน์ทั้งระบบ (ไม่ขึ้นกับตัวกรอง coreUserIds)',
   })
   total_online!: number;
 }
@@ -53,15 +53,15 @@ export class PresenceController {
   @ApiOperation({ summary: 'ใครออนไลน์อยู่ตอนนี้' })
   @ApiEnvelope(PresenceResponseDto)
   get(@Query() query: PresenceQuery): PresenceResponseDto {
-    const online = this.events.onlineUsernames();
+    const online = this.events.onlineCoreUserIds();
 
-    const asked = (query.usernames ?? '')
+    const asked = (query.coreUserIds ?? '')
       .split(',')
       .map((name) => name.trim())
       .filter(Boolean);
 
     return {
-      online_usernames:
+      online_core_user_ids:
         asked.length > 0 ? online.filter((name) => asked.includes(name)) : online,
       total_online: online.length,
     };

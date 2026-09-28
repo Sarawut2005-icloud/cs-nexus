@@ -75,7 +75,7 @@ export function ApiEnvelopeError(status: number, description: string) {
           type: 'object',
           required: ['code', 'message'],
           properties: {
-            code: { type: 'string', example: 'not_found' },
+            code: { type: 'string', example: 'NOT_FOUND' },
             message: { type: 'string', example: 'ไม่พบคลิปนี้ อาจถูกลบไปแล้ว' },
             details: { type: 'array', items: { type: 'string' } },
           },

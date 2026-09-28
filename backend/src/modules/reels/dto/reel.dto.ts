@@ -59,7 +59,7 @@ export class ReelResponseDto {
     description: 'Shared Identity ของเจ้าของคลิป — ไม่มี student_id ซ้ำซ้อน',
     example: '6704101382-anuchat',
   })
-  author_username!: string;
+  author_core_user_id!: string;
 
   @ApiProperty() like_count!: number;
   @ApiProperty() view_count!: number;
@@ -84,7 +84,7 @@ export function toReelResponse(
     caption: reel.caption,
     asset_id: reel.assetId,
     duration_ms: reel.durationMs,
-    author_username: reel.authorUsername,
+    author_core_user_id: reel.authorCoreUserId,
     like_count: reel.likeCount,
     view_count: reel.viewCount,
     liked_by_me: options.likedByMe,
@@ -110,7 +110,7 @@ export class ListReelsQuery extends PaginationQuery {
   @IsOptional()
   @IsString()
   @Length(2, 64)
-  author_username?: string;
+  author_core_user_id?: string;
 }
 
 export class CreateReelCommentDto {
@@ -123,7 +123,7 @@ export class CreateReelCommentDto {
 export class ReelCommentResponseDto {
   @ApiProperty() id!: string;
   @ApiProperty() reel_id!: string;
-  @ApiProperty() author_username!: string;
+  @ApiProperty() author_core_user_id!: string;
   @ApiProperty() content!: string;
   @ApiProperty() created_at!: string;
 }
@@ -134,7 +134,7 @@ export function toReelCommentResponse(
   return {
     id: comment.id,
     reel_id: comment.reelId,
-    author_username: comment.authorUsername,
+    author_core_user_id: comment.authorCoreUserId,
     content: comment.content,
     created_at: comment.createdAt.toISOString(),
   };

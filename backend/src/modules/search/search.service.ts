@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { GatewayUser } from '../../common/auth/gateway-user.js';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { Paginated } from '../../common/http/envelope.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import {
@@ -21,7 +21,7 @@ export class SearchService {
   /// ให้เป็นลำดับเดียวต้องมีคะแนนความเกี่ยวข้อง ซึ่งเราไม่มี การแกล้งแบ่งหน้า
   /// จะได้หน้าที่สองที่ไม่มีความหมาย — ให้ผู้ใช้กดแท็บหมวดแล้วแบ่งหน้าในหมวดนั้น
   async searchAll(
-    user: GatewayUser,
+    user: CoreHubUser,
     query: SearchQuery,
   ): Promise<SearchAllResponseDto> {
     const q = query.q.trim();
@@ -42,7 +42,7 @@ export class SearchService {
   }
 
   async searchOne(
-    user: GatewayUser,
+    user: CoreHubUser,
     query: SearchQuery,
   ): Promise<Paginated<SearchHitDto>> {
     const q = query.q.trim();
@@ -62,7 +62,7 @@ export class SearchService {
     return new Paginated(hits, query.meta(total));
   }
 
-  private async counts(user: GatewayUser, q: string) {
+  private async counts(user: CoreHubUser, q: string) {
     const [reels, posts, people, messages] = await Promise.all([
       this.countOne(user, q, 'reels'),
       this.countOne(user, q, 'posts'),
@@ -74,7 +74,7 @@ export class SearchService {
   }
 
   private async countOne(
-    user: GatewayUser,
+    user: CoreHubUser,
     q: string,
     kind: string,
   ): Promise<number> {
@@ -112,7 +112,7 @@ export class SearchService {
       id: row.id,
       title: row.title,
       snippet: snippet(row.caption, q),
-      author_username: row.authorUsername,
+      author_core_user_id: row.authorCoreUserId,
       channel_id: null,
       created_at: row.createdAt.toISOString(),
     }));
@@ -135,7 +135,7 @@ export class SearchService {
       id: row.id,
       title: row.title,
       snippet: snippet(row.content, q),
-      author_username: row.authorUsername,
+      author_core_user_id: row.authorCoreUserId,
       channel_id: null,
       created_at: row.createdAt.toISOString(),
     }));
@@ -144,7 +144,7 @@ export class SearchService {
   /// ค้นคน — ค้นได้เฉพาะจากแคชชื่อที่ซิงก์มาจาก Core
   ///
   /// ข้อจำกัดที่ต้องรู้: คนที่ยังไม่เคยถูกซิงก์จะหาด้วยชื่อจริงไม่เจอ
-  /// (หาด้วย username เจอ เพราะ username คือคีย์ของตารางแคช)
+  /// (หาด้วย coreUserId เจอ เพราะ coreUserId คือคีย์ของตารางแคช)
   /// ทางแก้จริงคือให้ Core มี endpoint ค้นคน แล้วเราเรียกต่อ — TODO(PL) กับ PM
   private async peopleHits(
     q: string,
@@ -153,24 +153,24 @@ export class SearchService {
   ): Promise<SearchHitDto[]> {
     const rows = await this.prisma.profileCache.findMany({
       where: this.peopleWhere(q),
-      orderBy: { username: 'asc' },
+      orderBy: { coreUserId: 'asc' },
       take,
       skip,
     });
 
     return rows.map((row) => ({
       kind: 'PERSON',
-      id: row.username,
+      id: row.coreUserId,
       title: row.displayName,
-      snippet: row.username,
-      author_username: row.username,
+      snippet: row.coreUserId,
+      author_core_user_id: row.coreUserId,
       channel_id: null,
       created_at: null,
     }));
   }
 
   private async messageHits(
-    user: GatewayUser,
+    user: CoreHubUser,
     q: string,
     take: number,
     skip: number,
@@ -188,7 +188,7 @@ export class SearchService {
       id: row.id,
       title: row.channel.name ?? (row.channel.kind === 'DM' ? 'แชทส่วนตัว' : 'ห้องแชท'),
       snippet: snippet(row.content, q),
-      author_username: row.authorUsername,
+      author_core_user_id: row.authorCoreUserId,
       channel_id: row.channelId,
       created_at: row.createdAt.toISOString(),
     }));
@@ -217,7 +217,7 @@ export class SearchService {
     return {
       OR: [
         { displayName: { contains: q, mode: 'insensitive' as const } },
-        { username: { contains: q, mode: 'insensitive' as const } },
+        { coreUserId: { contains: q, mode: 'insensitive' as const } },
       ],
     };
   }
@@ -226,9 +226,9 @@ export class SearchService {
   ///
   /// นี่เป็นเงื่อนไขที่ห้ามลืม: ถ้าค้นทั้งตาราง ช่องค้นหาจะกลายเป็นช่องอ่าน
   /// แชทส่วนตัวของคนอื่นทั้งระบบด้วยการเดาคำ ซึ่งร้ายแรงกว่าบั๊กใด ๆ ในระบบนี้
-  private async messageWhere(user: GatewayUser, q: string) {
+  private async messageWhere(user: CoreHubUser, q: string) {
     const memberships = await this.prisma.channelMember.findMany({
-      where: { username: user.username },
+      where: { coreUserId: user.coreUserId },
       select: { channelId: true },
     });
 

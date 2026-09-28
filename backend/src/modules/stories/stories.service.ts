@@ -6,7 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { GatewayUser } from '../../common/auth/gateway-user.js';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import {
   STORAGE_PROVIDER,
@@ -51,7 +51,7 @@ export class StoriesService {
   ///   1. ไฟล์เป็นของผู้เรียกจริง — ไม่งั้นเอา asset_id ของคนอื่นมาโพสต์ได้
   ///   2. commit แล้ว (READY) — ไม่งั้นสตอรี่จะชี้ไปที่ไฟล์ที่ยังไม่มีเนื้อ
   ///   3. ยังไม่ถูกใช้ที่อื่น — unique(assetId) กันไว้ที่ระดับฐานข้อมูลอีกชั้น
-  async create(user: GatewayUser, dto: CreateStoryDto): Promise<StoryItemDto> {
+  async create(user: CoreHubUser, dto: CreateStoryDto): Promise<StoryItemDto> {
     const asset = await this.prisma.asset.findUnique({
       where: { id: dto.asset_id },
       include: { reel: { select: { id: true } }, story: { select: { id: true } } },
@@ -61,7 +61,7 @@ export class StoriesService {
       throw new NotFoundException('ไม่พบไฟล์นี้');
     }
 
-    if (asset.ownerUsername !== user.username) {
+    if (asset.ownerCoreUserId !== user.coreUserId) {
       throw new ForbiddenException('โพสต์สตอรี่จากไฟล์ของคนอื่นไม่ได้');
     }
 
@@ -83,7 +83,7 @@ export class StoriesService {
 
     const story = await this.prisma.story.create({
       data: {
-        authorUsername: user.username,
+        authorCoreUserId: user.coreUserId,
         assetId: asset.id,
         caption: dto.caption ?? null,
         expiresAt: new Date(Date.now() + STORY_TTL_MS),
@@ -96,18 +96,18 @@ export class StoriesService {
     // วันละหลายครั้ง ถ้าแจ้งทุกครั้งกับทุกคน ช่องแจ้งเตือนจะไร้ประโยชน์ทันที
     // (Instagram เองก็ไม่แจ้งเตือนสตอรี่ใหม่ — วงแหวนรอบรูปโปรไฟล์ทำหน้าที่นี้)
     const followers = await this.prisma.follow.findMany({
-      where: { followingUsername: user.username },
-      select: { followerUsername: true },
+      where: { followingCoreUserId: user.coreUserId },
+      select: { followerCoreUserId: true },
       take: 51,
     });
 
     if (followers.length > 0 && followers.length <= 50) {
       await this.notifications.pushMany(
-        followers.map((row) => row.followerUsername),
+        followers.map((row) => row.followerCoreUserId),
         {
           kind: 'MENTION',
           refId: story.id,
-          actorUsername: user.username,
+          actorCoreUserId: user.coreUserId,
           payload: { story: true, preview: dto.caption ?? null },
         },
       );
@@ -125,13 +125,13 @@ export class StoriesService {
   /// **การหมดอายุบังคับที่นี่** ด้วย `expiresAt: { gt: now }` ไม่ใช่รอให้ตัวลบ
   /// มาทำงาน ฉะนั้นสตอรี่ที่หมดอายุหายจากสายตาผู้ใช้ตรงเวลาแม้ตัวเก็บกวาด
   /// จะไม่เคยรันเลย
-  async tray(user: GatewayUser): Promise<StoryTrayDto[]> {
-    const authors = await this.follows.followingUsernames(user);
+  async tray(user: CoreHubUser): Promise<StoryTrayDto[]> {
+    const authors = await this.follows.followingCoreUserIds(user);
     const now = new Date();
 
     const stories = await this.prisma.story.findMany({
       where: {
-        authorUsername: { in: authors },
+        authorCoreUserId: { in: authors },
         expiresAt: { gt: now },
       },
       orderBy: { createdAt: 'asc' }, // ในหนึ่งคน ดูจากเก่าไปใหม่
@@ -153,7 +153,7 @@ export class StoriesService {
 
     const seen = await this.prisma.storyView.findMany({
       where: {
-        username: user.username,
+        coreUserId: user.coreUserId,
         storyId: { in: stories.map((story) => story.id) },
       },
       select: { storyId: true },
@@ -163,18 +163,18 @@ export class StoriesService {
     const byAuthor = new Map<string, typeof stories>();
 
     for (const story of stories) {
-      const list = byAuthor.get(story.authorUsername) ?? [];
+      const list = byAuthor.get(story.authorCoreUserId) ?? [];
 
       list.push(story);
-      byAuthor.set(story.authorUsername, list);
+      byAuthor.set(story.authorCoreUserId, list);
     }
 
     const trays = await Promise.all(
       [...byAuthor.entries()].map(async ([author, list]) => {
-        const isMe = author === user.username;
+        const isMe = author === user.coreUserId;
 
         return {
-          author_username: author,
+          author_core_user_id: author,
           has_unseen: list.some((story) => !seenIds.has(story.id)),
           is_me: isMe,
           stories: await Promise.all(
@@ -190,44 +190,44 @@ export class StoriesService {
       if (a.is_me !== b.is_me) return a.is_me ? -1 : 1;
       if (a.has_unseen !== b.has_unseen) return a.has_unseen ? -1 : 1;
 
-      return a.author_username.localeCompare(b.author_username);
+      return a.author_core_user_id.localeCompare(b.author_core_user_id);
     });
   }
 
-  /// บันทึกว่าดูแล้ว — กดซ้ำไม่เพิ่มยอด เพราะคีย์เป็น (storyId, username)
+  /// บันทึกว่าดูแล้ว — กดซ้ำไม่เพิ่มยอด เพราะคีย์เป็น (storyId, coreUserId)
   async markViewed(
-    user: GatewayUser,
+    user: CoreHubUser,
     storyId: string,
   ): Promise<{ view_count: number }> {
     const story = await this.requireVisible(user, storyId);
 
     await this.prisma.storyView
-      .create({ data: { storyId, username: user.username } })
+      .create({ data: { storyId, coreUserId: user.coreUserId } })
       .catch(() => undefined); // ดูซ้ำ = ชนคีย์ ซึ่งถูกต้องแล้ว
 
     const viewCount = await this.prisma.storyView.count({ where: { storyId } });
 
     return {
       // ยอดผู้ชมเป็นข้อมูลของเจ้าของ คนอื่นไม่ควรรู้ว่าสตอรี่นี้มีคนดูกี่คน
-      view_count: story.authorUsername === user.username ? viewCount : 0,
+      view_count: story.authorCoreUserId === user.coreUserId ? viewCount : 0,
     };
   }
 
   /// รายชื่อผู้ชม — เจ้าของสตอรี่เท่านั้น (เหมือน Instagram)
   async viewers(
-    user: GatewayUser,
+    user: CoreHubUser,
     storyId: string,
   ): Promise<StoryViewerDto[]> {
     const story = await this.prisma.story.findUnique({
       where: { id: storyId },
-      select: { authorUsername: true },
+      select: { authorCoreUserId: true },
     });
 
     if (!story) {
       throw new NotFoundException('ไม่พบสตอรี่นี้');
     }
 
-    if (story.authorUsername !== user.username) {
+    if (story.authorCoreUserId !== user.coreUserId) {
       throw new ForbiddenException('ดูรายชื่อผู้ชมได้เฉพาะสตอรี่ของตัวเอง');
     }
 
@@ -238,12 +238,12 @@ export class StoriesService {
     });
 
     return rows.map((row) => ({
-      username: row.username,
+      coreUserId: row.coreUserId,
       viewed_at: row.viewedAt.toISOString(),
     }));
   }
 
-  async remove(user: GatewayUser, storyId: string): Promise<void> {
+  async remove(user: CoreHubUser, storyId: string): Promise<void> {
     const story = await this.prisma.story.findUnique({
       where: { id: storyId },
     });
@@ -252,8 +252,8 @@ export class StoriesService {
       throw new NotFoundException('ไม่พบสตอรี่นี้');
     }
 
-    const isOwner = story.authorUsername === user.username;
-    const canModerate = user.layer1Role === 'admin';
+    const isOwner = story.authorCoreUserId === user.coreUserId;
+    const canModerate = user.coreRole === 'admin';
 
     if (!isOwner && !canModerate) {
       throw new ForbiddenException('ลบได้เฉพาะสตอรี่ของตัวเอง');
@@ -265,12 +265,12 @@ export class StoriesService {
       if (!isOwner) {
         await tx.auditLog.create({
           data: {
-            actorUsername: user.username,
-            actorLayer1Role: user.layer1Role,
+            actorCoreUserId: user.coreUserId,
+            actorCoreRole: user.coreRole,
             action: 'story.delete',
             targetKind: 'STORY',
             targetId: storyId,
-            metadata: { author_username: story.authorUsername },
+            metadata: { author_core_user_id: story.authorCoreUserId },
           },
         });
       }
@@ -301,7 +301,7 @@ export class StoriesService {
           // ลบ asset ด้วย แล้วคืนโควตาให้เจ้าของตามขนาดจริง
           await tx.asset.delete({ where: { id: story.assetId } });
           await tx.subsystemMember.update({
-            where: { username: story.asset.ownerUsername },
+            where: { coreUserId: story.asset.ownerCoreUserId },
             data: {
               storageUsedBytes: { decrement: story.asset.sizeBytes },
             },
@@ -327,7 +327,7 @@ export class StoriesService {
 
   /// สตอรี่ที่ผู้เรียกมีสิทธิ์เห็น = ของตัวเอง หรือของคนที่ตัวเองติดตาม
   /// และต้องยังไม่หมดอายุ
-  private async requireVisible(user: GatewayUser, storyId: string) {
+  private async requireVisible(user: CoreHubUser, storyId: string) {
     const story = await this.prisma.story.findFirst({
       where: { id: storyId, expiresAt: { gt: new Date() } },
     });
@@ -336,13 +336,13 @@ export class StoriesService {
       throw new NotFoundException('ไม่พบสตอรี่นี้ หรือหมดอายุไปแล้ว');
     }
 
-    if (story.authorUsername === user.username) {
+    if (story.authorCoreUserId === user.coreUserId) {
       return story;
     }
 
-    const authors = await this.follows.followingUsernames(user);
+    const authors = await this.follows.followingCoreUserIds(user);
 
-    if (!authors.includes(story.authorUsername)) {
+    if (!authors.includes(story.authorCoreUserId)) {
       // 404 ไม่ใช่ 403 — ไม่ยืนยันให้คนนอกรู้ว่าสตอรี่ id นี้มีอยู่จริง
       throw new NotFoundException('ไม่พบสตอรี่นี้');
     }
@@ -353,7 +353,7 @@ export class StoriesService {
   private async toItem(
     story: {
       id: string;
-      authorUsername: string;
+      authorCoreUserId: string;
       assetId: string;
       caption: string | null;
       createdAt: Date;
@@ -377,7 +377,7 @@ export class StoriesService {
 
     return {
       id: story.id,
-      author_username: story.authorUsername,
+      author_core_user_id: story.authorCoreUserId,
       kind: story.asset.kind,
       media_url: signed.url,
       asset_id: story.assetId,

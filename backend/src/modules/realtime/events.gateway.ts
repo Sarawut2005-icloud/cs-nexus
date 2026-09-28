@@ -10,12 +10,10 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
-import {
-  GATEWAY_HEADERS,
-  LAYER1_ROLES,
-  type GatewayUser,
-  type Layer1Role,
-} from '../../common/auth/gateway-user.js';
+import type { Request } from 'express';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
+import { CoreHubTokenVerifier } from '../../auth/core-hub-token.verifier.js';
+import { extractToken } from '../../auth/core-hub-jwt.guard.js';
 import { RealtimeBus } from '../../common/realtime/realtime-bus.js';
 import {
   SOCKET_NAMESPACE,
@@ -39,7 +37,7 @@ const RATE_LIMIT_MESSAGES = 20;
 const RATE_LIMIT_WINDOW_MS = 10_000;
 
 interface SocketState {
-  user: GatewayUser;
+  user: CoreHubUser;
   /// เวลาที่ส่งข้อความล่าสุด ใช้ทำ sliding window แบบง่าย
   sentAt: number[];
   /// ห้องที่ socket นี้อยู่ ณ ตอนที่กำลังจะหลุด
@@ -68,7 +66,7 @@ export class EventsGateway
 
   /// จำนวน socket ที่เปิดอยู่ต่อผู้ใช้หนึ่งคน
   ///
-  /// นับ ไม่ใช่เก็บเป็น Set ของ username เพราะคนหนึ่งเปิดได้หลายแท็บ —
+  /// นับ ไม่ใช่เก็บเป็น Set ของ coreUserId เพราะคนหนึ่งเปิดได้หลายแท็บ —
   /// ถ้าใช้ Set แล้วลบตอนแท็บใดแท็บหนึ่งปิด เขาจะกลายเป็นออฟไลน์ทั้งที่
   /// ยังเปิดอีกแท็บอยู่ ซึ่งเป็นบั๊ก presence ที่พบบ่อยที่สุด
   private readonly socketsPerUser = new Map<string, number>();
@@ -78,6 +76,7 @@ export class EventsGateway
 
   constructor(
     private readonly tickets: RealtimeTicketsService,
+    private readonly verifier: CoreHubTokenVerifier,
     private readonly channels: ChannelsService,
     private readonly messages: MessagesService,
     private readonly voice: VoiceService,
@@ -85,10 +84,15 @@ export class EventsGateway
     private readonly notifications: NotificationsService,
   ) {}
 
-  /// ยืนยันตัวตนตอนจับมือ — สองทาง ทางไหนก็ไม่ได้ verify JWT เอง
+  /// ยืนยันตัวตนตอนจับมือ — สองทาง ทั้งคู่ตรวจของจริง
   ///
-  ///   1. header จาก API Gateway (ถ้า Gateway proxy WebSocket ให้)
-  ///   2. ตั๋วที่ขอมาทาง REST ก่อนหน้า (ถ้า WS ไม่ผ่าน Gateway)
+  ///   1. token ของ Core Hub ที่มากับ handshake (คุกกี้ที่เบราว์เซอร์แนบเอง
+  ///      หรือ `auth.token` ที่ client ส่งมา) ตรวจลายเซ็นด้วย JWKS ชุดเดียว
+  ///      กับฝั่ง HTTP
+  ///   2. ตั๋วอายุสั้นที่ขอมาทาง REST ก่อนหน้า
+  ///
+  /// เดิมทาง 1 คือ "เชื่อ header X-User-Id ที่ Gateway แนบมา" ซึ่งแปลว่าใคร
+  /// เปิด WebSocket ตรงเข้าหลังบ้านแล้วใส่ header เองก็เป็นใครก็ได้ทันที
   ///
   /// ทำเป็น middleware ไม่ใช่ทำใน handleConnection เพราะ middleware ปฏิเสธได้
   /// "ก่อน" การเชื่อมต่อจะสำเร็จ ทำให้ client ได้ connect_error ที่อ่านรู้เรื่อง
@@ -96,18 +100,25 @@ export class EventsGateway
   /// ซึ่งแยกไม่ออกจากเน็ตมีปัญหา
   afterInit(server: Server): void {
     server.use((socket, next) => {
-      try {
-        const user = this.identify(socket as Socket);
-
-        this.sockets.set(socket.id, { user, sentAt: [], roomsAtDisconnect: [] });
-        next();
-      } catch (error) {
-        next(
-          error instanceof Error
-            ? error
-            : new Error('ยืนยันตัวตนไม่สำเร็จ'),
-        );
-      }
+      // ตรวจลายเซ็นต้องรอ I/O (อาจต้องดึง JWKS) middleware จึงเป็น async
+      //
+      // ใช้ .then/.catch ไม่ใช่ callback แบบ async เพราะ socket.io ไม่รอ
+      // Promise ที่ callback คืนมา — เขียนเป็น async แล้ว throw จะกลายเป็น
+      // unhandled rejection และการเชื่อมต่อจะค้างแทนที่จะถูกปฏิเสธ
+      this.identify(socket as Socket)
+        .then((user) => {
+          this.sockets.set(socket.id, {
+            user,
+            sentAt: [],
+            roomsAtDisconnect: [],
+          });
+          next();
+        })
+        .catch((error: unknown) => {
+          next(
+            error instanceof Error ? error : new Error('ยืนยันตัวตนไม่สำเร็จ'),
+          );
+        });
     });
 
     // รับเหตุการณ์จากชั้นข้อมูลผ่าน bus — ฝั่งนั้นไม่รู้จัก gateway นี้เลย
@@ -115,7 +126,7 @@ export class EventsGateway
     // ออกจากห้องผ่าน REST แล้ว socket ต้องออกตามด้วย
     this.bus.evictions.subscribe((eviction) => {
       for (const [socketId, state] of this.sockets) {
-        if (state.user.username !== eviction.username) {
+        if (state.user.coreUserId !== eviction.coreUserId) {
           continue;
         }
 
@@ -126,7 +137,7 @@ export class EventsGateway
     });
 
     this.bus.userEvents.subscribe((push) => {
-      server.to(userRoom(push.username)).emit('notification:new', {
+      server.to(userRoom(push.coreUserId)).emit('notification:new', {
         notification: push.notification,
         unread_count: push.unread_count,
       });
@@ -145,7 +156,7 @@ export class EventsGateway
     }
 
     // เข้าห้องส่วนตัวทันทีที่ต่อติด เพื่อรับการแจ้งเตือนได้โดยไม่ต้องเปิดห้องแชทไว้
-    void socket.join(userRoom(state.user.username));
+    void socket.join(userRoom(state.user.coreUserId));
 
     // จดห้องไว้ตอน 'disconnecting' เพราะตอน 'disconnect' มันว่างไปแล้ว
     //
@@ -164,29 +175,29 @@ export class EventsGateway
       }
     });
 
-    const before = this.socketsPerUser.get(state.user.username) ?? 0;
+    const before = this.socketsPerUser.get(state.user.coreUserId) ?? 0;
 
-    this.socketsPerUser.set(state.user.username, before + 1);
+    this.socketsPerUser.set(state.user.coreUserId, before + 1);
 
     // แจ้งทั้งระบบเฉพาะตอนเปลี่ยนจาก "ไม่มีแท็บเลย" เป็น "มีแท็บแรก"
     if (before === 0) {
       this.server.emit('presence:changed', {
-        username: state.user.username,
+        coreUserId: state.user.coreUserId,
         online: true,
       });
     }
 
-    this.logger.log(`${state.user.username} เชื่อมต่อแล้ว (${socket.id})`);
+    this.logger.log(`${state.user.coreUserId} เชื่อมต่อแล้ว (${socket.id})`);
   }
 
   /// ใครออนไลน์อยู่ตอนนี้ — ให้ชั้น REST เรียกตอนหน้าจอโหลดครั้งแรก
   ///
   /// ต้องมีทั้ง REST และ event: event บอกการเปลี่ยนแปลง แต่ผู้ใช้ที่เพิ่ง
   /// เปิดหน้าไม่เคยได้ยิน event ของคนที่ออนไลน์อยู่ก่อนแล้ว
-  onlineUsernames(): string[] {
+  onlineCoreUserIds(): string[] {
     return [...this.socketsPerUser.entries()]
       .filter(([, count]) => count > 0)
-      .map(([username]) => username);
+      .map(([coreUserId]) => coreUserId);
   }
 
   handleDisconnect(socket: Socket): void {
@@ -198,16 +209,16 @@ export class EventsGateway
       return;
     }
 
-    const remaining = (this.socketsPerUser.get(state.user.username) ?? 1) - 1;
+    const remaining = (this.socketsPerUser.get(state.user.coreUserId) ?? 1) - 1;
 
     if (remaining <= 0) {
-      this.socketsPerUser.delete(state.user.username);
+      this.socketsPerUser.delete(state.user.coreUserId);
       this.server.emit('presence:changed', {
-        username: state.user.username,
+        coreUserId: state.user.coreUserId,
         online: false,
       });
     } else {
-      this.socketsPerUser.set(state.user.username, remaining);
+      this.socketsPerUser.set(state.user.coreUserId, remaining);
     }
 
     // ปิดแท็บทิ้งโดยไม่กดออกจากห้องเสียง = ที่นั่งค้าง ทำให้ห้องเต็มทั้งที่ไม่มีคน
@@ -215,11 +226,11 @@ export class EventsGateway
     // ปล่อยที่นั่งเฉพาะเมื่อไม่มีแท็บเหลือแล้ว ไม่งั้นปิดแท็บที่ไม่ได้อยู่ใน
     // สายจะเตะตัวเองออกจากสายที่คุยอยู่ในอีกแท็บ
     if (remaining <= 0) {
-      void this.releaseVoice(state.user.username);
+      void this.releaseVoice(state.user.coreUserId);
     }
 
     // แจ้งทุกห้องที่ socket นี้อยู่ ว่ามีคนออกไปแล้ว
-    const personalRoom = userRoom(state.user.username);
+    const personalRoom = userRoom(state.user.coreUserId);
 
     for (const room of state.roomsAtDisconnect) {
       // ข้ามห้องส่วนตัว — มันไม่ใช่ห้องแชท จึงไม่มี presence ให้กระจาย
@@ -345,7 +356,7 @@ export class EventsGateway
 
     socket.to(payload.channel_id).emit('typing:sync', {
       channel_id: payload.channel_id,
-      username: state.user.username,
+      coreUserId: state.user.coreUserId,
     });
   }
 
@@ -362,17 +373,17 @@ export class EventsGateway
   ): Promise<{ ok: boolean; error?: string }> {
     const state = this.sockets.get(socket.id);
 
-    if (!state || !payload?.to_username) {
+    if (!state || !payload?.to_core_user_id) {
       return { ok: false, error: 'คำขอไม่ถูกต้อง' };
     }
 
-    if (payload.to_username === state.user.username) {
+    if (payload.to_core_user_id === state.user.coreUserId) {
       return { ok: false, error: 'ส่งสัญญาณหาตัวเองไม่ได้' };
     }
 
     const sessionId = await this.voice.sharesVoiceSession(
-      state.user.username,
-      payload.to_username,
+      state.user.coreUserId,
+      payload.to_core_user_id,
     );
 
     if (!sessionId) {
@@ -382,13 +393,13 @@ export class EventsGateway
     let delivered = false;
 
     for (const [socketId, other] of this.sockets) {
-      if (other.user.username !== payload.to_username) {
+      if (other.user.coreUserId !== payload.to_core_user_id) {
         continue;
       }
 
       this.server.to(socketId).emit('rtc:signal', {
         ...payload,
-        from_username: state.user.username,
+        from_core_user_id: state.user.coreUserId,
       });
       delivered = true;
     }
@@ -413,7 +424,7 @@ export class EventsGateway
       return { ok: false, error: 'คำขอไม่ถูกต้อง' };
     }
 
-    const mySession = await this.voice.activeSessionOf(state.user.username);
+    const mySession = await this.voice.activeSessionOf(state.user.coreUserId);
 
     if (mySession !== payload.session_id) {
       return { ok: false, error: 'คุณไม่ได้อยู่ในห้องเสียงนี้' };
@@ -421,23 +432,40 @@ export class EventsGateway
 
     const current = this.presenters.get(payload.session_id);
 
-    if (current && current !== state.user.username) {
-      return {
-        ok: false,
-        presenter_username: current,
-        error: 'มีคนกำลังแชร์หน้าจออยู่ รอให้เขาหยุดก่อน',
-      };
+    if (current && current !== state.user.coreUserId) {
+      // **สิทธิ์ค้างของคนที่ออกไปแล้ว ต้องยึดคืนได้**
+      //
+      // ตัวปลดสิทธิ์ตอน socket หลุดดูจากแถวผู้เข้าร่วมที่ยังเปิดอยู่ ถ้าคนแชร์
+      // กดออกจากห้องก่อน (ซึ่งปิดแถวนั้นไปแล้ว) แล้วค่อยปิดแท็บ ตัวปลดจะหา
+      // ไม่เจอ สิทธิ์จึงค้างอยู่ในแมปนี้ **ตลอดไป** และทั้งห้องจะแชร์จอไม่ได้
+      // อีกเลยจนกว่าจะรีสตาร์ตหลังบ้าน โดยไม่มีใครรู้ว่าเพราะอะไร
+      //
+      // ฝั่งหน้าบ้านปิดทางนั้นไปแล้ว แต่ยังมีทางอื่นที่คืนสิทธิ์ไม่ทัน เช่น
+      // เน็ตหลุดตอนกำลังแชร์ จึงต้องมีตัวกันไว้ตรงนี้อีกชั้น: ถ้าคนที่ถือ
+      // สิทธิ์อยู่ไม่ได้อยู่ในห้องนี้แล้ว ให้ถือว่าสิทธิ์นั้นหมดอายุ
+      const holderStillHere =
+        (await this.voice.activeSessionOf(current)) === payload.session_id;
+
+      if (holderStillHere) {
+        return {
+          ok: false,
+          presenter_core_user_id: current,
+          error: 'มีคนกำลังแชร์หน้าจออยู่ รอให้เขาหยุดก่อน',
+        };
+      }
+
+      this.presenters.delete(payload.session_id);
     }
 
-    this.presenters.set(payload.session_id, state.user.username);
+    this.presenters.set(payload.session_id, state.user.coreUserId);
     this.server.emit('screen:changed', {
       session_id: payload.session_id,
-      presenter_username: state.user.username,
+      presenter_core_user_id: state.user.coreUserId,
     });
 
     return {
       ok: true,
-      presenter_username: state.user.username,
+      presenter_core_user_id: state.user.coreUserId,
       max_viewers: MAX_SCREEN_VIEWERS,
     };
   }
@@ -453,11 +481,11 @@ export class EventsGateway
       return;
     }
 
-    if (this.presenters.get(payload.session_id) === state.user.username) {
+    if (this.presenters.get(payload.session_id) === state.user.coreUserId) {
       this.presenters.delete(payload.session_id);
       this.server.emit('screen:changed', {
         session_id: payload.session_id,
-        presenter_username: null,
+        presenter_core_user_id: null,
       });
     }
   }
@@ -473,19 +501,19 @@ export class EventsGateway
   @SubscribeMessage('call:ring')
   async onCallRing(
     @ConnectedSocket() socket: Socket,
-    @MessageBody() payload: { session_id?: string; to_username?: string },
+    @MessageBody() payload: { session_id?: string; to_core_user_id?: string },
   ): Promise<{ ok: boolean; error?: string }> {
     const state = this.sockets.get(socket.id);
 
-    if (!state || !payload?.session_id || !payload?.to_username) {
+    if (!state || !payload?.session_id || !payload?.to_core_user_id) {
       return { ok: false, error: 'คำขอไม่ถูกต้อง' };
     }
 
-    if (payload.to_username === state.user.username) {
+    if (payload.to_core_user_id === state.user.coreUserId) {
       return { ok: false, error: 'โทรหาตัวเองไม่ได้' };
     }
 
-    const mySession = await this.voice.activeSessionOf(state.user.username);
+    const mySession = await this.voice.activeSessionOf(state.user.coreUserId);
 
     if (mySession !== payload.session_id) {
       return { ok: false, error: 'คุณไม่ได้อยู่ในห้องเสียงนี้' };
@@ -498,7 +526,7 @@ export class EventsGateway
     }
 
     const isMember = await this.channels.isMember(
-      payload.to_username,
+      payload.to_core_user_id,
       channelId,
     );
 
@@ -508,19 +536,19 @@ export class EventsGateway
       return { ok: false, error: 'โทรหาคนนี้ไม่ได้' };
     }
 
-    this.server.to(userRoom(payload.to_username)).emit('call:incoming', {
+    this.server.to(userRoom(payload.to_core_user_id)).emit('call:incoming', {
       session_id: payload.session_id,
       channel_id: channelId,
-      from_username: state.user.username,
+      from_core_user_id: state.user.coreUserId,
     });
 
     // บันทึกไว้ด้วย เพื่อให้เห็นเป็น "สายที่ไม่ได้รับ" ถ้าเขาไม่ได้ออนไลน์
     // (นี่คือที่ที่ NotificationKind.VOICE_INVITE ถูกใช้จริงเป็นครั้งแรก)
     await this.notifications.push({
-      username: payload.to_username,
+      coreUserId: payload.to_core_user_id,
       kind: 'VOICE_INVITE',
       refId: payload.session_id,
-      actorUsername: state.user.username,
+      actorCoreUserId: state.user.coreUserId,
       payload: { channel_id: channelId },
     });
 
@@ -531,12 +559,12 @@ export class EventsGateway
   ///
   /// `call:ring` มีด่านนี้มาตั้งแต่แรก แต่ `call:answer` และ `call:cancel`
   /// **ไม่มีเลย** — ใครก็ตามที่ล็อกอินอยู่ส่ง
-  /// `call:cancel {to_username: someone}` เพื่อตัดสายที่คนอื่นกำลังเรียกอยู่ได้
+  /// `call:cancel {to_core_user_id: someone}` เพื่อตัดสายที่คนอื่นกำลังเรียกอยู่ได้
   /// หรือส่ง `call:answer {accepted: false}` ให้หน้าจอของเหยื่อขึ้นว่า
   /// อีกฝ่ายปฏิเสธสายทั้งที่เขาไม่ได้ปฏิเสธ
   private async bothInCallChannel(
-    fromUsername: string,
-    toUsername: string,
+    fromCoreUserId: string,
+    toCoreUserId: string,
     sessionId: string,
   ): Promise<boolean> {
     const channelId = await this.voice.channelOfSession(sessionId);
@@ -546,8 +574,8 @@ export class EventsGateway
     }
 
     const [fromIsMember, toIsMember] = await Promise.all([
-      this.channels.isMember(fromUsername, channelId),
-      this.channels.isMember(toUsername, channelId),
+      this.channels.isMember(fromCoreUserId, channelId),
+      this.channels.isMember(toCoreUserId, channelId),
     ]);
 
     return fromIsMember && toIsMember;
@@ -558,19 +586,19 @@ export class EventsGateway
   async onCallAnswer(
     @ConnectedSocket() socket: Socket,
     @MessageBody()
-    payload: { session_id?: string; to_username?: string; accepted?: boolean },
+    payload: { session_id?: string; to_core_user_id?: string; accepted?: boolean },
   ): Promise<void> {
     const state = this.sockets.get(socket.id);
 
-    if (!state || !payload?.session_id || !payload?.to_username) {
+    if (!state || !payload?.session_id || !payload?.to_core_user_id) {
       return;
     }
 
     // ผู้รับสายยังไม่ได้เข้า session ตอนตอบ จึงเช็คได้แค่ว่าทั้งคู่เป็นสมาชิก
     // ห้องเดียวกัน — พอที่จะกันคนนอกไม่ให้ตอบแทนคนอื่น
     const allowed = await this.bothInCallChannel(
-      state.user.username,
-      payload.to_username,
+      state.user.coreUserId,
+      payload.to_core_user_id,
       payload.session_id,
     );
 
@@ -578,9 +606,9 @@ export class EventsGateway
       return;
     }
 
-    this.server.to(userRoom(payload.to_username)).emit('call:answered', {
+    this.server.to(userRoom(payload.to_core_user_id)).emit('call:answered', {
       session_id: payload.session_id,
-      from_username: state.user.username,
+      from_core_user_id: state.user.coreUserId,
       accepted: payload.accepted === true,
     });
   }
@@ -589,25 +617,25 @@ export class EventsGateway
   @SubscribeMessage('call:cancel')
   async onCallCancel(
     @ConnectedSocket() socket: Socket,
-    @MessageBody() payload: { session_id?: string; to_username?: string },
+    @MessageBody() payload: { session_id?: string; to_core_user_id?: string },
   ): Promise<void> {
     const state = this.sockets.get(socket.id);
 
-    if (!state || !payload?.session_id || !payload?.to_username) {
+    if (!state || !payload?.session_id || !payload?.to_core_user_id) {
       return;
     }
 
     // ผู้ยกเลิกคือผู้โทร ซึ่งอยู่ใน session อยู่แล้ว จึงบังคับได้เข้มเท่า
     // call:ring — ถ้าไม่ได้อยู่ในสายนี้ ก็ไม่มีสิทธิ์สั่งให้สายนี้เงียบ
-    const mySession = await this.voice.activeSessionOf(state.user.username);
+    const mySession = await this.voice.activeSessionOf(state.user.coreUserId);
 
     if (mySession !== payload.session_id) {
       return;
     }
 
     const allowed = await this.bothInCallChannel(
-      state.user.username,
-      payload.to_username,
+      state.user.coreUserId,
+      payload.to_core_user_id,
       payload.session_id,
     );
 
@@ -615,9 +643,9 @@ export class EventsGateway
       return;
     }
 
-    this.server.to(userRoom(payload.to_username)).emit('call:cancelled', {
+    this.server.to(userRoom(payload.to_core_user_id)).emit('call:cancelled', {
       session_id: payload.session_id,
-      from_username: state.user.username,
+      from_core_user_id: state.user.coreUserId,
     });
   }
 
@@ -630,23 +658,23 @@ export class EventsGateway
   @SubscribeMessage('call:end')
   async onCallEnd(
     @ConnectedSocket() socket: Socket,
-    @MessageBody() payload: { session_id?: string; to_username?: string },
+    @MessageBody() payload: { session_id?: string; to_core_user_id?: string },
   ): Promise<void> {
     const state = this.sockets.get(socket.id);
 
-    if (!state || !payload?.session_id || !payload?.to_username) {
+    if (!state || !payload?.session_id || !payload?.to_core_user_id) {
       return;
     }
 
-    const mySession = await this.voice.activeSessionOf(state.user.username);
+    const mySession = await this.voice.activeSessionOf(state.user.coreUserId);
 
     if (mySession !== payload.session_id) {
       return;
     }
 
     const allowed = await this.bothInCallChannel(
-      state.user.username,
-      payload.to_username,
+      state.user.coreUserId,
+      payload.to_core_user_id,
       payload.session_id,
     );
 
@@ -654,9 +682,9 @@ export class EventsGateway
       return;
     }
 
-    this.server.to(userRoom(payload.to_username)).emit('call:ended', {
+    this.server.to(userRoom(payload.to_core_user_id)).emit('call:ended', {
       session_id: payload.session_id,
-      from_username: state.user.username,
+      from_core_user_id: state.user.coreUserId,
     });
   }
 
@@ -672,15 +700,15 @@ export class EventsGateway
       .emit('message:deleted', { channel_id: channelId, message_id: messageId });
   }
 
-  private async releaseVoice(username: string): Promise<void> {
-    const sessionIds = await this.voice.leaveAllFor(username);
+  private async releaseVoice(coreUserId: string): Promise<void> {
+    const sessionIds = await this.voice.leaveAllFor(coreUserId);
 
     for (const sessionId of sessionIds) {
-      if (this.presenters.get(sessionId) === username) {
+      if (this.presenters.get(sessionId) === coreUserId) {
         this.presenters.delete(sessionId);
         this.server.emit('screen:changed', {
           session_id: sessionId,
-          presenter_username: null,
+          presenter_core_user_id: null,
         });
       }
     }
@@ -688,19 +716,19 @@ export class EventsGateway
 
   private async broadcastPresence(channelId: string): Promise<void> {
     const socketIds = await this.server.in(channelId).allSockets();
-    const usernames = new Set<string>();
+    const coreUserIds = new Set<string>();
 
     for (const id of socketIds) {
       const state = this.sockets.get(id);
 
       if (state) {
-        usernames.add(state.user.username);
+        coreUserIds.add(state.user.coreUserId);
       }
     }
 
     this.server.to(channelId).emit('presence:sync', {
       channel_id: channelId,
-      online_usernames: [...usernames],
+      online_core_user_ids: [...coreUserIds],
     });
   }
 
@@ -720,40 +748,34 @@ export class EventsGateway
     return true;
   }
 
-  private identify(socket: Socket): GatewayUser {
-    const headers = socket.handshake.headers;
-    const headerUsername = readHeader(headers, GATEWAY_HEADERS.username);
-    const headerRole = readHeader(headers, GATEWAY_HEADERS.layer1Role);
+  private async identify(socket: Socket): Promise<CoreHubUser> {
+    // `handshake.headers` หน้าตาเหมือน headers ของ express จึงส่งให้ตัวอ่าน
+    // token **ตัวเดียวกับฝั่ง HTTP** ได้เลย ไม่ใช่โค้ดที่เขียนเลียนแบบ
+    // ซึ่งวันหนึ่งจะเพี้ยนจากกันโดยไม่มีใครรู้
+    //
+    // client ที่ส่งคุกกี้ข้าม origin ไม่ได้ ส่ง token มาทาง `auth.token` แทน
+    const authToken = socket.handshake.auth?.token;
+    const headers = {
+      ...socket.handshake.headers,
+      authorization:
+        typeof authToken === 'string' && authToken
+          ? `Bearer ${authToken}`
+          : socket.handshake.headers.authorization,
+    };
 
-    // ทาง 1: Gateway proxy WebSocket มาให้พร้อม header
-    if (headerUsername && headerRole && isLayer1Role(headerRole)) {
-      return {
-        username: headerUsername,
-        layer1Role: headerRole,
-        faculty: readHeader(headers, GATEWAY_HEADERS.faculty),
-      };
+    const token = extractToken({ headers } as unknown as Request);
+
+    if (token) {
+      const { user } = await this.verifier.verify(token);
+
+      return user;
     }
 
-    // ทาง 2: แลกตั๋วที่ขอมาทาง REST
+    // ทาง 2: แลกตั๋วอายุสั้นที่ขอมาทาง REST ก่อนหน้า
     const ticket =
       (socket.handshake.auth?.ticket as string | undefined) ??
       (socket.handshake.query?.ticket as string | undefined);
 
     return this.tickets.redeem(ticket);
   }
-}
-
-function readHeader(
-  headers: Record<string, string | string[] | undefined>,
-  name: string,
-): string | null {
-  const value = headers[name];
-  const raw = Array.isArray(value) ? value[0] : value;
-  const trimmed = raw?.trim();
-
-  return trimmed ? trimmed : null;
-}
-
-function isLayer1Role(value: string): value is Layer1Role {
-  return (LAYER1_ROLES as readonly string[]).includes(value);
 }

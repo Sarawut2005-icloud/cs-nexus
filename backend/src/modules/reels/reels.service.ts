@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { Paginated } from '../../common/http/envelope.js';
 import { PaginationQuery } from '../../common/http/pagination.dto.js';
-import type { GatewayUser } from '../../common/auth/gateway-user.js';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { ApiProperty } from '@nestjs/swagger';
 import { FollowsService } from '../follows/follows.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -56,12 +56,12 @@ export class ReelsService {
   ) {}
 
   async list(
-    user: GatewayUser,
+    user: CoreHubUser,
     query: ListReelsQuery,
   ): Promise<Paginated<ReelResponseDto>> {
     const where = await this.feedWhere(user, query);
 
-    // มาตรฐานหน้า 7 บังคับ meta แบบ current_page/total_pages จึงต้องใช้
+    // contracts/vocabulary.json บังคับ meta แบบ { total, page, limit, totalPages }
     // offset pagination ที่นี่ ทั้งที่ฟีดแบบเลื่อนไม่สุดควรใช้ cursor
     // TODO(PL): เสนอ PM ขอเพิ่ม cursor endpoint สำหรับฟีดวิดีโอและแชท
     const [rows, total] = await Promise.all([
@@ -75,7 +75,7 @@ export class ReelsService {
     ]);
 
     const likedIds = await this.likedReelIds(
-      user.username,
+      user.coreUserId,
       rows.map((row) => row.id),
     );
 
@@ -87,20 +87,20 @@ export class ReelsService {
     );
   }
 
-  async findOne(user: GatewayUser, id: string): Promise<ReelResponseDto> {
+  async findOne(user: CoreHubUser, id: string): Promise<ReelResponseDto> {
     const reel = await this.prisma.reel.findUnique({ where: { id } });
 
     if (!reel) {
       throw new NotFoundException('ไม่พบคลิปนี้ อาจถูกลบไปแล้ว');
     }
 
-    const likedIds = await this.likedReelIds(user.username, [reel.id]);
+    const likedIds = await this.likedReelIds(user.coreUserId, [reel.id]);
 
     return toReelResponse(reel, { likedByMe: likedIds.has(reel.id) });
   }
 
   async create(
-    user: GatewayUser,
+    user: CoreHubUser,
     dto: CreateReelDto,
   ): Promise<ReelResponseDto> {
     const asset = await this.prisma.asset.findUnique({
@@ -112,7 +112,7 @@ export class ReelsService {
     }
 
     // ห้ามเอาไฟล์ของคนอื่นมาโพสต์เป็นผลงานตัวเอง
-    if (asset.ownerUsername !== user.username) {
+    if (asset.ownerCoreUserId !== user.coreUserId) {
       throw new ForbiddenException('ไฟล์นี้ไม่ใช่ของคุณ');
     }
 
@@ -132,14 +132,14 @@ export class ReelsService {
         caption: dto.caption ?? null,
         assetId: dto.asset_id,
         durationMs: dto.duration_ms,
-        authorUsername: user.username,
+        authorCoreUserId: user.coreUserId,
       },
     });
 
     return toReelResponse(reel, { likedByMe: false });
   }
 
-  async remove(user: GatewayUser, id: string): Promise<void> {
+  async remove(user: CoreHubUser, id: string): Promise<void> {
     const reel = await this.prisma.reel.findUnique({ where: { id } });
 
     if (!reel) {
@@ -147,8 +147,8 @@ export class ReelsService {
     }
 
     // เจ้าของลบได้ และ admin ระดับองค์กรลบได้เพื่อจัดการเนื้อหา
-    const isOwner = reel.authorUsername === user.username;
-    const isOrgAdmin = user.layer1Role === 'admin';
+    const isOwner = reel.authorCoreUserId === user.coreUserId;
+    const isOrgAdmin = user.coreRole === 'admin';
 
     if (!isOwner && !isOrgAdmin) {
       throw new ForbiddenException('ลบได้เฉพาะคลิปของตัวเอง');
@@ -158,24 +158,24 @@ export class ReelsService {
       this.prisma.reel.delete({ where: { id } }),
       this.prisma.auditLog.create({
         data: {
-          actorUsername: user.username,
-          actorLayer1Role: user.layer1Role,
+          actorCoreUserId: user.coreUserId,
+          actorCoreRole: user.coreRole,
           action: 'reel.delete',
           targetKind: 'REEL',
           targetId: id,
-          metadata: { owner_username: reel.authorUsername, by_admin: !isOwner },
+          metadata: { owner_core_user_id: reel.authorCoreUserId, by_admin: !isOwner },
         },
       }),
     ]);
   }
 
-  /// กดไลก์ซ้ำไม่เพิ่มยอด เพราะ primary key เป็น (reelId, username)
+  /// กดไลก์ซ้ำไม่เพิ่มยอด เพราะ primary key เป็น (reelId, coreUserId)
   /// ตัวนับเก็บไว้ล่วงหน้าเพื่อไม่ต้อง COUNT ทุกครั้งที่โหลดฟีด
-  async like(user: GatewayUser, id: string): Promise<LikeCountDto> {
+  async like(user: CoreHubUser, id: string): Promise<LikeCountDto> {
     await this.assertReelExists(id);
 
     const created = await this.prisma.reelLike
-      .create({ data: { reelId: id, username: user.username } })
+      .create({ data: { reelId: id, coreUserId: user.coreUserId } })
       .then(() => true)
       .catch(() => false);
 
@@ -192,21 +192,21 @@ export class ReelsService {
     // แจ้งเฉพาะตอนไลก์ครั้งแรกจริง ๆ — โค้ดด้านบน return ไปก่อนแล้วถ้ากดซ้ำ
     // ไม่งั้นเจ้าของคลิปจะโดนแจ้งเตือนทุกครั้งที่มีคนกดปุ่มเล่น
     await this.notifications.push({
-      username: reel.authorUsername,
+      coreUserId: reel.authorCoreUserId,
       kind: 'REEL_LIKE',
       refId: reel.id,
-      actorUsername: user.username,
+      actorCoreUserId: user.coreUserId,
       payload: { preview: reel.title },
     });
 
     return { like_count: reel.likeCount };
   }
 
-  async unlike(user: GatewayUser, id: string): Promise<LikeCountDto> {
+  async unlike(user: CoreHubUser, id: string): Promise<LikeCountDto> {
     await this.assertReelExists(id);
 
     const deleted = await this.prisma.reelLike
-      .delete({ where: { reelId_username: { reelId: id, username: user.username } } })
+      .delete({ where: { reelId_coreUserId: { reelId: id, coreUserId: user.coreUserId } } })
       .then(() => true)
       .catch(() => false);
 
@@ -225,25 +225,25 @@ export class ReelsService {
 
   /// บันทึกว่าผู้เรียกดูคลิปนี้แล้ว
   ///
-  /// นับ "คนที่เคยดู" ไม่ใช่ "จำนวนครั้งที่เล่น" — คีย์ (reelId, username)
+  /// นับ "คนที่เคยดู" ไม่ใช่ "จำนวนครั้งที่เล่น" — คีย์ (reelId, coreUserId)
   /// ทำให้คนหนึ่งนับได้ครั้งเดียวตั้งแต่ระดับฐานข้อมูล จึงปั่นยอดด้วยการ
   /// กดรีเฟรชรัว ๆ ไม่ได้ และไม่ต้องเชื่อ client เรื่องการนับ
   ///
   /// ตัวนับ view_count เพิ่มในทรานแซกชันเดียวกับการสร้างแถวผู้ชม
   /// ไม่งั้นสองคนกดดูพร้อมกันแล้วตัวเลขจะหายไปหนึ่ง
-  async markViewed(user: GatewayUser, id: string): Promise<ViewCountDto> {
+  async markViewed(user: CoreHubUser, id: string): Promise<ViewCountDto> {
     await this.assertReelExists(id);
 
     // แถวผู้ชมกับตัวนับต้องคอมมิตด้วยกันจริง ๆ
     //
     // คอมเมนต์ข้างบนอ้างว่าอยู่ในทรานแซกชันเดียวกันมาตลอด แต่โค้ดเดิมยิงสอง
     // คำสั่งแยกกัน ถ้าตัวที่สองล้ม (pool หมด · เน็ตสะดุด) จะเหลือแถวผู้ชมที่
-    // ไม่เคยถูกนับ และเพราะคีย์ (reelId, username) กันไม่ให้ใส่ซ้ำ คนนั้นจึง
+    // ไม่เคยถูกนับ และเพราะคีย์ (reelId, coreUserId) กันไม่ให้ใส่ซ้ำ คนนั้นจึง
     // **ไม่มีทางถูกนับได้อีกเลย** ยอดวิวขาดหายถาวรโดยไม่มีใครรู้
     try {
       const reel = await this.prisma.$transaction(async (tx) => {
         await tx.reelView.create({
-          data: { reelId: id, username: user.username },
+          data: { reelId: id, coreUserId: user.coreUserId },
         });
 
         return tx.reel.update({
@@ -294,13 +294,13 @@ export class ReelsService {
   }
 
   async addComment(
-    user: GatewayUser,
+    user: CoreHubUser,
     reelId: string,
     content: string,
   ): Promise<ReelCommentResponseDto> {
     const reel = await this.prisma.reel.findUnique({
       where: { id: reelId },
-      select: { id: true, title: true, authorUsername: true },
+      select: { id: true, title: true, authorCoreUserId: true },
     });
 
     if (!reel) {
@@ -308,14 +308,14 @@ export class ReelsService {
     }
 
     const comment = await this.prisma.reelComment.create({
-      data: { reelId, authorUsername: user.username, content },
+      data: { reelId, authorCoreUserId: user.coreUserId, content },
     });
 
     await this.notifications.push({
-      username: reel.authorUsername,
+      coreUserId: reel.authorCoreUserId,
       kind: 'REEL_COMMENT',
       refId: reelId,
-      actorUsername: user.username,
+      actorCoreUserId: user.coreUserId,
       payload: { preview: content.slice(0, 120) },
     });
 
@@ -323,7 +323,7 @@ export class ReelsService {
   }
 
   async removeComment(
-    user: GatewayUser,
+    user: CoreHubUser,
     reelId: string,
     commentId: string,
   ): Promise<void> {
@@ -335,9 +335,9 @@ export class ReelsService {
       throw new NotFoundException('ไม่พบความคิดเห็นนี้');
     }
 
-    const isOwner = comment.authorUsername === user.username;
+    const isOwner = comment.authorCoreUserId === user.coreUserId;
     const canModerate =
-      user.layer1Role === 'admin' || user.layer1Role === 'staff';
+      user.coreRole === 'admin' || user.coreRole === 'staff';
 
     if (!isOwner && !canModerate) {
       throw new ForbiddenException('ลบได้เฉพาะความคิดเห็นของตัวเอง');
@@ -351,17 +351,17 @@ export class ReelsService {
 
   /// เงื่อนไขของฟีด — ทั้งหมด เฉพาะคนที่ติดตาม หรือของคนคนเดียว
   ///
-  /// feed=following คือฟีดแบบ Instagram/Facebook ส่วน author_username คือ
+  /// feed=following คือฟีดแบบ Instagram/Facebook ส่วน author_core_user_id คือ
   /// หน้าโปรไฟล์ ทั้งสองใช้คิวรีเดียวกันเพราะต่างกันแค่เงื่อนไข where
-  private async feedWhere(user: GatewayUser, query: ListReelsQuery) {
-    if (query.author_username) {
-      return { authorUsername: query.author_username };
+  private async feedWhere(user: CoreHubUser, query: ListReelsQuery) {
+    if (query.author_core_user_id) {
+      return { authorCoreUserId: query.author_core_user_id };
     }
 
     if (query.feed === 'following') {
-      const usernames = await this.follows.followingUsernames(user);
+      const coreUserIds = await this.follows.followingCoreUserIds(user);
 
-      return { authorUsername: { in: usernames } };
+      return { authorCoreUserId: { in: coreUserIds } };
     }
 
     return {};
@@ -379,7 +379,7 @@ export class ReelsService {
   }
 
   private async likedReelIds(
-    username: string,
+    coreUserId: string,
     reelIds: string[],
   ): Promise<Set<string>> {
     if (reelIds.length === 0) {
@@ -387,7 +387,7 @@ export class ReelsService {
     }
 
     const likes = await this.prisma.reelLike.findMany({
-      where: { username, reelId: { in: reelIds } },
+      where: { coreUserId, reelId: { in: reelIds } },
       select: { reelId: true },
     });
 

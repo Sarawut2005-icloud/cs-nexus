@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { readFile } from 'node:fs/promises';
 import { AppModule } from '../app.module.js';
-import { configureApp } from '../bootstrap.js';
+import { applyGlobalPrefix, configureApp } from '../bootstrap.js';
 import { buildOpenApiDocument, OPENAPI_FILE } from '../openapi.js';
 
 /// ตรวจว่า openapi.json ที่ commit ไว้ตรงกับโค้ดจริง
@@ -18,6 +18,10 @@ async function main(): Promise<void> {
   const app = await NestFactory.create(AppModule, { logger: false });
 
   configureApp(app);
+
+  // ต้องตั้ง prefix ก่อนสร้างเอกสาร ไม่งั้นทุก path จะขาด /api/v1
+  // และไม่ตรงกับที่เซิร์ฟเวอร์เสิร์ฟจริง (ดูเหตุผลใน bootstrap.ts)
+  applyGlobalPrefix(app);
 
   const generated = buildOpenApiDocument(app);
 

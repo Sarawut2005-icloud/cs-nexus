@@ -55,7 +55,7 @@ export class UploadIntentResponseDto {
 
 export class AssetResponseDto {
   @ApiProperty() id!: string;
-  @ApiProperty() owner_username!: string;
+  @ApiProperty() owner_core_user_id!: string;
   @ApiProperty() bucket!: string;
   @ApiProperty() file_name!: string;
   @ApiProperty() mime_type!: string;
@@ -88,7 +88,7 @@ export class DownloadUrlResponseDto {
 export function toAssetResponse(asset: AssetModel): AssetResponseDto {
   return {
     id: asset.id,
-    owner_username: asset.ownerUsername,
+    owner_core_user_id: asset.ownerCoreUserId,
     bucket: asset.bucket,
     file_name: asset.fileName,
     mime_type: asset.mimeType,

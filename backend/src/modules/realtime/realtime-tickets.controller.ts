@@ -1,6 +1,6 @@
 import { Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { CurrentUser, type GatewayUser } from '../../common/auth/gateway-user.js';
+import { CurrentUser, type CoreHubUser } from '../../common/auth/core-user.js';
 import { ApiEnvelope } from '../../common/http/api-envelope.decorator.js';
 import { SOCKET_NAMESPACE } from '../../common/realtime/events.js';
 import { RealtimeTicketsService } from './realtime-tickets.service.js';
@@ -29,7 +29,7 @@ export class RealtimeTicketsController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'ขอตั๋วสำหรับต่อ WebSocket' })
   @ApiEnvelope(RealtimeTicketResponseDto, { status: 201 })
-  issue(@CurrentUser() user: GatewayUser): RealtimeTicketResponseDto {
+  issue(@CurrentUser() user: CoreHubUser): RealtimeTicketResponseDto {
     const issued = this.tickets.issue(user);
 
     return { ...issued, namespace: SOCKET_NAMESPACE };

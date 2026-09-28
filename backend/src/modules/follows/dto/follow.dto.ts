@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, Length, Matches } from 'class-validator';
 
-/// รูปแบบ username ของ CSMJU2030 เช่น "6704101382-anuchat"
+/// รูปแบบ coreUserId ของ CSMJU2030 เช่น "6704101382-anuchat"
 /// ตรวจที่นี่เพื่อไม่ให้ใครยัดอักขระแปลก ๆ ลงกราฟการติดตาม
 export const USERNAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$/;
 
@@ -9,12 +9,12 @@ export class FollowDto {
   @ApiProperty({ example: '6700000001-ajarn' })
   @IsString()
   @Length(2, 64)
-  @Matches(USERNAME_PATTERN, { message: 'รูปแบบ username ไม่ถูกต้อง' })
-  username!: string;
+  @Matches(USERNAME_PATTERN, { message: 'รูปแบบ coreUserId ไม่ถูกต้อง' })
+  coreUserId!: string;
 }
 
 export class FollowEdgeDto {
-  @ApiProperty({ example: '6704101382-anuchat' }) username!: string;
+  @ApiProperty({ example: '6704101382-anuchat' }) coreUserId!: string;
   @ApiProperty() created_at!: string;
 }
 

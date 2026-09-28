@@ -3,54 +3,45 @@ import { NestFactory } from '@nestjs/core';
 import { SwaggerModule } from '@nestjs/swagger';
 import { writeFile } from 'node:fs/promises';
 import { AppModule } from './app.module.js';
-import { configureApp } from './bootstrap.js';
+import { configureApp, GLOBAL_PREFIX, PREFIX_EXCLUDE } from './bootstrap.js';
 import { buildOpenApiDocument, OPENAPI_FILE } from './openapi.js';
 
 async function bootstrap(): Promise<void> {
   const logger = new Logger('bootstrap');
 
-  // โหมดปลอม header ของ Gateway ต้องไม่หลุดขึ้น production เด็ดขาด
-  // เพราะมันเท่ากับให้ใครก็ได้เป็นใครก็ได้ (Blueprint หน้า 8)
-  if (
-    process.env.DEV_FAKE_GATEWAY === 'true' &&
-    process.env.NODE_ENV === 'production'
-  ) {
-    throw new Error(
-      'DEV_FAKE_GATEWAY=true บน production ไม่ได้ — ตั้งเป็น false ก่อน deploy',
-    );
-  }
-
-  // ระบบนี้ **เชื่อ header ที่ส่งมา** ตามที่ Blueprint หน้า 9 บังคับ
-  // ("ห้ามเขียนโค้ด Verify ลายเซ็น JWT เอง ให้เชื่อใจ Header จาก Gateway")
+  // **ไม่มีโหมดตัวตนปลอมอีกแล้ว**
   //
-  // การเชื่อ header จะปลอดภัยก็ต่อเมื่อ **ไม่มีใครยิงเข้ามาตรง ๆ ได้** ถ้า
-  // backend เปิดรับจากอินเทอร์เน็ตโดยไม่มีอะไรกั้น ใครก็ส่ง
-  // `X-User-Id: 6704101382-anuchat` มาแล้วกลายเป็นคนนั้นได้ทันที —
-  // อ่านแชทส่วนตัว ลบโพสต์ เปลี่ยนสิทธิ์คนอื่น ได้หมด
+  // เดิมมี DEV_FAKE_GATEWAY ที่สร้างตัวตนขึ้นมาจาก env และ GATEWAY_SHARED_SECRET
+  // ที่พยายามพิสูจน์ว่าคำขอมาจาก API Gateway — ทั้งสองอย่างถูกลบทิ้งพร้อมกับ
+  // GatewayAuthGuard เพราะสถาปัตยกรรมที่มันรองรับไม่มีอยู่จริง
+  // (auth-contract.md ข้อ 1: "ฉบับก่อนหน้าอธิบายสถาปัตยกรรมที่ยังไม่มีจริง")
   //
-  // GATEWAY_SHARED_SECRET คือด่านที่พิสูจน์ว่าคำขอมาจาก Gateway จริง
-  // ถ้าไม่ได้ตั้ง = ไม่มีการยืนยันตัวตนใด ๆ ทั้งสิ้น
+  // ตัวตนมาจาก JWT ที่ Core Hub เซ็นด้วย RS256 และเราตรวจลายเซ็นเองทุก request
+  // ด้วยกุญแจสาธารณะจาก JWKS — ปลอมไม่ได้แม้ยิงตรงเข้าหลังบ้าน จึงไม่ต้องมี
+  // ด่านสำรองแบบ shared secret และไม่ต้องมีธง "ยอมเปิดโล่ง" ให้ใครลืมปิด
   //
-  // ยอมให้ข้ามได้ แต่ต้องเป็นการ "ตัดสินใจ" ไม่ใช่ "ลืม" — จึงต้องตั้ง
-  // ALLOW_UNPROTECTED_GATEWAY=true ด้วยมือ ซึ่งเป็นคำที่อ่านแล้วรู้ทันทีว่า
-  // กำลังยอมอะไรอยู่ (ใช้สำหรับเดโมในวงปิดเท่านั้น)
-  const unprotected =
-    process.env.NODE_ENV === 'production' &&
-    process.env.DEV_FAKE_GATEWAY !== 'true' &&
-    !process.env.GATEWAY_SHARED_SECRET;
-
-  if (unprotected && process.env.ALLOW_UNPROTECTED_GATEWAY !== 'true') {
-    throw new Error(
-      'ยังไม่ได้ตั้ง GATEWAY_SHARED_SECRET บน production — ' +
-        'ตอนนี้ใครก็ส่ง header X-User-Id มาเป็นใครก็ได้ ' +
-        '(อ่านแชทส่วนตัว ลบโพสต์ เปลี่ยนสิทธิ์คนอื่นได้ทั้งหมด)\n' +
-        '  · ต่อกับ API Gateway แล้ว: ตั้ง GATEWAY_SHARED_SECRET ให้ตรงกับที่ Gateway ส่งมา\n' +
-        '  · ยังไม่ต่อ และจะเดโมในวงปิด: ตั้ง ALLOW_UNPROTECTED_GATEWAY=true ' +
-        'เพื่อยืนยันว่ารู้ตัว',
-    );
-  }
+  // ตัวแปรที่ต้องมี (contracts/vocabulary.json `requiredEnvVars`) ตรวจที่
+  // JwksService ตอนดึงกุญแจครั้งแรก ถ้าตั้งไม่ครบจะได้ 401 พร้อมเหตุผลใน log
 
   const app = await NestFactory.create(AppModule);
+
+  // URL มาตรฐาน: /api/v1/<คำนามพหูพจน์แบบ kebab-case>
+  // (api-conventions.md ข้อ 1 · contracts/vocabulary.json `naming.api.prefix`)
+  // **ต้องเป็นสตริงตรง ๆ ห้ามใช้ตัวแปร** — `check-api-conventions.sh` (API-02)
+  // grep หา /setGlobalPrefix\(\s*['"]api(\/v1)?['"]/ ในไฟล์นี้ไฟล์เดียว
+  // เปลี่ยนเป็น setGlobalPrefix(GLOBAL_PREFIX, ...) แล้วมันจะตีตกทันที
+  // ทั้งที่ทำงานถูก (ลองมาแล้วเมื่อ 27 ก.ย. 2569)
+  //
+  // ค่าซ้ำกับ GLOBAL_PREFIX ใน bootstrap.ts โดยจำใจ — กันค่าหลุดจากกันด้วย
+  // การ assert ข้างล่าง ถ้าใครแก้ที่เดียว เซิร์ฟเวอร์จะไม่ยอมบูตพร้อมบอกเหตุผล
+  app.setGlobalPrefix('api/v1', { exclude: PREFIX_EXCLUDE });
+
+  if (GLOBAL_PREFIX !== 'api/v1') {
+    throw new Error(
+      `GLOBAL_PREFIX ใน bootstrap.ts เป็น "${GLOBAL_PREFIX}" แต่ main.ts ตั้ง "api/v1" — ` +
+        'สองค่านี้ต้องตรงกันเสมอ ไม่งั้น openapi.json จะไม่ตรงกับที่เสิร์ฟจริง',
+    );
+  }
 
   configureApp(app);
 
@@ -68,20 +59,7 @@ async function bootstrap(): Promise<void> {
   logger.log(`หลังบ้านพร้อมที่ http://localhost:${port}/api/v1`);
   logger.log(`เอกสาร API: http://localhost:${port}/api/docs`);
 
-  if (process.env.DEV_FAKE_GATEWAY === 'true') {
-    logger.warn(
-      `DEV_FAKE_GATEWAY เปิดอยู่ — ทุก request จะถือว่าเป็น "${process.env.DEV_FAKE_USERNAME}" (${process.env.DEV_FAKE_LAYER1_ROLE})`,
-    );
-  }
 
-  // เตือนซ้ำทุกครั้งที่บูต ไม่ใช่เตือนครั้งเดียวตอนตั้งค่า
-  // เพราะคนที่มาดู log ทีหลังต้องเห็นด้วยว่าระบบกำลังเปิดโล่งอยู่
-  if (unprotected) {
-    logger.warn(
-      'เปิดโล่งอยู่ — ไม่มี GATEWAY_SHARED_SECRET ใครส่ง X-User-Id มาก็เป็นคนนั้นได้ ' +
-        '(ยอมไว้ด้วย ALLOW_UNPROTECTED_GATEWAY=true) ห้ามใช้กับข้อมูลจริง',
-    );
-  }
 }
 
 await bootstrap();

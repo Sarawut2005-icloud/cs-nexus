@@ -1,0 +1,4 @@
+[submodule "standards"]
+	path = standards
+	url = https://github.com/CSMJU2030/csmju2030-standards.git
+	branch = v1.0.0

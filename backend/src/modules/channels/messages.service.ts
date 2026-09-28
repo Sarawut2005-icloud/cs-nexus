@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { GatewayUser } from '../../common/auth/gateway-user.js';
+import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { Paginated } from '../../common/http/envelope.js';
 import { PaginationQuery } from '../../common/http/pagination.dto.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
@@ -55,7 +55,7 @@ export class MessagesService {
   ) {}
 
   async list(
-    user: GatewayUser,
+    user: CoreHubUser,
     channelId: string,
     query: ListMessagesQuery,
   ): Promise<Paginated<MessageResponseDto>> {
@@ -92,7 +92,7 @@ export class MessagesService {
 
   /// ข้อความในเธรดหนึ่งเส้น เรียงจากเก่าไปใหม่
   async listThread(
-    user: GatewayUser,
+    user: CoreHubUser,
     channelId: string,
     parentId: string,
     query: PaginationQuery,
@@ -125,7 +125,7 @@ export class MessagesService {
   }
 
   async listPinned(
-    user: GatewayUser,
+    user: CoreHubUser,
     channelId: string,
     query: PaginationQuery,
   ): Promise<Paginated<MessageResponseDto>> {
@@ -152,7 +152,7 @@ export class MessagesService {
   /// ลำดับนี้สำคัญ: ถ้า broadcast ก่อนแล้วเขียนพัง คนในห้องจะเห็นข้อความที่
   /// ไม่มีอยู่จริง และตอนรีเฟรชมันจะหายไป ซึ่งหาสาเหตุยากมาก
   async send(
-    user: GatewayUser,
+    user: CoreHubUser,
     channelId: string,
     dto: SendMessageDto,
   ): Promise<MessageResponseDto> {
@@ -172,9 +172,9 @@ export class MessagesService {
     // ไม่ใช่สร้างใหม่ — นี่คือเหตุผลที่มี unique(channelId, author, nonce)
     const duplicate = await this.prisma.message.findUnique({
       where: {
-        channelId_authorUsername_clientNonce: {
+        channelId_authorCoreUserId_clientNonce: {
           channelId,
-          authorUsername: user.username,
+          authorCoreUserId: user.coreUserId,
           clientNonce: dto.client_nonce,
         },
       },
@@ -201,7 +201,7 @@ export class MessagesService {
       const created = await tx.message.create({
         data: {
           channelId,
-          authorUsername: user.username,
+          authorCoreUserId: user.coreUserId,
           content: dto.content?.trim() || null,
           clientNonce: dto.client_nonce,
           parentId: parent?.id ?? null,
@@ -244,7 +244,7 @@ export class MessagesService {
   /// ผู้ดูแลห้องแก้ข้อความคนอื่นไม่ได้โดยตั้งใจ — ลบได้ แต่แก้ไม่ได้
   /// เพราะการแก้คำพูดของคนอื่นแล้วยังแสดงชื่อเขาเป็นผู้เขียนคือการปลอมคำพูด
   async edit(
-    user: GatewayUser,
+    user: CoreHubUser,
     channelId: string,
     messageId: string,
     dto: EditMessageDto,
@@ -253,14 +253,14 @@ export class MessagesService {
 
     const message = await this.prisma.message.findFirst({
       where: { id: messageId, channelId, deletedAt: null },
-      select: { authorUsername: true, createdAt: true },
+      select: { authorCoreUserId: true, createdAt: true },
     });
 
     if (!message) {
       throw new NotFoundException('ไม่พบข้อความนี้');
     }
 
-    if (message.authorUsername !== user.username) {
+    if (message.authorCoreUserId !== user.coreUserId) {
       throw new ForbiddenException('แก้ได้เฉพาะข้อความของตัวเอง');
     }
 
@@ -292,7 +292,7 @@ export class MessagesService {
   /// ไม่เปิดให้เจ้าของข้อความปักหมุดของตัวเอง เพราะหมุดคือแผงประกาศของห้อง
   /// ถ้าใครก็ปักได้ มันจะกลายเป็นที่แย่งพื้นที่กันเอง
   async setPinned(
-    user: GatewayUser,
+    user: CoreHubUser,
     channelId: string,
     messageId: string,
     pinned: boolean,
@@ -301,8 +301,8 @@ export class MessagesService {
 
     const canPin =
       membership.role === 'MODERATOR' ||
-      user.layer1Role === 'staff' ||
-      user.layer1Role === 'admin';
+      user.coreRole === 'staff' ||
+      user.coreRole === 'admin';
 
     if (!canPin) {
       throw new ForbiddenException('ปักหมุดได้เฉพาะผู้ดูแลห้องและอาจารย์');
@@ -333,7 +333,7 @@ export class MessagesService {
       where: { id: messageId },
       data: {
         pinnedAt: pinned ? new Date() : null,
-        pinnedByUsername: pinned ? user.username : null,
+        pinnedByCoreUserId: pinned ? user.coreUserId : null,
       },
       include: MESSAGE_INCLUDE,
     });
@@ -350,7 +350,7 @@ export class MessagesService {
   }
 
   async remove(
-    user: GatewayUser,
+    user: CoreHubUser,
     channelId: string,
     messageId: string,
   ): Promise<void> {
@@ -363,9 +363,9 @@ export class MessagesService {
       throw new NotFoundException('ไม่พบข้อความนี้');
     }
 
-    const isAuthor = message.authorUsername === user.username;
+    const isAuthor = message.authorCoreUserId === user.coreUserId;
     const canModerate =
-      membership.role === 'MODERATOR' || user.layer1Role === 'admin';
+      membership.role === 'MODERATOR' || user.coreRole === 'admin';
 
     if (!isAuthor && !canModerate) {
       throw new ForbiddenException('ลบได้เฉพาะข้อความของตัวเอง');
@@ -389,14 +389,14 @@ export class MessagesService {
 
       await tx.auditLog.create({
         data: {
-          actorUsername: user.username,
-          actorLayer1Role: user.layer1Role,
+          actorCoreUserId: user.coreUserId,
+          actorCoreRole: user.coreRole,
           action: 'message.delete',
           targetKind: 'MESSAGE',
           targetId: messageId,
           metadata: {
             channel_id: channelId,
-            author_username: message.authorUsername,
+            author_core_user_id: message.authorCoreUserId,
             by_moderator: !isAuthor,
           },
         },
@@ -421,7 +421,7 @@ export class MessagesService {
   private async resolveThreadParent(channelId: string, parentId: string) {
     const parent = await this.prisma.message.findFirst({
       where: { id: parentId, channelId, deletedAt: null },
-      select: { id: true, parentId: true, authorUsername: true },
+      select: { id: true, parentId: true, authorCoreUserId: true },
     });
 
     if (!parent) {
@@ -438,19 +438,19 @@ export class MessagesService {
   }
 
   private async notifyThreadReply(
-    user: GatewayUser,
+    user: CoreHubUser,
     channelId: string,
-    parent: { id: string; authorUsername: string } | null,
+    parent: { id: string; authorCoreUserId: string } | null,
   ): Promise<void> {
     if (!parent) {
       return;
     }
 
     await this.notifications.push({
-      username: parent.authorUsername,
+      coreUserId: parent.authorCoreUserId,
       kind: 'THREAD_REPLY',
       refId: parent.id,
-      actorUsername: user.username,
+      actorCoreUserId: user.coreUserId,
       payload: { channel_id: channelId },
     });
   }
@@ -458,37 +458,37 @@ export class MessagesService {
   /// แจ้งเตือนคนที่ถูก @ ในข้อความ
   ///
   /// สองข้อจำกัดที่จำเป็น:
-  ///   1. แจ้งได้เฉพาะคนที่เป็นสมาชิกห้องนั้นอยู่แล้ว — ไม่ใช่ทุก username
+  ///   1. แจ้งได้เฉพาะคนที่เป็นสมาชิกห้องนั้นอยู่แล้ว — ไม่ใช่ทุก coreUserId
   ///      ในระบบ ถ้าไม่กรอง จะ @ ใครก็ได้เพื่อส่งข้อความหาเขาผ่านช่องแจ้งเตือน
   ///      โดยที่เขาไม่ได้อยู่ในห้องและไม่มีทางบล็อก
   ///   2. @everyone สงวนให้ผู้ดูแลห้อง ไม่งั้นห้องเรียน 200 คนจะถูกปลุกได้
   ///      โดยนักศึกษาคนเดียว
   private async notifyMentions(
-    user: GatewayUser,
+    user: CoreHubUser,
     channelId: string,
     messageId: string,
     content: string | undefined,
     options: { isModerator: boolean },
   ): Promise<void> {
-    const parsed = parseMentions(content, user.username);
+    const parsed = parseMentions(content, user.coreUserId);
 
-    if (parsed.usernames.length === 0 && !parsed.broadcast) {
+    if (parsed.coreUserIds.length === 0 && !parsed.broadcast) {
       return;
     }
 
     const members = await this.prisma.channelMember.findMany({
       where: { channelId },
-      select: { username: true },
+      select: { coreUserId: true },
     });
 
-    const memberNames = new Set(members.map((m) => m.username));
+    const memberNames = new Set(members.map((m) => m.coreUserId));
 
     const targets =
       parsed.broadcast && options.isModerator
         ? members
-            .map((m) => m.username)
-            .filter((name) => name !== user.username)
-        : parsed.usernames.filter((name) => memberNames.has(name));
+            .map((m) => m.coreUserId)
+            .filter((name) => name !== user.coreUserId)
+        : parsed.coreUserIds.filter((name) => memberNames.has(name));
 
     if (targets.length === 0) {
       return;
@@ -497,7 +497,7 @@ export class MessagesService {
     await this.notifications.pushMany(targets, {
       kind: 'MENTION',
       refId: messageId,
-      actorUsername: user.username,
+      actorCoreUserId: user.coreUserId,
       payload: {
         channel_id: channelId,
         preview: content?.slice(0, 120) ?? null,
@@ -509,14 +509,14 @@ export class MessagesService {
   /// แนบได้เฉพาะไฟล์ของตัวเองที่ commit แล้ว และยังไม่ถูกแนบที่อื่น
   /// ถ้าไม่เช็ค จะเอา asset_id ของคนอื่นมาแนบแล้วดูดไฟล์เขาออกมาได้
   private async assertOwnedReadyAssets(
-    user: GatewayUser,
+    user: CoreHubUser,
     assetIds: string[],
   ): Promise<void> {
     const assets = await this.prisma.asset.findMany({
       where: { id: { in: assetIds } },
       select: {
         id: true,
-        ownerUsername: true,
+        ownerCoreUserId: true,
         status: true,
         messageId: true,
       },
@@ -527,7 +527,7 @@ export class MessagesService {
     }
 
     for (const asset of assets) {
-      if (asset.ownerUsername !== user.username) {
+      if (asset.ownerCoreUserId !== user.coreUserId) {
         throw new ForbiddenException('แนบไฟล์ของคนอื่นไม่ได้');
       }
 
@@ -572,13 +572,13 @@ type MessageRow = {
   id: string;
   seq: number;
   channelId: string;
-  authorUsername: string;
+  authorCoreUserId: string;
   content: string | null;
   clientNonce: string;
   parentId: string | null;
   replyCount: number;
   pinnedAt: Date | null;
-  pinnedByUsername: string | null;
+  pinnedByCoreUserId: string | null;
   editedAt: Date | null;
   createdAt: Date;
   attachments: {
@@ -596,7 +596,7 @@ export function toMessageResponse(message: MessageRow): MessageResponseDto {
     id: message.id,
     seq: message.seq,
     channel_id: message.channelId,
-    author_username: message.authorUsername,
+    author_core_user_id: message.authorCoreUserId,
     content: message.content,
     attachments: message.attachments.map((asset) => ({
       id: asset.id,
@@ -611,7 +611,7 @@ export function toMessageResponse(message: MessageRow): MessageResponseDto {
     parent_id: message.parentId,
     reply_count: message.replyCount,
     pinned_at: message.pinnedAt?.toISOString() ?? null,
-    pinned_by_username: message.pinnedByUsername,
+    pinned_by_core_user_id: message.pinnedByCoreUserId,
     client_nonce: message.clientNonce,
     edited_at: message.editedAt?.toISOString() ?? null,
     created_at: message.createdAt.toISOString(),

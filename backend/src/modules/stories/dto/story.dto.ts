@@ -24,7 +24,7 @@ export class CreateStoryDto {
 
 export class StoryItemDto {
   @ApiProperty() id!: string;
-  @ApiProperty() author_username!: string;
+  @ApiProperty() author_core_user_id!: string;
 
   @ApiProperty({ enum: ['IMAGE', 'VIDEO'] })
   kind!: string;
@@ -54,7 +54,7 @@ export class StoryItemDto {
 
 /// สตอรี่จัดกลุ่มตามเจ้าของ — รูปแบบที่แถวรูปโปรไฟล์ด้านบนฟีดต้องใช้
 export class StoryTrayDto {
-  @ApiProperty() author_username!: string;
+  @ApiProperty() author_core_user_id!: string;
 
   @ApiProperty({
     description: 'ยังมีสตอรี่ที่ผู้เรียกไม่ได้ดู — ใช้ตัดสินว่าวงแหวนติดสีไหม',
@@ -69,6 +69,6 @@ export class StoryTrayDto {
 }
 
 export class StoryViewerDto {
-  @ApiProperty() username!: string;
+  @ApiProperty() coreUserId!: string;
   @ApiProperty() viewed_at!: string;
 }

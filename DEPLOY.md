@@ -87,7 +87,7 @@
    | `ALLOW_UNPROTECTED_GATEWAY` | `true` (เพราะยังไม่ได้ต่อ Gateway — อ่านกรอบเตือนข้างบนก่อน) |
 
 4. กด **Apply** แล้วรอ build เสร็จ (~5 นาที) migration จะรันเองในขั้นตอน build
-5. เปิด `https://<ชื่อบริการ>.onrender.com/health` ต้องได้
+5. เปิด `https://<ชื่อบริการ>.onrender.com/api/health` ต้องได้
 
    ```json
    { "success": true, "data": { "status": "ok", "database": "up" } }
@@ -148,7 +148,7 @@ API แทนผู้ใช้ที่ล็อกอินอยู่ได�
 
 ## เจอปัญหาบ่อย ๆ
 
-**"ติดต่อหลังบ้านไม่ได้" ทั้งที่ `/health` เขียว**
+**"ติดต่อหลังบ้านไม่ได้" ทั้งที่ `/api/health` เขียว**
 → CORS `CORS_ORIGIN` ไม่ตรงกับโดเมน Vercel แบบเป๊ะ ๆ (มี/ไม่มี `https://`
 หรือมี `/` ต่อท้าย ก็ถือว่าคนละค่า)
 

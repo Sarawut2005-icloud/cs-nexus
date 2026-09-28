@@ -2,8 +2,8 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CurrentUser,
-  type GatewayUser,
-} from '../../common/auth/gateway-user.js';
+  type CoreHubUser,
+} from '../../common/auth/core-user.js';
 import { ApiEnvelope } from '../../common/http/api-envelope.decorator.js';
 import { SearchAllResponseDto, SearchQuery } from './dto/search.dto.js';
 import { SearchService } from './search.service.js';
@@ -20,7 +20,7 @@ export class SearchController {
       'kind=all คืนตัวอย่างทุกหมวดพร้อมยอดรวม (ไม่แบ่งหน้า) · ระบุหมวดเดียวจะแบ่งหน้าปกติ · ข้อความแชทค้นได้เฉพาะห้องที่ผู้เรียกเป็นสมาชิก',
   })
   @ApiEnvelope(SearchAllResponseDto)
-  run(@CurrentUser() user: GatewayUser, @Query() query: SearchQuery) {
+  run(@CurrentUser() user: CoreHubUser, @Query() query: SearchQuery) {
     const kind = query.kind ?? 'all';
 
     return kind === 'all'
