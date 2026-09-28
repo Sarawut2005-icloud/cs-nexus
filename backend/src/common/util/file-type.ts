@@ -25,6 +25,11 @@ interface Signature {
   /// ไบต์ที่ต้องตรงกัน — null คือ "ไบต์นี้เป็นอะไรก็ได้"
   bytes: (number | null)[];
   offset?: number;
+  /// เป็นแค่ "ภาชนะ" ไม่ใช่ชนิดไฟล์ที่ตอบกลับได้เอง
+  ///
+  /// ถ้าไม่มีธงนี้ ภาชนะ OLE2 จะหลุดออกไปเป็น mimeType จริง แล้วไฟล์อะไรก็ไม่รู้
+  /// ที่ตั้งชื่อ .pdf จะผ่านด่านไปได้ทั้งที่ข้างในไม่ใช่ PDF
+  containerOnly?: boolean;
 }
 
 const SIGNATURES: Signature[] = [
@@ -70,7 +75,42 @@ const SIGNATURES: Signature[] = [
     mimeType: 'application/zip',
     bytes: [0x50, 0x4b, 0x07, 0x08],
   },
+  // Office รุ่นเก่า (.doc .xls .ppt) ใช้ภาชนะ OLE2 เหมือนกันหมด แยกชนิดจริง
+  // ด้วยลายเซ็นไม่ได้ ต้องดูนามสกุลประกอบ — ดู resolveOfficeDocument()
+  {
+    kind: 'DOCUMENT',
+    mimeType: 'application/x-ole-storage',
+    bytes: [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1],
+    containerOnly: true,
+  },
 ];
+
+/// เอกสาร Office ยุคใหม่ — ข้างในเป็น zip ทั้งหมด
+///
+/// ลายเซ็นจึงเป็น zip ตรง ๆ แยกจากไฟล์ .zip ธรรมดาไม่ได้ถ้าดูแค่หัวไฟล์
+/// จึงตัดสินชนิดจากนามสกุล **หลังจาก** ยืนยันแล้วว่าภาชนะเป็น zip จริง
+/// ซึ่งยังกันไฟล์ปลอมนามสกุลได้อยู่ (เช่น .docx ที่ข้างในเป็น exe ไม่ผ่าน)
+const OOXML_DOCUMENTS = new Map<string, string>([
+  [
+    'docx',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ],
+  [
+    'xlsx',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ],
+  [
+    'pptx',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  ],
+]);
+
+/// เอกสาร Office รุ่นเก่าที่ใช้ภาชนะ OLE2
+const OLE2_DOCUMENTS = new Map<string, string>([
+  ['doc', 'application/msword'],
+  ['xls', 'application/vnd.ms-excel'],
+  ['ppt', 'application/vnd.ms-powerpoint'],
+]);
 
 /// นามสกุลไบนารีที่รับ พร้อมชนิดที่ "ต้อง" ตรวจเจอตอน commit
 /// ถ้าเนื้อไฟล์ไม่ตรงกับที่นามสกุลบอก แปลว่ามีคนเปลี่ยนนามสกุลมาหลอก
@@ -86,6 +126,13 @@ const BINARY_EXTENSIONS = new Map<string, AssetKind>([
   ['mov', 'VIDEO'],
   ['pdf', 'DOCUMENT'],
   ['zip', 'ARCHIVE'],
+  // Word / Excel / PowerPoint — ที่ผู้ใช้เรียกรวม ๆ ว่า "ไฟล์เอกสาร"
+  ['docx', 'DOCUMENT'],
+  ['xlsx', 'DOCUMENT'],
+  ['pptx', 'DOCUMENT'],
+  ['doc', 'DOCUMENT'],
+  ['xls', 'DOCUMENT'],
+  ['ppt', 'DOCUMENT'],
 ]);
 
 /// ไฟล์โค้ด/ข้อความไม่มีลายเซ็น จึงใช้บัญชีนามสกุลที่อนุญาตแทน
@@ -104,6 +151,10 @@ const CODE_EXTENSIONS = new Set([
 const DENIED_EXTENSIONS = new Set([
   'html', 'htm', 'xhtml', 'shtml', 'svg', 'xml', 'xsl', 'mhtml',
   'swf', 'exe', 'dll', 'msi', 'scr', 'com', 'jar',
+  // Office ที่ฝังมาโครได้ — ไฟล์พวกนี้รันโค้ดบนเครื่องคนที่เปิด ซึ่งเป็น
+  // ช่องทางแพร่มัลแวร์ที่เก่าแก่ที่สุดช่องหนึ่งและยังใช้ได้ผลอยู่
+  // ถ้าต้องการส่งจริง ให้ใส่ใน .zip เพื่อให้ผู้รับรู้ตัวก่อนเปิด
+  'docm', 'xlsm', 'pptm', 'dotm', 'xltm', 'potm', 'xlam', 'ppam',
 ]);
 
 export function extensionOf(fileName: string): string {
@@ -128,7 +179,8 @@ export function assertUploadableName(fileName: string): void {
   if (!BINARY_EXTENSIONS.has(extension) && !CODE_EXTENSIONS.has(extension)) {
     throw new FileTypeError(
       `ไม่รองรับไฟล์นามสกุล .${extension || '(ไม่มีนามสกุล)'} — ` +
-        'รองรับรูปภาพ วิดีโอ PDF ไฟล์ .zip และไฟล์โค้ด/ข้อความ',
+        'รองรับรูปภาพ (รวม GIF) วิดีโอ PDF ไฟล์ Word/Excel/PowerPoint ' +
+        'ไฟล์ .zip และไฟล์โค้ด/ข้อความ',
     );
   }
 }
@@ -143,6 +195,22 @@ export function sniffFileType(header: Buffer, fileName: string): SniffResult {
   for (const signature of SIGNATURES) {
     if (!matches(header, signature)) {
       continue;
+    }
+
+    // เอกสาร Office ต้องแปลงก่อนตรวจว่าชนิดตรงกับนามสกุลไหม เพราะภาชนะของมัน
+    // (zip หรือ OLE2) ไม่ใช่ชนิดที่เราจะรายงานให้ผู้ใช้เห็น
+    const office = resolveOfficeDocument(extension, signature);
+
+    if (office) {
+      return office;
+    }
+
+    // ภาชนะที่ไม่มีใครมารับช่วงต่อ = เราไม่รู้จริง ๆ ว่าไฟล์นี้คืออะไร
+    if (signature.containerOnly) {
+      throw new FileTypeError(
+        `เนื้อไฟล์ไม่ตรงกับนามสกุล .${extension} — ` +
+          'เป็นไฟล์ Office รุ่นเก่าที่เปลี่ยนนามสกุลมา',
+      );
     }
 
     // เนื้อไฟล์เป็นไบนารีที่รู้จัก แต่ต้องตรงกับที่นามสกุลอ้างด้วย
@@ -171,6 +239,31 @@ export function sniffFileType(header: Buffer, fileName: string): SniffResult {
   }
 
   return { kind: 'CODE', mimeType: 'text/plain; charset=utf-8' };
+}
+
+/// เอกสาร Office ที่ซ่อนอยู่ในภาชนะ zip หรือ OLE2
+///
+/// คืน null ถ้าไม่ใช่คู่ที่เข้ากัน แล้วให้การตรวจตามปกติทำงานต่อ เช่น
+/// `.docx` ที่ข้างในเป็น mp4 จะไม่เข้าเงื่อนไขนี้ แล้วไปตกที่ข้อความ
+/// "เนื้อไฟล์ไม่ตรงกับนามสกุล" ตามเดิม
+function resolveOfficeDocument(
+  extension: string,
+  signature: Signature,
+): SniffResult | null {
+  if (signature.mimeType === 'application/zip') {
+    const mimeType = OOXML_DOCUMENTS.get(extension);
+
+    return mimeType ? { kind: 'DOCUMENT', mimeType } : null;
+  }
+
+  if (signature.mimeType === 'application/x-ole-storage') {
+    const mimeType = OLE2_DOCUMENTS.get(extension);
+
+    // OLE2 ที่นามสกุลไม่ใช่ของ Office = ไฟล์เก่าอะไรก็ไม่รู้ ไม่รับดีกว่า
+    return mimeType ? { kind: 'DOCUMENT', mimeType } : null;
+  }
+
+  return null;
 }
 
 /// ไฟล์ข้อความไม่มีไบต์ 0x00 — ถ้ามีแปลว่าเป็นไบนารีที่เปลี่ยนนามสกุลมาหลอก
