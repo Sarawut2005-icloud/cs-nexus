@@ -158,6 +158,76 @@ describe('ReactionBar', () => {
     ).toBeInTheDocument();
   });
 
+  it('**กด Esc แล้วแผงต้องปิด**', async () => {
+    // ของเดิมปิดได้ทางเดียวคือกดปุ่มเดิมซ้ำ ซึ่งหาไม่เจอถ้าแผงบังปุ่มอยู่
+    render(
+      <ReactionBar
+        targetKind="POST"
+        targetId="p1"
+        summary={null}
+        onChange={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'เพิ่มรีแอ็กชัน' }),
+    );
+
+    expect(screen.getByRole('group', { name: 'เลือกอิโมจิ' })).toBeInTheDocument();
+
+    await userEvent.keyboard('{Escape}');
+
+    expect(
+      screen.queryByRole('group', { name: 'เลือกอิโมจิ' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('กดที่อื่นแล้วแผงต้องปิด', async () => {
+    render(
+      <div>
+        <button type="button">ที่อื่น</button>
+        <ReactionBar
+          targetKind="POST"
+          targetId="p1"
+          summary={null}
+          onChange={vi.fn()}
+        />
+      </div>,
+    );
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'เพิ่มรีแอ็กชัน' }),
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'ที่อื่น' }));
+
+    expect(
+      screen.queryByRole('group', { name: 'เลือกอิโมจิ' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('กดในแผงเองไม่ทำให้แผงปิดก่อนจะเลือกได้', async () => {
+    // ถ้าตัวดัก "กดที่อื่น" ไม่ยกเว้นตัวแผงเอง จะเลือกอิโมจิไม่ได้เลยสักตัว
+    render(
+      <ReactionBar
+        targetKind="POST"
+        targetId="p1"
+        summary={null}
+        onChange={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'เพิ่มรีแอ็กชัน' }),
+    );
+
+    const panel = screen.getByRole('group', { name: 'เลือกอิโมจิ' });
+
+    await userEvent.pointer({ target: panel, keys: '[MouseLeft>]' });
+
+    expect(screen.getByRole('group', { name: 'เลือกอิโมจิ' })).toBeInTheDocument();
+  });
+
   it('ตัวเลือกอิโมจิมีครบ 12 ตัวตามที่หลังบ้านอนุญาต', async () => {
     render(
       <ReactionBar
@@ -174,11 +244,13 @@ describe('ReactionBar', () => {
 
     // ถ้ารายการไม่ตรงกับ ALLOWED_EMOJI ของหลังบ้าน ผู้ใช้จะกดแล้วได้ 400
     // ทั้งที่ปุ่มโผล่อยู่บนหน้าจอ
-    const picker = screen.getByRole('button', {
-      name: 'เพิ่มรีแอ็กชัน',
-    }).parentElement;
+    //
+    // หาแผงด้วยชื่อของมัน ไม่ใช่ตำแหน่งใน DOM — แผงถูกย้ายไปลอยที่ body
+    // (portal) เพื่อไม่ให้กรอบที่เลื่อนได้ตัดขอบทิ้ง ถ้ายึดกับ parentElement
+    // เทสต์จะแตกทุกครั้งที่ย้ายที่วาง ทั้งที่ผู้ใช้เห็นเหมือนเดิม
+    const panel = screen.getByRole('group', { name: 'เลือกอิโมจิ' });
 
-    expect(picker?.querySelectorAll('button').length).toBe(13); // 12 + ปุ่มเปิด
+    expect(panel.querySelectorAll('button')).toHaveLength(12);
   });
 });
 
