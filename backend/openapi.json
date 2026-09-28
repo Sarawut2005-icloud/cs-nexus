@@ -7775,7 +7775,8 @@
         "properties": {
           "seq": {
             "type": "number",
-            "example": 1421
+            "example": 1421,
+            "maximum": 2147483647
           }
         },
         "required": [

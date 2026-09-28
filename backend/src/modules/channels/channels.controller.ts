@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, Min } from 'class-validator';
+import { IsInt, Max, Min } from 'class-validator';
 import { CurrentUser, type CoreHubUser } from '../../common/auth/core-user.js';
 import {
   ApiEnvelope,
@@ -28,11 +28,21 @@ import {
   CreateDirectChannelDto,
 } from './dto/channel.dto.js';
 
+/// เพดานของคอลัมน์ `Int` ในฐานข้อมูล
+///
+/// **ต้องมี ไม่งั้นค่าที่เกินช่วงจะกลายเป็น 500** — Prisma ส่งต่อให้ Postgres
+/// แล้ว Postgres ปฏิเสธเพราะล้นช่วง ซึ่งโผล่เป็น Internal Server Error
+/// ทั้งที่เป็นข้อมูลจากผู้ใช้ที่ไม่ถูกต้อง (ต้องเป็น 400 และบอกว่าผิดตรงไหน)
+///
+/// เจอจริงตอนหน้าบ้านเผลอส่ง `Number.MAX_SAFE_INTEGER` ของข้อความชั่วคราว
+const MAX_SEQ = 2_147_483_647;
+
 export class MarkReadDto {
-  @ApiProperty({ example: 1421 })
+  @ApiProperty({ example: 1421, maximum: MAX_SEQ })
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(MAX_SEQ, { message: 'ลำดับข้อความเกินช่วงที่เป็นไปได้' })
   seq!: number;
 }
 

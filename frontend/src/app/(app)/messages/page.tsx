@@ -20,6 +20,12 @@ import { StoryRow } from '@/components/csmju/story-row';
 import { UserName } from '@/components/csmju/user-name';
 import { api, ApiError, qs } from '@/lib/csmju/api';
 import { useMe } from '@/lib/csmju/session';
+import { AttachmentList } from '@/components/csmju/attachment-list';
+import {
+  AttachmentButton,
+  AttachmentTray,
+  useAttachments,
+} from '@/components/csmju/attachment-picker';
 import {
   bindSocket,
   connectSocket,
@@ -468,6 +474,7 @@ function Thread({
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
+  const attachments = useAttachments();
   const [typing, setTyping] = useState<string[]>([]);
   const [status, setStatus] = useState<'connecting' | 'live' | 'offline'>(
     'connecting',
@@ -639,16 +646,28 @@ function Thread({
 
   async function send() {
     const content = draft.trim();
+    const assetIds = attachments.assets.map((asset) => asset.asset_id);
 
-    if (!content) return;
+    // ส่งไฟล์เปล่า ๆ โดยไม่มีข้อความได้ — คนส่งรูปอย่างเดียวบ่อยกว่าส่งรูป
+    // พร้อมคำบรรยาย
+    if (!content && assetIds.length === 0) return;
+
+    // กันกดส่งระหว่างไฟล์ยังอัปไม่เสร็จ ไม่งั้นไฟล์นั้นจะหลุดไปเงียบ ๆ
+    if (attachments.uploading) {
+      setError('ยังอัปโหลดไฟล์ไม่เสร็จ — รอสักครู่');
+
+      return;
+    }
 
     const payload = {
       channel_id: thread.id,
-      content,
+      ...(content ? { content } : {}),
+      ...(assetIds.length ? { asset_ids: assetIds } : {}),
       client_nonce: newNonce(),
     };
 
     setDraft('');
+    attachments.clear();
     setError(null);
 
     try {
@@ -752,23 +771,35 @@ function Thread({
                 key={message.id}
                 className={`flex ${mine ? 'justify-end' : 'justify-start'}`}
               >
-                <span
-                  className={`max-w-[75%] rounded-3xl px-3.5 py-2 text-sm leading-relaxed ${
+                <div
+                  // เป็นคอลัมน์ ไม่ใช่ span ไหลตามบรรทัด — ในฟองหนึ่งฟองมีได้
+                  // ทั้งชื่อผู้ส่ง ข้อความ ไฟล์แนบ และเวลา ซึ่งต้องเรียงลงมา
+                  className={`flex max-w-[75%] flex-col rounded-3xl px-3.5 py-2 text-sm leading-relaxed ${
                     mine
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted text-foreground'
                   }`}
                 >
                   {!mine && (
-                    <UserName
-                      coreUserId={message.author_core_user_id}
-                      className="mb-0.5 block text-[11px] opacity-70"
-                    />
+                    // ต้องห่อด้วยบล็อกจริง ไม่ใช่ส่ง class `block` เข้าไป —
+                    // UserName ตั้ง `inline-flex` ไว้ในตัว แล้วลำดับของ
+                    // Tailwind ทำให้ `inline-flex` ชนะ ชื่อกับข้อความจึงติดกัน
+                    // เป็นบรรทัดเดียว ("user-002ข้อความ…")
+                    <span className="mb-0.5 block">
+                      <UserName
+                        coreUserId={message.author_core_user_id}
+                        className="text-[11px] opacity-70"
+                      />
+                    </span>
                   )}
 
-                  <span className="whitespace-pre-wrap break-words">
-                    {message.content}
-                  </span>
+                  {message.content && (
+                    <span className="whitespace-pre-wrap break-words">
+                      {message.content}
+                    </span>
+                  )}
+
+                  <AttachmentList attachments={message.attachments} />
 
                   <span
                     className={`mt-0.5 block text-[10px] ${mine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}
@@ -779,7 +810,7 @@ function Thread({
                     })}
                     {message.edited_at ? ' · แก้ไขแล้ว' : ''}
                   </span>
-                </span>
+                </div>
               </li>
             );
           })}
@@ -797,7 +828,11 @@ function Thread({
 
         {error && <p className="mb-1 text-xs text-destructive">{error}</p>}
 
-        <div className="flex items-center gap-2 rounded-full border border-input px-4 py-1.5">
+        <AttachmentTray attachments={attachments} />
+
+        <div className="flex items-center gap-1 rounded-full border border-input px-2 py-1.5">
+          <AttachmentButton attachments={attachments} />
+
           <input
             value={draft}
             onChange={(event) => {
@@ -818,9 +853,12 @@ function Thread({
 
           <button
             type="button"
-            disabled={!draft.trim()}
+            disabled={
+              (!draft.trim() && attachments.assets.length === 0) ||
+              attachments.uploading
+            }
             onClick={() => void send()}
-            className="shrink-0 text-sm font-semibold text-primary transition-opacity disabled:opacity-40"
+            className="shrink-0 pr-2 text-sm font-semibold text-primary transition-opacity disabled:opacity-40"
           >
             ส่ง
           </button>

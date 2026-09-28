@@ -20,6 +20,12 @@ import {
 } from 'lucide-react';
 import { AnimatedTooltip } from '@/components/ui/animated-tooltip';
 import { ReactionBar } from '@/components/csmju/reaction-bar';
+import { AttachmentList } from '@/components/csmju/attachment-list';
+import {
+  AttachmentButton,
+  AttachmentTray,
+  useAttachments,
+} from '@/components/csmju/attachment-picker';
 import { Avatar, UserName } from '@/components/csmju/user-name';
 import { api, ApiError, qs } from '@/lib/csmju/api';
 import { useMe } from '@/lib/csmju/session';
@@ -45,6 +51,12 @@ const KIND_ICON: Record<ChannelKind, typeof Hash> = {
   COURSE: Hash,
   VOICE: Volume2,
 };
+
+/// `seq` ของข้อความชั่วคราวที่ยังไม่มีของจริงกลับมา
+///
+/// ต้องมากพอให้อยู่ท้ายสุดของไทม์ไลน์เสมอ แต่ **ห้ามหลุดไปถึงหลังบ้าน**
+/// เพราะมันเกินช่วงของคอลัมน์ Int (ดูที่ใช้ตอนรายงานว่าอ่านถึงไหน)
+const PENDING_SEQ = Number.MAX_SAFE_INTEGER;
 
 /// สร้าง nonce ของฝั่ง client — ใช้กันส่งซ้ำตอนเน็ตกระตุก
 ///
@@ -335,6 +347,7 @@ function ChannelView({
   >({});
   const [threadOf, setThreadOf] = useState<Message | null>(null);
   const [draft, setDraft] = useState('');
+  const attachments = useAttachments();
   const [status, setStatus] = useState<'connecting' | 'live' | 'offline'>(
     'connecting',
   );
@@ -552,7 +565,14 @@ function ChannelView({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' });
 
-    const latest = messages.at(-1);
+    // **ต้องข้ามข้อความชั่วคราว** — มันถือ seq สูงสุดของ JS ไว้เพื่อให้อยู่
+    // ท้ายสุดจนกว่าของจริงจะมา ถ้าส่งค่านั้นไปบันทึกเป็นตัวชี้การอ่าน
+    // มันจะล้นช่วงของคอลัมน์ Int แล้วหลังบ้านตอบ 500
+    //
+    // และ 500 นั้น "หายเงียบ" เพราะ .catch() ข้างล่างกลืนไว้ ผลคือตัวชี้
+    // การอ่านไม่ถูกบันทึกเลยทุกครั้งที่เราส่งข้อความ badge ยังไม่อ่านจึงค้าง
+    // ผิดอยู่เรื่อย ๆ โดยไม่มีอะไรฟ้องสักอย่าง
+    const latest = messages.filter((row) => row.seq !== PENDING_SEQ).at(-1);
 
     if (!latest) return;
 
@@ -622,14 +642,25 @@ function ChannelView({
   /// กลับมาก็เอาไปแทนที่ตัวชั่วคราวที่ nonce ตรงกัน จึงไม่มีทางขึ้นซ้ำสองอัน
   async function send() {
     const content = draft.trim();
+    const assetIds = attachments.assets.map((asset) => asset.asset_id);
 
-    if (!content) return;
+    // **ไฟล์อย่างเดียวโดยไม่มีข้อความก็ต้องส่งได้** — คนส่งรูปเปล่า ๆ บ่อยกว่า
+    // ส่งรูปพร้อมคำบรรยายเสียอีก ของเดิมมีแต่เงื่อนไข `if (!content) return`
+    if (!content && assetIds.length === 0) return;
+
+    // กันกดส่งระหว่างไฟล์ยังอัปไม่เสร็จ ไม่งั้นไฟล์นั้นจะหลุดไปเงียบ ๆ
+    if (attachments.uploading) {
+      setError('ยังอัปโหลดไฟล์ไม่เสร็จ — รอสักครู่');
+
+      return;
+    }
 
     const socket = socketRef.current;
     const nonce = newNonce();
     const payload = {
       channel_id: channel.id,
-      content,
+      ...(content ? { content } : {}),
+      ...(assetIds.length ? { asset_ids: assetIds } : {}),
       client_nonce: nonce,
       ...(threadOf ? { parent_id: threadOf.id } : {}),
     };
@@ -637,7 +668,7 @@ function ChannelView({
     // ใส่ลงไทม์ไลน์ก่อนเลย แล้วค่อยส่งจริง
     const pending: Message = {
       id: `pending-${nonce}`,
-      seq: Number.MAX_SAFE_INTEGER, // ให้อยู่ท้ายสุดเสมอจนกว่าของจริงจะมา
+      seq: PENDING_SEQ, // ให้อยู่ท้ายสุดเสมอจนกว่าของจริงจะมา
       client_nonce: nonce,
       content,
       channel_id: channel.id,
@@ -647,13 +678,22 @@ function ChannelView({
       pinned_at: null,
       pinned_by_core_user_id: null,
       edited_at: null,
-      attachments: [],
+      // โชว์ไฟล์ที่แนบในข้อความชั่วคราวด้วย ไม่งั้นรูปจะ "หาย" ไปหนึ่งจังหวะ
+      // แล้วค่อยโผล่กลับมาตอนของจริงมาถึง ซึ่งดูเหมือนส่งไม่สำเร็จ
+      attachments: attachments.assets.map((asset) => ({
+        id: asset.asset_id,
+        file_name: asset.file_name,
+        kind: asset.kind,
+        mime_type: asset.mime_type,
+        size_bytes: asset.size_bytes,
+      })),
       embed: null,
       created_at: new Date().toISOString(),
     };
 
     setMessages((prev) => [...prev, pending]);
     setDraft('');
+    attachments.clear();
     setError(null);
 
     const dropPending = () =>
@@ -835,16 +875,19 @@ function ChannelView({
                     )}
                   </div>
 
-                  <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                    {message.content}
-                  </p>
+                  {message.content && (
+                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                      {message.content}
+                    </p>
+                  )}
+
+                  <AttachmentList attachments={message.attachments} />
 
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <ReactionBar
                       targetKind="MESSAGE"
                       targetId={message.id}
                       summary={reactions[message.id] ?? null}
-                      compact
                       onChange={(next) =>
                         setReactions((prev) => ({ ...prev, [message.id]: next }))
                       }
@@ -906,7 +949,11 @@ function ChannelView({
 
           {error && <p className="mb-1 text-xs text-destructive">{error}</p>}
 
+          <AttachmentTray attachments={attachments} />
+
           <div className="flex gap-2">
+            <AttachmentButton attachments={attachments} />
+
             <input
               value={draft}
               onChange={(event) => {
@@ -929,7 +976,10 @@ function ChannelView({
 
             <button
               type="button"
-              disabled={!draft.trim()}
+              disabled={
+                (!draft.trim() && attachments.assets.length === 0) ||
+                attachments.uploading
+              }
               onClick={() => void send()}
               className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
               aria-label="ส่งข้อความ"
