@@ -433,11 +433,28 @@ export class EventsGateway
     const current = this.presenters.get(payload.session_id);
 
     if (current && current !== state.user.coreUserId) {
-      return {
-        ok: false,
-        presenter_core_user_id: current,
-        error: 'มีคนกำลังแชร์หน้าจออยู่ รอให้เขาหยุดก่อน',
-      };
+      // **สิทธิ์ค้างของคนที่ออกไปแล้ว ต้องยึดคืนได้**
+      //
+      // ตัวปลดสิทธิ์ตอน socket หลุดดูจากแถวผู้เข้าร่วมที่ยังเปิดอยู่ ถ้าคนแชร์
+      // กดออกจากห้องก่อน (ซึ่งปิดแถวนั้นไปแล้ว) แล้วค่อยปิดแท็บ ตัวปลดจะหา
+      // ไม่เจอ สิทธิ์จึงค้างอยู่ในแมปนี้ **ตลอดไป** และทั้งห้องจะแชร์จอไม่ได้
+      // อีกเลยจนกว่าจะรีสตาร์ตหลังบ้าน โดยไม่มีใครรู้ว่าเพราะอะไร
+      //
+      // ฝั่งหน้าบ้านปิดทางนั้นไปแล้ว แต่ยังมีทางอื่นที่คืนสิทธิ์ไม่ทัน เช่น
+      // เน็ตหลุดตอนกำลังแชร์ จึงต้องมีตัวกันไว้ตรงนี้อีกชั้น: ถ้าคนที่ถือ
+      // สิทธิ์อยู่ไม่ได้อยู่ในห้องนี้แล้ว ให้ถือว่าสิทธิ์นั้นหมดอายุ
+      const holderStillHere =
+        (await this.voice.activeSessionOf(current)) === payload.session_id;
+
+      if (holderStillHere) {
+        return {
+          ok: false,
+          presenter_core_user_id: current,
+          error: 'มีคนกำลังแชร์หน้าจออยู่ รอให้เขาหยุดก่อน',
+        };
+      }
+
+      this.presenters.delete(payload.session_id);
     }
 
     this.presenters.set(payload.session_id, state.user.coreUserId);
