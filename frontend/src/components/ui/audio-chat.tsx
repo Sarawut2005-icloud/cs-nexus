@@ -7,6 +7,8 @@ import {
   MonitorUp,
   MonitorX,
   PhoneOff,
+  Video,
+  VideoOff,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -31,6 +33,9 @@ interface VoiceChatProps {
   localStream?: MediaStream | null;
   muted?: boolean;
   presenting?: boolean;
+  /// เปิดกล้องอยู่ไหม — ไม่ส่ง `onToggleCamera` มาด้วยจะไม่มีปุ่มกล้องเลย
+  /// (ห้องเสียงแบบหลายคนยังไม่เปิดกล้อง เพราะ mesh จะกินแบนด์วิดท์เกินไป)
+  cameraOn?: boolean;
   deafened?: boolean;
   /// วินาทีที่อยู่ในสาย — ถ้าไม่ส่งมาจะนับเองตั้งแต่ mount
   startedAt?: string;
@@ -38,6 +43,7 @@ interface VoiceChatProps {
   onToggleMute?: () => void;
   onToggleDeafen?: () => void;
   onToggleScreen?: () => void;
+  onToggleCamera?: () => void;
   onLeave?: () => void;
   className?: string;
 }
@@ -56,12 +62,14 @@ export function VoiceChat({
   localStream = null,
   muted = false,
   presenting = false,
+  cameraOn = false,
   deafened = false,
   startedAt,
   turnAvailable = true,
   onToggleMute,
   onToggleDeafen,
   onToggleScreen,
+  onToggleCamera,
   onLeave,
   className,
 }: VoiceChatProps) {
@@ -132,10 +140,40 @@ export function VoiceChat({
           )}
         </ControlButton>
 
+        {onToggleCamera && (
+          <ControlButton
+            active={cameraOn}
+            onClick={onToggleCamera}
+            // ปิดตอนแชร์จออยู่ — สายหนึ่งเส้นส่งภาพได้ทางเดียว ถ้าเปิดทั้งคู่
+            // ปลายทางจะแยกไม่ออกว่าภาพไหนคือจอ ภาพไหนคือกล้อง
+            disabled={presenting}
+            label={
+              presenting
+                ? 'ปิดแชร์หน้าจอก่อนถึงจะเปิดกล้องได้'
+                : cameraOn
+                  ? 'ปิดกล้อง'
+                  : 'เปิดกล้อง'
+            }
+          >
+            {cameraOn ? (
+              <VideoOff className="size-5" />
+            ) : (
+              <Video className="size-5" />
+            )}
+          </ControlButton>
+        )}
+
         <ControlButton
           active={presenting}
           onClick={onToggleScreen}
-          label={presenting ? 'หยุดแชร์หน้าจอ' : 'แชร์หน้าจอ'}
+          disabled={cameraOn}
+          label={
+            cameraOn
+              ? 'ปิดกล้องก่อนถึงจะแชร์หน้าจอได้'
+              : presenting
+                ? 'หยุดแชร์หน้าจอ'
+                : 'แชร์หน้าจอ'
+          }
         >
           {presenting ? (
             <MonitorX className="size-5" />
@@ -248,12 +286,14 @@ function ControlButton({
   children,
   active,
   danger,
+  disabled,
   label,
   onClick,
 }: {
   children: React.ReactNode;
   active?: boolean;
   danger?: boolean;
+  disabled?: boolean;
   label: string;
   onClick?: () => void;
 }) {
@@ -261,11 +301,12 @@ function ControlButton({
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       title={label}
       aria-label={label}
       aria-pressed={active}
       className={cn(
-        'grid size-11 place-items-center rounded-full border transition-colors',
+        'grid size-11 place-items-center rounded-full border transition-colors disabled:opacity-40',
         danger
           ? 'border-destructive bg-destructive/10 text-destructive'
           : active

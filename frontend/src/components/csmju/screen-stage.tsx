@@ -37,7 +37,37 @@ interface Props {
   /// `bottom-4 right-4` เหมือนกัน สองอันจึงทับกันจนกดปุ่มของกันและกันไม่ได้
   /// ในสายโทรเราจึงเรียงมันไว้เหนือแผงควบคุมในคอลัมน์เดียวกันแทน
   inline?: boolean;
+  /// ภาพนี้คืออะไร — ใช้เลือกคำที่บอกผู้ใช้
+  ///
+  /// สายหนึ่งเส้นส่งภาพได้ทางเดียว จึงเป็นจอหรือกล้องอย่างใดอย่างหนึ่ง
+  /// ถ้าเรียกทุกอย่างว่า "หน้าจอ" ผู้ใช้ที่เปิดกล้องจะเห็นคำว่า
+  /// "กำลังแชร์หน้าจอ" ทับหน้าตัวเอง ซึ่งอ่านแล้วน่าตกใจ
+  kind?: 'screen' | 'camera';
 }
+
+/// คำที่ใช้เรียกภาพแต่ละแบบ รวมไว้ที่เดียวเพื่อไม่ให้หลุดไม่ตรงกัน
+const WORDS = {
+  screen: {
+    region: 'จอที่กำลังแชร์',
+    mine: 'คุณกำลังแชร์หน้าจอนี้',
+    minePlayer: 'หน้าจอที่คุณกำลังแชร์',
+    theirsSuffix: 'กำลังแชร์หน้าจอ',
+    theirsPlayer: 'หน้าจอที่อีกฝ่ายกำลังแชร์',
+    mineHidden: 'คุณกำลังแชร์หน้าจอ',
+    theirsHidden: 'มีคนกำลังแชร์หน้าจอ',
+    stop: 'หยุดแชร์หน้าจอ',
+  },
+  camera: {
+    region: 'ภาพจากกล้อง',
+    mine: 'กล้องของคุณเปิดอยู่',
+    minePlayer: 'ภาพจากกล้องของคุณ',
+    theirsSuffix: 'เปิดกล้องอยู่',
+    theirsPlayer: 'ภาพจากกล้องของอีกฝ่าย',
+    mineHidden: 'กล้องของคุณเปิดอยู่',
+    theirsHidden: 'อีกฝ่ายเปิดกล้องอยู่',
+    stop: 'ปิดกล้อง',
+  },
+} as const;
 
 const SIZE_CLASS: Record<Exclude<StageSize, 'full'>, string> = {
   mini: 'w-64',
@@ -49,7 +79,9 @@ export function ScreenStage({
   presenterCoreUserId,
   onStopSharing,
   inline = false,
+  kind = 'screen',
 }: Props) {
+  const words = WORDS[kind];
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState<StageSize>('normal');
@@ -113,7 +145,7 @@ export function ScreenStage({
         }`}
       >
         <MonitorUp aria-hidden className="size-4 text-primary" />
-        {isMine ? 'คุณกำลังแชร์หน้าจอ' : 'มีคนกำลังแชร์หน้าจอ'}
+        {isMine ? words.mineHidden : words.theirsHidden}
       </button>
     );
   }
@@ -124,7 +156,7 @@ export function ScreenStage({
       // ตั้งชื่อให้ทั้งกรอบ เพราะปุ่ม "หยุดแชร์หน้าจอ" มีทั้งบนกรอบนี้และบน
       // แถบควบคุมข้างล่าง — ชื่อซ้ำกันสองปุ่มโดยไม่มีอะไรคั่น ผู้ใช้โปรแกรม
       // อ่านหน้าจอจะแยกไม่ออกว่ากำลังอยู่ตรงไหนของหน้า
-      aria-label="จอที่กำลังแชร์"
+      aria-label={words.region}
       // ลอยอยู่มุมขวาล่างเหมือน Discord — ไม่ใช่ modal ที่บังทั้งหน้า
       // เพราะระหว่างดูจอคนอื่น ผู้ใช้ยังต้องพิมพ์แชทและดูรายชื่อคนในห้องได้
       className={
@@ -149,12 +181,10 @@ export function ScreenStage({
 
         <span className="min-w-0 flex-1 truncate text-csmju-caption">
           {isMine ? (
-            <span className="font-medium text-primary">
-              คุณกำลังแชร์หน้าจอนี้
-            </span>
+            <span className="font-medium text-primary">{words.mine}</span>
           ) : (
             <>
-              <UserName coreUserId={presenterCoreUserId} /> กำลังแชร์หน้าจอ
+              <UserName coreUserId={presenterCoreUserId} /> {words.theirsSuffix}
             </>
           )}
         </span>
@@ -163,8 +193,8 @@ export function ScreenStage({
           <button
             type="button"
             onClick={onStopSharing}
-            aria-label="หยุดแชร์หน้าจอ"
-            title="หยุดแชร์หน้าจอ"
+            aria-label={words.stop}
+            title={words.stop}
             className="grid size-6 place-items-center rounded-md text-destructive transition-colors hover:bg-destructive/10"
           >
             <MonitorX aria-hidden className="size-3.5" />
@@ -224,14 +254,14 @@ export function ScreenStage({
         // จอคนอื่น: เสียงของเขาถูกเล่นโดย <RemoteAudio> อยู่แล้ว ใส่ซ้ำ
         //           ที่นี่จะได้ยินเป็นสองเสียงซ้อนกัน (บั๊กเดิม)
         muted
-        aria-label={
-          isMine ? 'หน้าจอที่คุณกำลังแชร์' : 'หน้าจอที่อีกฝ่ายกำลังแชร์'
-        }
-        className={
-          size === 'full'
-            ? 'min-h-0 w-full flex-1 bg-black object-contain'
-            : 'aspect-video w-full bg-black object-contain'
-        }
+        aria-label={isMine ? words.minePlayer : words.theirsPlayer}
+        className={`bg-black object-contain ${
+          size === 'full' ? 'min-h-0 w-full flex-1' : 'aspect-video w-full'
+        } ${
+          // กล้องของตัวเองต้องกลับด้านซ้ายขวา ไม่งั้นขยับมือขวาแล้วเห็นมือซ้าย
+          // ขยับ ซึ่งสับสนจนใช้ไม่ได้ (จอที่แชร์ห้ามกลับ เพราะตัวหนังสือจะอ่านไม่ออก)
+          kind === 'camera' && isMine ? '-scale-x-100' : ''
+        }`}
       />
     </section>
   );

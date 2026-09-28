@@ -80,6 +80,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [screenPreview, setScreenPreview] = useState<MediaStream | null>(null);
   const [remoteVideo, setRemoteVideo] = useState<MediaStream | null>(null);
 
+  /// กล้องของเรา — แยกสตรีมจากไมค์ เพื่อให้เปิด/ปิดกล้องไม่ไปยุ่งกับเสียง
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+
+  /// อีกฝ่ายถือสิทธิ์แชร์จออยู่ไหม
+  ///
+  /// สายหนึ่งเส้นส่งภาพได้ทางเดียว ภาพที่วิ่งมาจึงเป็น "จอ" ก็ต่อเมื่อเขาถือ
+  /// สิทธิ์แชร์อยู่ ที่เหลือคือกล้อง — ถ้าไม่แยก ผู้ใช้ที่เปิดกล้องคุยกันจะ
+  /// เห็นคำว่า "กำลังแชร์หน้าจอ" ทับหน้าตัวเอง
+  const [peerPresenting, setPeerPresenting] = useState(false);
+
   /// สตรีมไมค์ของเราเอง เก็บเป็น state ไม่ใช่อ่านจาก ref ตอน render
   ///
   /// ref ไม่ทำให้ React วาดใหม่ ตัววัดระดับเสียงใน VoiceChat จึงอาจผูกกับ
@@ -100,6 +110,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const activeRef = useRef<ActiveCall | null>(null);
   const localStream = useRef<MediaStream | null>(null);
   const screenStream = useRef<MediaStream | null>(null);
+  const cameraRef = useRef<MediaStream | null>(null);
   const peer = useRef<RTCPeerConnection | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -142,10 +153,17 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       track.stop();
     }
 
+    for (const track of cameraRef.current?.getTracks() ?? []) {
+      track.stop();
+    }
+
     localStream.current = null;
     screenStream.current = null;
+    cameraRef.current = null;
+    setCameraStream(null);
     setScreenPreview(null);
     setRemoteVideo(null);
+    setPeerPresenting(false);
     negotiationReady.current = false;
     peerIdRef.current = null;
     polite.current = false;
@@ -682,6 +700,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
         unbindRef.current.push(
           bindSocket<{
+            session_id: string;
+            presenter_core_user_id: string | null;
+          }>(socket, 'screen:changed', (payload) => {
+            const current = activeRef.current;
+
+            if (!current || payload.session_id !== current.sessionId) return;
+
+            setPeerPresenting(
+              payload.presenter_core_user_id === current.peerCoreUserId,
+            );
+          }),
+        );
+
+        unbindRef.current.push(
+          bindSocket<{
             from_core_user_id: string;
             kind: 'offer' | 'answer' | 'ice' | 'renegotiate';
             data: unknown;
@@ -812,6 +845,68 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     await makeOffer();
   }, [makeOffer]);
 
+  /// เปิด/ปิดกล้องระหว่างอยู่ในสาย
+  ///
+  /// แยกสตรีมจากไมค์เพราะสองอย่างนี้เปิดปิดคนละจังหวะ ถ้าขอรวมกันครั้งเดียว
+  /// การปิดกล้องจะต้องปิดไมค์ไปด้วย หรือไม่ก็ต้องปล่อยไฟกล้องติดค้างไว้
+  ///
+  /// สายหนึ่งเส้นส่งภาพได้ทางเดียว จึงเปิดกล้องพร้อมแชร์จอไม่ได้ — ปลายทาง
+  /// จะแยกไม่ออกว่าภาพไหนคือจอ ภาพไหนคือกล้อง (ปุ่มถูกปิดไว้ให้แล้ว)
+  async function toggleCamera() {
+    if (!active) return;
+
+    if (cameraRef.current) {
+      const tracks = cameraRef.current.getTracks();
+      const ids = new Set(tracks.map((track) => track.id));
+
+      // ถอนออกจากสายก่อน แล้วค่อยหยุด — ถ้าหยุดเฉย ๆ อีกฝ่ายจะค้างที่เฟรม
+      // สุดท้ายเพราะ SDP ยังบอกว่ามีช่องวิดีโออยู่
+      for (const sender of peer.current?.getSenders() ?? []) {
+        if (sender.track && ids.has(sender.track.id)) {
+          peer.current?.removeTrack(sender);
+        }
+      }
+
+      for (const track of tracks) {
+        track.stop();
+      }
+
+      cameraRef.current = null;
+      setCameraStream(null);
+
+      await makeOffer();
+
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+
+      cameraRef.current = stream;
+      setCameraStream(stream);
+
+      for (const track of stream.getVideoTracks()) {
+        peer.current?.addTrack(track, stream);
+
+        // ผู้ใช้ปิดกล้องจากระบบปฏิบัติการได้ ต้องเก็บให้เหมือนกดปิดในแอป
+        track.onended = () => void toggleCamera();
+      }
+
+      await makeOffer();
+    } catch (caught) {
+      setError(
+        caught instanceof DOMException
+          ? 'เข้าถึงกล้องไม่ได้ — อนุญาตในเบราว์เซอร์แล้วลองอีกครั้ง'
+          : caught instanceof Error
+            ? caught.message
+            : 'เปิดกล้องไม่สำเร็จ',
+      );
+    }
+  }
+
   async function toggleScreen() {
     const socket = socketRef.current;
 
@@ -908,20 +1003,33 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           {/* จอที่แชร์กันในสาย — วางเหนือแผงควบคุมในคอลัมน์เดียวกัน
             * ไม่ปล่อยให้มันลอยเองที่มุมจอ ไม่งั้นจะทับแผงควบคุมพอดี
             * แชร์ได้ทีละคนอยู่แล้ว (หลังบ้านคุมสิทธิ์) จึงไม่มีทางซ้อนกันสองจอ */}
-          {screenPreview ? (
+          {remoteVideo && (
+            <ScreenStage
+              inline
+              stream={remoteVideo}
+              presenterCoreUserId={active.peerCoreUserId}
+              kind={peerPresenting ? 'screen' : 'camera'}
+            />
+          )}
+
+          {screenPreview && (
             <ScreenStage
               inline
               stream={screenPreview}
               presenterCoreUserId={null}
               onStopSharing={() => void toggleScreen()}
             />
-          ) : remoteVideo ? (
+          )}
+
+          {cameraStream && (
             <ScreenStage
               inline
-              stream={remoteVideo}
-              presenterCoreUserId={active.peerCoreUserId}
+              kind="camera"
+              stream={cameraStream}
+              presenterCoreUserId={null}
+              onStopSharing={() => void toggleCamera()}
             />
-          ) : null}
+          )}
 
           {active.ringing && (
             <p className="mb-2 rounded-lg bg-card px-3 py-2 text-center text-sm text-muted-foreground shadow-sm">
@@ -938,11 +1046,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             muted={muted}
             deafened={deafened}
             presenting={presenting}
+            cameraOn={cameraStream !== null}
             startedAt={active.session.started_at}
             turnAvailable={active.session.turn_available}
             onToggleMute={toggleMute}
             onToggleDeafen={() => setDeafened((value) => !value)}
             onToggleScreen={() => void toggleScreen()}
+            onToggleCamera={() => void toggleCamera()}
             onLeave={() => void hangUp()}
           />
         </div>
