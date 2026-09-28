@@ -31,6 +31,12 @@ interface Props {
   presenterCoreUserId: string | null;
   /// ผู้แชร์กดหยุดได้จากตรงนี้เลย ไม่ต้องเลื่อนไปหาปุ่มข้างล่าง
   onStopSharing?: () => void;
+  /// วางซ้อนในกล่องของผู้เรียกแทนการลอยเองที่มุมจอ
+  ///
+  /// **จำเป็นเวลามีแผงอื่นลอยอยู่มุมเดียวกัน** — แผงควบคุมสายโทรยึด
+  /// `bottom-4 right-4` เหมือนกัน สองอันจึงทับกันจนกดปุ่มของกันและกันไม่ได้
+  /// ในสายโทรเราจึงเรียงมันไว้เหนือแผงควบคุมในคอลัมน์เดียวกันแทน
+  inline?: boolean;
 }
 
 const SIZE_CLASS: Record<Exclude<StageSize, 'full'>, string> = {
@@ -42,6 +48,7 @@ export function ScreenStage({
   stream,
   presenterCoreUserId,
   onStopSharing,
+  inline = false,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -99,7 +106,11 @@ export function ScreenStage({
       <button
         type="button"
         onClick={() => setHidden(false)}
-        className="csmju-surface fixed bottom-24 right-4 z-40 flex items-center gap-2 px-3 py-2 text-csmju-label shadow-csmju-lg lg:bottom-4"
+        className={`csmju-surface z-40 flex items-center gap-2 px-3 py-2 text-csmju-label shadow-csmju-lg ${
+          inline
+            ? 'mb-2 w-full justify-center'
+            : 'fixed bottom-24 right-4 lg:bottom-4'
+        }`}
       >
         <MonitorUp aria-hidden className="size-4 text-primary" />
         {isMine ? 'คุณกำลังแชร์หน้าจอ' : 'มีคนกำลังแชร์หน้าจอ'}
@@ -108,14 +119,20 @@ export function ScreenStage({
   }
 
   return (
-    <div
+    <section
       ref={frameRef}
+      // ตั้งชื่อให้ทั้งกรอบ เพราะปุ่ม "หยุดแชร์หน้าจอ" มีทั้งบนกรอบนี้และบน
+      // แถบควบคุมข้างล่าง — ชื่อซ้ำกันสองปุ่มโดยไม่มีอะไรคั่น ผู้ใช้โปรแกรม
+      // อ่านหน้าจอจะแยกไม่ออกว่ากำลังอยู่ตรงไหนของหน้า
+      aria-label="จอที่กำลังแชร์"
       // ลอยอยู่มุมขวาล่างเหมือน Discord — ไม่ใช่ modal ที่บังทั้งหน้า
       // เพราะระหว่างดูจอคนอื่น ผู้ใช้ยังต้องพิมพ์แชทและดูรายชื่อคนในห้องได้
       className={
         size === 'full'
           ? 'fixed inset-0 z-50 flex flex-col bg-black'
-          : `csmju-surface fixed bottom-24 right-4 z-40 overflow-hidden shadow-csmju-lg lg:bottom-4 ${SIZE_CLASS[size]}`
+          : inline
+            ? 'csmju-surface mb-2 w-full overflow-hidden shadow-csmju-lg'
+            : `csmju-surface fixed bottom-24 right-4 z-40 overflow-hidden shadow-csmju-lg lg:bottom-4 ${SIZE_CLASS[size]}`
       }
     >
       <div
@@ -216,6 +233,6 @@ export function ScreenStage({
             : 'aspect-video w-full bg-black object-contain'
         }
       />
-    </div>
+    </section>
   );
 }

@@ -58,6 +58,11 @@ export class ChannelsService {
       })),
     );
 
+    const peerByChannel = await this.peersOfDirectChannels(
+      user,
+      channels.filter((channel) => channel.kind === 'DM').map((c) => c.id),
+    );
+
     const items = channels.map((channel) => {
       const membership = channel.members[0];
 
@@ -65,6 +70,7 @@ export class ChannelsService {
         memberCount: channel._count.members,
         myRole: membership?.role ?? 'MEMBER',
         unreadCount: unreadByChannel.get(channel.id) ?? 0,
+        peerCoreUserId: peerByChannel.get(channel.id) ?? null,
       });
     });
 
@@ -134,6 +140,7 @@ export class ChannelsService {
           existing.id,
           existing.members[0]?.lastReadSeq ?? 0,
         ),
+        peerCoreUserId: dto.peer_core_user_id,
       });
     }
 
@@ -156,6 +163,7 @@ export class ChannelsService {
       memberCount: channel._count.members,
       myRole: 'MEMBER',
       unreadCount: 0,
+      peerCoreUserId: dto.peer_core_user_id,
     });
   }
 
@@ -174,7 +182,46 @@ export class ChannelsService {
       memberCount: channel._count.members,
       myRole: membership.role,
       unreadCount: await this.unreadCount(channelId, membership.lastReadSeq),
+      peerCoreUserId:
+        (await this.peersOfDirectChannels(
+          user,
+          channel.kind === 'DM' ? [channel.id] : [],
+        )).get(channel.id) ?? null,
     });
+  }
+
+  /// คู่สนทนาของห้อง DM หลายห้องพร้อมกัน — **คิวรีเดียวเสมอ**
+  ///
+  /// เขียนเป็น batch ตั้งแต่แรกเพราะจุดที่เรียกคือรายการห้อง ถ้าหาทีละห้อง
+  /// ผู้ใช้ที่มี 30 ห้องจะจ่ายเพิ่ม 30 คิวรีต่อการเปิดหน้าหนึ่งครั้ง ซึ่งเป็น
+  /// บทเรียนเดียวกับที่ `unreadCounts` เคยโดนมาแล้ว
+  private async peersOfDirectChannels(
+    user: CoreHubUser,
+    channelIds: string[],
+  ): Promise<Map<string, string>> {
+    if (channelIds.length === 0) {
+      return new Map();
+    }
+
+    const members = await this.prisma.channelMember.findMany({
+      where: {
+        channelId: { in: channelIds },
+        coreUserId: { not: user.coreUserId },
+      },
+      select: { channelId: true, coreUserId: true },
+    });
+
+    const peers = new Map<string, string>();
+
+    for (const member of members) {
+      // ห้อง DM มีสองที่นั่ง จึงมีคนอื่นได้คนเดียว — ถ้ามีมากกว่านั้นแปลว่า
+      // ข้อมูลผิดรูป เอาคนแรกไปก่อนดีกว่าโยนทั้งรายการทิ้ง
+      if (!peers.has(member.channelId)) {
+        peers.set(member.channelId, member.coreUserId);
+      }
+    }
+
+    return peers;
   }
 
   async addMembers(

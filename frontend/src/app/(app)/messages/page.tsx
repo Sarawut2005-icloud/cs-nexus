@@ -96,7 +96,7 @@ export default function MessagesPage() {
     if (!term) return byTab;
 
     return byTab.filter((thread) =>
-      peerOf(thread, me.id).toLowerCase().includes(term),
+      (peerOf(thread, me.id) ?? 'แชทส่วนตัว').toLowerCase().includes(term),
     );
   }, [threads, tab, query, me.id]);
 
@@ -190,7 +190,7 @@ export default function MessagesPage() {
           )}
 
           {filtered.map((thread) => {
-            const peer = peerOf(thread, me.id);
+            const peer = peerOf(thread, me.id) ?? 'แชทส่วนตัว';
 
             return (
               <button
@@ -244,20 +244,27 @@ export default function MessagesPage() {
   );
 }
 
-/// ชื่อคู่สนทนาของห้อง DM
+/// คู่สนทนาของห้อง DM
 ///
-/// หลังบ้านไม่ส่งชื่อคู่สนทนามาให้ตรง ๆ เพราะ ChannelResponseDto ใช้ร่วมกับ
-/// ห้องกลุ่มที่ไม่มี "คู่" — DM มีสมาชิกสองคนเสมอ แต่รายการห้องไม่ส่งรายชื่อ
-/// สมาชิกมาด้วย (จะกลายเป็น N+1 ตอนโหลดรายการ)
+/// **บั๊กที่ตัวนี้แก้: ปุ่มโทรในแชทส่วนตัวกดไม่ได้เลยสักห้อง**
 ///
-/// TODO(PL): เสนอเพิ่ม `peer_core_user_id` ใน ChannelResponseDto เฉพาะเมื่อ
-/// kind = 'DM' จะได้ไม่ต้องเดาจากชื่อห้องแบบนี้
-function peerOf(thread: Channel, myCoreUserId: string): string {
+/// ของเดิมเดาคู่สนทนาจาก `name` ของห้อง แต่ห้อง DM ถูกสร้างด้วย `name: null`
+/// เสมอ ค่าจึงตกไปที่คำว่า "แชทส่วนตัว" ทุกครั้ง แล้วปุ่มโทรก็ถูกปิดใช้งาน
+/// ด้วยเงื่อนไข `peer === 'แชทส่วนตัว'` — ผลคือฟีเจอร์โทรทั้งฟีเจอร์เข้าถึง
+/// ไม่ได้จาก UI เลย ทั้งที่หลังบ้านกับ WebRTC ทำงานได้ปกติ
+///
+/// ตอนนี้หลังบ้านส่ง `peer_core_user_id` มาให้ตรง ๆ สำหรับห้อง DM
+function peerOf(thread: Channel, myCoreUserId: string): string | null {
+  if (thread.peer_core_user_id) {
+    return thread.peer_core_user_id;
+  }
+
+  // ห้องรุ่นเก่าที่เคยตั้งชื่อไว้ยังอ่านได้ ไม่ถึงกับต้องทิ้ง
   if (thread.name && thread.name !== myCoreUserId) {
     return thread.name;
   }
 
-  return 'แชทส่วนตัว';
+  return null;
 }
 
 function EmptyState() {
@@ -677,6 +684,7 @@ function Thread({
   }
 
   const peer = peerOf(thread, me.id);
+  const peerLabel = peer ?? 'แชทส่วนตัว';
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
@@ -689,10 +697,12 @@ function Thread({
           ← กลับ
         </button>
 
-        <UserAvatar coreUserId={peer} size={36} />
+        <UserAvatar coreUserId={peerLabel} size={36} />
 
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold">{peer}</span>
+          <span className="block truncate text-sm font-semibold">
+            {peerLabel}
+          </span>
           <span className="block text-[11px] text-muted-foreground">
             {status === 'live'
               ? 'เชื่อมต่อสด'
@@ -704,14 +714,14 @@ function Thread({
 
         <button
           type="button"
-          onClick={() => void startCall(thread.id, peer)}
-          disabled={inCall || peer === 'แชทส่วนตัว'}
+          onClick={() => peer && void startCall(thread.id, peer)}
+          disabled={inCall || !peer}
           title={
             inCall
               ? 'อยู่ในสายอื่นอยู่'
-              : peer === 'แชทส่วนตัว'
-                ? 'ยังไม่รู้ว่าคู่สนทนาคือใคร — ดู TODO(PL) เรื่อง peer_core_user_id'
-                : `โทรหา ${peer}`
+              : peer
+                ? `โทรหา ${peer}`
+                : 'ห้องนี้ไม่มีคู่สนทนาให้โทรหา'
           }
           className="grid size-9 shrink-0 place-items-center rounded-lg border border-border transition-colors hover:bg-accent disabled:opacity-40"
           aria-label="โทรด้วยเสียง"

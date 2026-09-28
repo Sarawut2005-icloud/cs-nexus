@@ -117,6 +117,18 @@ export default function VoicePage() {
 
     if (!peer || !flags) return;
 
+    // **ยื่นได้ทีละรอบเท่านั้น**
+    //
+    // ทั้ง `negotiationneeded` ที่เบราว์เซอร์ยิงเองตอน addTrack และการ
+    // เรียกตรง ๆ ของโค้ดเรา ต่างก็พาเข้ามาที่นี่ ถ้าไม่กันไว้จะยื่นสองรอบ
+    // ติดกัน อีกฝ่ายตอบกลับมาสองใบ ใบแรกพาสายกลับสู่ stable ใบที่สองจึงชน
+    // InvalidStateError ("Called in wrong state: stable") — ซึ่งเป็น error
+    // ที่โผล่ในคอนโซลผู้ใช้จริงโดยที่ภาพยังวิ่งปกติ จึงหาต้นตอยาก
+    //
+    // ข้ามไปเฉย ๆ ได้ เพราะเบราว์เซอร์จะยิง `negotiationneeded` ซ้ำให้เอง
+    // เมื่อสายกลับสู่ stable แล้วยังมีอะไรค้างต้องเจรจา
+    if (peer.connection.signalingState !== 'stable') return;
+
     try {
       flags.makingOffer = true;
 

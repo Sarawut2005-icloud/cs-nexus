@@ -7675,6 +7675,11 @@
             "type": "number",
             "description": "จำนวนข้อความที่ยังไม่ได้อ่าน"
           },
+          "peer_core_user_id": {
+            "type": "object",
+            "nullable": true,
+            "description": "coreUserId ของคู่สนทนา (เฉพาะห้อง DM)"
+          },
           "created_at": {
             "type": "string"
           }
@@ -7688,6 +7693,7 @@
           "member_count",
           "my_role",
           "unread_count",
+          "peer_core_user_id",
           "created_at"
         ]
       },

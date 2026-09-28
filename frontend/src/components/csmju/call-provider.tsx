@@ -15,6 +15,8 @@ import { VoiceChat, type VoiceParticipant } from '@/components/ui/audio-chat';
 import { useModalFocus } from '@/components/ui/use-modal-focus';
 import { api, ApiError } from '@/lib/csmju/api';
 import { useMe } from '@/lib/csmju/session';
+import { isPolite, shouldIgnoreOffer } from '@/lib/csmju/negotiation';
+import { ScreenStage } from '@/components/csmju/screen-stage';
 import {
   bindSocket,
   connectSocket,
@@ -70,6 +72,14 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [presenting, setPresenting] = useState(false);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
+  /// จอที่ **เรา** กำลังแชร์ และจอที่ **อีกฝ่าย** กำลังแชร์
+  ///
+  /// ของเดิมไม่มีทั้งคู่: `remoteStream` ถูกยัดเข้า <audio> อย่างเดียว ภาพ
+  /// หน้าจอที่เจรจามาได้จึงไม่ถูกเรนเดอร์ที่ไหนเลย — ทั้งผู้แชร์และผู้ชม
+  /// เห็นแค่ปุ่มเปลี่ยนสถานะ แต่ไม่มีใครเห็นภาพสักคน
+  const [screenPreview, setScreenPreview] = useState<MediaStream | null>(null);
+  const [remoteVideo, setRemoteVideo] = useState<MediaStream | null>(null);
+
   /// สตรีมไมค์ของเราเอง เก็บเป็น state ไม่ใช่อ่านจาก ref ตอน render
   ///
   /// ref ไม่ทำให้ React วาดใหม่ ตัววัดระดับเสียงใน VoiceChat จึงอาจผูกกับ
@@ -100,8 +110,23 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   /// นั้นจนกว่าจะกดรับ
   const negotiationReady = useRef(false);
 
-  /// ฝั่งไหนเป็นคนยื่นข้อเสนอ — ตัดสินครั้งเดียวตอนเปิดสาย
-  const isOfferer = useRef(false);
+  /// ปลายทางของสายนี้ — ตั้งตอนเปิดสาย ไม่ใช่รออ่านจาก state
+  ///
+  /// `activeRef` ถูกอัปเดตใน effect ซึ่งทำงาน **หลัง** render จบ ส่วนการยื่น
+  /// ข้อเสนอเกิดทันทีที่รับสาย ถ้าอ่านจาก `activeRef` จะเจอ null แล้วเงียบไป
+  /// เฉย ๆ — สายไม่ติดโดยไม่มีอะไรบอก และกลายเป็นบั๊กที่ขึ้นกับจังหวะ
+  const peerIdRef = useRef<string | null>(null);
+
+  /// เราเป็นฝ่ายที่ "ยอมถอย" ของสายนี้ไหม เมื่อยื่นข้อเสนอชนกัน
+  ///
+  /// ดู `lib/csmju/negotiation.ts` ว่าทำไมต้องมี และเทียบอย่างไร
+  const polite = useRef(false);
+
+  /// กำลังยื่นข้อเสนอของเราเองอยู่ — ใช้ตรวจจับการยื่นชนกัน
+  const makingOffer = useRef(false);
+
+  /// เพิ่งเมินข้อเสนอที่ชนไป — ICE ของรอบนั้นที่ตามมาต้องเมินด้วย
+  const ignoredOffer = useRef(false);
   const unbindRef = useRef<(() => void)[]>([]);
   const me = useMe();
 
@@ -119,8 +144,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     localStream.current = null;
     screenStream.current = null;
+    setScreenPreview(null);
+    setRemoteVideo(null);
     negotiationReady.current = false;
-    isOfferer.current = false;
+    peerIdRef.current = null;
+    polite.current = false;
+    makingOffer.current = false;
+    ignoredOffer.current = false;
 
     setRemoteStream(null);
     setMicStream(null);
@@ -162,29 +192,42 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   ///
   /// การเลื่อนมาเจรจาตอนนี้ยังแก้ลำดับ ICE ไปด้วย: เบราว์เซอร์เริ่มเก็บ
   /// candidate หลัง setLocalDescription ซึ่งตอนนี้เกิดหลังอีกฝ่ายเข้าห้องแล้ว
-  const negotiate = useCallback(async () => {
+  ///
+  /// **บั๊กที่ตัวนี้แก้เพิ่ม: ผู้รับสายแชร์หน้าจอแล้วผู้โทรไม่เห็นอะไรเลย**
+  ///
+  /// ของเดิมแบ่งหน้าที่ตายตัวว่าใครเป็นฝ่ายยื่น ฝ่ายที่ไม่ได้ยื่นจะส่งสัญญาณ
+  /// `renegotiate` ไปขอให้อีกฝั่งยื่นให้แทน — ซึ่งใช้ไม่ได้ตามสเปก WebRTC
+  /// เพราะ **ฝ่ายที่ตอบเพิ่มช่องสื่อใหม่ในคำตอบไม่ได้** (JSEP บังคับว่าคำตอบ
+  /// ต้องมีจำนวน m-section เท่าข้อเสนอ) ข้อเสนอที่อีกฝั่งสร้างให้จึงไม่มีช่อง
+  /// วิดีโอมารองรับ ภาพหน้าจอไม่มีทางวิ่งไปถึง และไม่มี error ให้เห็นสักตัว
+  ///
+  /// ตอนนี้ยื่นได้ทั้งสองฝั่ง ใครเพิ่มแทร็กก็ยื่นเอง ถ้าชนกันฝ่าย polite ถอย
+  const makeOffer = useCallback(async () => {
     const connectionInstance = peer.current;
     const socket = socketRef.current;
-    const current = activeRef.current;
+    const peerCoreUserId = peerIdRef.current;
 
-    if (!connectionInstance || !socket || !current) return;
+    if (!connectionInstance || !socket || !peerCoreUserId) return;
     if (!negotiationReady.current) return;
 
-    if (!isOfferer.current) {
-      // เราไม่ใช่ฝ่ายยื่น — ขอให้อีกฝั่งเปิดรอบใหม่แทน
-      socket.emit('rtc:signal', {
-        to_core_user_id: current.peerCoreUserId,
-        kind: 'renegotiate',
-        data: null,
-      });
-
-      return;
-    }
+    // **ยื่นได้ทีละรอบเท่านั้น**
+    //
+    // ทั้ง `negotiationneeded` ที่เบราว์เซอร์ยิงเองตอน addTrack และการ
+    // เรียกตรง ๆ ของโค้ดเรา ต่างก็พาเข้ามาที่นี่ ถ้าไม่กันไว้จะยื่นสองรอบ
+    // ติดกัน อีกฝ่ายตอบกลับมาสองใบ ใบแรกพาสายกลับสู่ stable ใบที่สองจึงชน
+    // InvalidStateError ("Called in wrong state: stable") — ซึ่งเป็น error
+    // ที่โผล่ในคอนโซลผู้ใช้จริงโดยที่ภาพยังวิ่งปกติ จึงหาต้นตอยาก
+    //
+    // ข้ามไปเฉย ๆ ได้ เพราะเบราว์เซอร์จะยิง `negotiationneeded` ซ้ำให้เอง
+    // เมื่อสายกลับสู่ stable แล้วยังมีอะไรค้างต้องเจรจา
+    if (connectionInstance.signalingState !== 'stable') return;
 
     try {
-      const offer = await connectionInstance.createOffer();
+      makingOffer.current = true;
 
-      await connectionInstance.setLocalDescription(offer);
+      // เรียกแบบไม่ใส่อาร์กิวเมนต์ = ให้เบราว์เซอร์สร้างข้อเสนอที่ถูกต้อง
+      // ตามสถานะปัจจุบันเอง ปลอดภัยกว่า createOffer แล้วค่อยเซ็ตทีหลัง
+      await connectionInstance.setLocalDescription();
 
       // ต้องรอ ack — หลังบ้านปฏิเสธการส่งต่อได้ (เช่นอีกฝ่ายออกจากห้องไปแล้ว)
       // แล้วเดิมเราทิ้งคำตอบนั้น ผู้ใช้จึงเห็นแต่ "กำลังเชื่อมต่อ" ค้างไว้
@@ -193,9 +236,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         socket,
         'rtc:signal',
         {
-          to_core_user_id: current.peerCoreUserId,
+          to_core_user_id: peerCoreUserId,
           kind: 'offer',
-          data: offer,
+          data: connectionInstance.localDescription,
         },
       );
 
@@ -204,19 +247,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
     } catch {
       setError('เปิดการเชื่อมต่อเสียงไม่สำเร็จ — ลองวางแล้วโทรใหม่');
+    } finally {
+      makingOffer.current = false;
     }
   }, []);
 
   /// สร้างสาย P2P หนึ่งเส้น
   ///
-  /// `shouldOffer` ตัดสินด้วยการเทียบชื่อผู้ใช้ ทำให้ทั้งสองฝั่งได้ผลเหมือนกัน
-  /// โดยไม่ต้องคุยกันก่อน — กันกรณีทั้งคู่ยื่น offer พร้อมกันแล้วสายไม่ติด
+  /// ไม่ต้องตัดสินว่าใครเป็นฝ่ายยื่นอีกแล้ว — ยื่นได้ทั้งคู่ เทียบชื่อไว้แค่
+  /// เพื่อรู้ว่าใครถอยถ้าบังเอิญยื่นชนกัน
   const openPeer = useCallback(
     (
       socket: Socket,
       session: JoinVoiceResponse,
       peerCoreUserId: string,
-      shouldOffer: boolean,
     ) => {
       const connectionInstance = new RTCPeerConnection({
         // `username` เป็นชื่อฟิลด์ของมาตรฐาน WebRTC ไม่ใช่ตัวตนผู้ใช้
@@ -228,7 +272,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       });
 
       peer.current = connectionInstance;
-      isOfferer.current = shouldOffer;
+      peerIdRef.current = peerCoreUserId;
+      polite.current = isPolite(me.id, peerCoreUserId);
+      ignoredOffer.current = false;
 
       for (const track of localStream.current?.getTracks() ?? []) {
         connectionInstance.addTrack(track, localStream.current!);
@@ -245,7 +291,23 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       };
 
       connectionInstance.ontrack = (event) => {
-        setRemoteStream(event.streams[0] ?? null);
+        const [stream] = event.streams;
+
+        setRemoteStream(stream ?? null);
+
+        // เสียงไปเข้า <audio> ส่วนภาพต้องมีที่ให้เรนเดอร์ของมันเอง
+        if (event.track.kind !== 'video') return;
+
+        setRemoteVideo(stream ?? null);
+
+        // อีกฝ่ายหยุดแชร์ = แทร็กถูกถอดออกแล้วเจรจาใหม่ ปลายทางจะได้ `mute`
+        // ก่อน แล้วค่อยได้ `removetrack` — ดักทั้งคู่เพราะเบราว์เซอร์แต่ละตัว
+        // ยิงไม่เหมือนกัน ถ้าพลาดจะค้างเป็นภาพนิ่งเฟรมสุดท้ายแทนที่จะหายไป
+        const clear = () => setRemoteVideo(null);
+
+        event.track.addEventListener('mute', clear);
+        event.track.addEventListener('ended', clear);
+        stream?.addEventListener('removetrack', clear);
       };
 
       connectionInstance.onconnectionstatechange = () => {
@@ -265,11 +327,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
       // เบราว์เซอร์บอกเองว่าต้องเจรจาใหม่ (เช่นตอนเพิ่มแทร็กแชร์หน้าจอ)
       // negotiate() จะเงียบไว้จนกว่าทั้งสองฝ่ายจะอยู่ในห้องเสียงจริง
-      connectionInstance.onnegotiationneeded = () => void negotiate();
+      connectionInstance.onnegotiationneeded = () => void makeOffer();
 
       return connectionInstance;
     },
-    [negotiate],
+    [makeOffer, me.id],
   );
 
   /// เข้าห้องเสียงของ DM แล้วเตรียมไมค์
@@ -324,7 +386,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           ringing: true,
         });
 
-        openPeer(socket, session, peerCoreUserId, me.id < peerCoreUserId);
+        openPeer(socket, session, peerCoreUserId);
 
         const ring = await emitWithAck<{ ok: boolean; error?: string }>(
           socket,
@@ -355,7 +417,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         }
       }
     },
-    [enterSession, openPeer, teardown, leaveSession, me.id],
+    [enterSession, openPeer, teardown, leaveSession],
   );
 
   const hangUp = useCallback(async () => {
@@ -435,15 +497,14 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         ringing: false,
       });
 
-      openPeer(
-        socket,
-        session,
-        call.fromCoreUserId,
-        me.id < call.fromCoreUserId,
-      );
+      openPeer(socket, session, call.fromCoreUserId);
 
       // ผู้โทรอยู่ในห้องมาตั้งแต่ก่อนส่งกริ่ง และเราเพิ่งเข้ามา = ครบสองฝ่าย
       negotiationReady.current = true;
+
+      // ยื่นข้อเสนอเลย ไม่ต้องรอฝั่งโน้น — ถ้าเขายื่นมาพร้อมกัน กฎ polite
+      // จะตัดสินให้เองว่าใครถอย
+      void makeOffer();
 
       socket.emit('call:answer', {
         session_id: call.sessionId,
@@ -466,14 +527,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             : 'รับสายไม่สำเร็จ',
       );
     }
-  }, [
-    incoming,
-    enterSession,
-    openPeer,
-    teardown,
-    leaveSession,
-    me.id,
-  ]);
+  }, [incoming, enterSession, openPeer, teardown, leaveSession, makeOffer]);
 
   const decline = useCallback(() => {
     const call = incoming;
@@ -563,7 +617,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
               // ตอนนี้เขามีแถวผู้เข้าร่วมแล้ว หลังบ้านจึงยอมส่งต่อ SDP
               negotiationReady.current = true;
-              void negotiate();
+              void makeOffer();
             },
           ),
         );
@@ -636,35 +690,41 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
             if (!connectionInstance) return;
 
-            if (payload.kind === 'offer') {
-              await connectionInstance.setRemoteDescription(
-                payload.data as RTCSessionDescriptionInit,
-              );
-
-              const answer = await connectionInstance.createAnswer();
-
-              await connectionInstance.setLocalDescription(answer);
-
-              socket.emit('rtc:signal', {
-                to_core_user_id: payload.from_core_user_id,
-                kind: 'answer',
-                data: answer,
-              });
-
-              return;
-            }
-
-            if (payload.kind === 'answer') {
-              await connectionInstance.setRemoteDescription(
-                payload.data as RTCSessionDescriptionInit,
-              );
-
-              return;
-            }
-
             if (payload.kind === 'renegotiate') {
-              // อีกฝ่ายเพิ่มแทร็กแต่ยื่นข้อเสนอเองไม่ได้ — เราเปิดรอบให้
-              await negotiate();
+              // ไม่มีใครส่งมาแล้ว (ยื่นเองได้ทั้งคู่) แต่ยังรับไว้เพราะสัญญา
+              // ของหลังบ้านยังประกาศชนิดนี้อยู่ — ถือเป็น "ช่วยยื่นที"
+              await makeOffer();
+
+              return;
+            }
+
+            if (payload.kind === 'offer' || payload.kind === 'answer') {
+              const description = payload.data as RTCSessionDescriptionInit;
+
+              // ทั้งสองฝั่งยื่นเองได้ จึงมีจังหวะที่ยื่นชนกัน ฝ่ายที่ไม่ยอม
+              // ถอยจะเมินของอีกฝ่าย ส่วนฝ่ายที่ยอมถอยจะทิ้งของตัวเองแล้วรับ
+              // ของเขา (setRemoteDescription ม้วนกลับให้เอง)
+              ignoredOffer.current =
+                description.type === 'offer' &&
+                shouldIgnoreOffer({
+                  polite: polite.current,
+                  makingOffer: makingOffer.current,
+                  signalingState: connectionInstance.signalingState,
+                });
+
+              if (ignoredOffer.current) return;
+
+              await connectionInstance.setRemoteDescription(description);
+
+              if (description.type === 'offer') {
+                await connectionInstance.setLocalDescription();
+
+                socket.emit('rtc:signal', {
+                  to_core_user_id: payload.from_core_user_id,
+                  kind: 'answer',
+                  data: connectionInstance.localDescription,
+                });
+              }
 
               return;
             }
@@ -674,7 +734,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                 payload.data as RTCIceCandidateInit,
               );
             } catch {
-              // candidate ที่มาก่อน remote description ถูกปฏิเสธ ซึ่งไม่เป็นไร
+              // candidate ที่มาก่อน remote description หรือของรอบที่เราเมินไป
+              // ถูกปฏิเสธ ซึ่งไม่เป็นไร เบราว์เซอร์ส่งชุดใหม่มาอีก
             }
           }),
         );
@@ -694,7 +755,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
       unbindRef.current = [];
     };
-  }, [teardown, leaveSession, negotiate]);
+  }, [teardown, leaveSession, makeOffer]);
 
   useEffect(() => {
     activeRef.current = active;
@@ -721,34 +782,43 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setMuted(next);
   }
 
+  /// เลิกแชร์ให้เรียบร้อยทุกทาง
+  ///
+  /// **บั๊กที่ตัวนี้แก้: หยุดแชร์จากแถบของเบราว์เซอร์แล้วอีกฝ่ายเห็นภาพค้าง**
+  ///
+  /// ของเดิมทางนี้ (`track.onended`) แค่คืนสิทธิ์กับปรับ state ไม่ได้ถอน
+  /// แทร็กออกจากสายและไม่เจรจาใหม่ — sender ยังอยู่และ SDP ยังบอกว่ามีช่อง
+  /// วิดีโอ ฝั่งผู้ชมจึงค้างที่เฟรมสุดท้ายแทนที่จะหายไป ซึ่งอันตรายกว่าที่คิด
+  /// เพราะผู้แชร์เชื่อว่าหยุดแล้ว แต่ปลายทางยังเห็นจอค้างอยู่
+  const stopPresenting = useCallback(async (sessionId: string) => {
+    const tracks = screenStream.current?.getTracks() ?? [];
+    const trackIds = new Set(tracks.map((track) => track.id));
+
+    for (const sender of peer.current?.getSenders() ?? []) {
+      if (sender.track && trackIds.has(sender.track.id)) {
+        peer.current?.removeTrack(sender);
+      }
+    }
+
+    for (const track of tracks) {
+      track.stop();
+    }
+
+    screenStream.current = null;
+    socketRef.current?.emit('screen:release', { session_id: sessionId });
+    setScreenPreview(null);
+    setPresenting(false);
+
+    await makeOffer();
+  }, [makeOffer]);
+
   async function toggleScreen() {
     const socket = socketRef.current;
 
     if (!active || !socket) return;
 
     if (presenting) {
-      // ถอนแทร็กออกจากสายก่อน แล้วเจรจาใหม่
-      //
-      // แค่ track.stop() ไม่พอ — sender ยังอยู่ในสายและ SDP ยังบอกว่ามีช่อง
-      // วิดีโออยู่ ฝั่งผู้ชมจึงเห็นภาพค้างที่เฟรมสุดท้ายแทนที่จะหายไป
-      const tracks = screenStream.current?.getTracks() ?? [];
-      const trackIds = new Set(tracks.map((track) => track.id));
-
-      for (const sender of peer.current?.getSenders() ?? []) {
-        if (sender.track && trackIds.has(sender.track.id)) {
-          peer.current?.removeTrack(sender);
-        }
-      }
-
-      for (const track of tracks) {
-        track.stop();
-      }
-
-      screenStream.current = null;
-      socket.emit('screen:release', { session_id: active.sessionId });
-      setPresenting(false);
-
-      await negotiate();
+      await stopPresenting(active.sessionId);
 
       return;
     }
@@ -774,20 +844,19 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       for (const track of screenStream.current.getVideoTracks()) {
         peer.current?.addTrack(track, screenStream.current);
 
-        // ผู้ใช้กดหยุดแชร์จากแถบของเบราว์เซอร์เองได้ ต้องคืนสิทธิ์ตามด้วย
-        track.onended = () => {
-          socket.emit('screen:release', { session_id: active.sessionId });
-          screenStream.current = null;
-          setPresenting(false);
-        };
+        // ผู้ใช้กดหยุดแชร์จากแถบของเบราว์เซอร์เองได้ — ต้องเก็บให้เหมือน
+        // กดหยุดในแอปทุกประการ ไม่ใช่แค่คืนสิทธิ์
+        track.onended = () => void stopPresenting(active.sessionId);
       }
 
+      // ให้ผู้แชร์เห็นทันทีว่าเลือกจอไหนไป — ก่อนหน้านี้ต้องเชื่อใจว่าเลือกถูก
+      setScreenPreview(screenStream.current);
       setPresenting(true);
 
       // เพิ่มแทร็กแล้วต้องเจรจาใหม่ ไม่งั้นอีกฝ่ายไม่ได้รับภาพเลย
       // (เรียกตรง ๆ ไม่พึ่ง onnegotiationneeded อย่างเดียว เพราะลำดับการยิง
       //  ของมันต่างกันในแต่ละเบราว์เซอร์)
-      await negotiate();
+      await makeOffer();
     } catch {
       // ผู้ใช้กดยกเลิกหน้าต่างเลือกจอ — ต้องคืนสิทธิ์ ไม่งั้นห้องจะล็อกไว้
       socket.emit('screen:release', { session_id: active.sessionId });
@@ -836,6 +905,24 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
       {active && (
         <div className="fixed bottom-4 right-4 z-90 w-[min(24rem,calc(100vw-2rem))]">
+          {/* จอที่แชร์กันในสาย — วางเหนือแผงควบคุมในคอลัมน์เดียวกัน
+            * ไม่ปล่อยให้มันลอยเองที่มุมจอ ไม่งั้นจะทับแผงควบคุมพอดี
+            * แชร์ได้ทีละคนอยู่แล้ว (หลังบ้านคุมสิทธิ์) จึงไม่มีทางซ้อนกันสองจอ */}
+          {screenPreview ? (
+            <ScreenStage
+              inline
+              stream={screenPreview}
+              presenterCoreUserId={null}
+              onStopSharing={() => void toggleScreen()}
+            />
+          ) : remoteVideo ? (
+            <ScreenStage
+              inline
+              stream={remoteVideo}
+              presenterCoreUserId={active.peerCoreUserId}
+            />
+          ) : null}
+
           {active.ringing && (
             <p className="mb-2 rounded-lg bg-card px-3 py-2 text-center text-sm text-muted-foreground shadow-sm">
               กำลังโทรหา {active.peerCoreUserId}…

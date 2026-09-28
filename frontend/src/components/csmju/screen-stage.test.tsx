@@ -143,6 +143,14 @@ describe('ScreenStage', () => {
     expect(onStop).toHaveBeenCalledOnce();
   });
 
+  it('กรอบมีชื่อให้โปรแกรมอ่านหน้าจอ — แยกจากปุ่มชื่อซ้ำบนแถบควบคุม', () => {
+    render(<ScreenStage stream={fakeStream()} presenterCoreUserId={null} />);
+
+    expect(
+      screen.getByRole('region', { name: 'จอที่กำลังแชร์' }),
+    ).toBeInTheDocument();
+  });
+
   it('ผู้ชมไม่มีปุ่มหยุดแชร์ของคนอื่น', () => {
     render(
       <ScreenStage stream={fakeStream()} presenterCoreUserId="user-003" />,

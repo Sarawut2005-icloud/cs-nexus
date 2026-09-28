@@ -90,6 +90,8 @@ export interface Channel {
   member_count: number;
   my_role: ChannelRole;
   unread_count: number;
+  /// คู่สนทนาของห้อง DM — null สำหรับห้องชนิดอื่น
+  peer_core_user_id: string | null;
   created_at: string;
 }
 

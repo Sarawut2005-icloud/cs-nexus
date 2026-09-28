@@ -11,6 +11,20 @@ import type { Mock } from 'vitest';
 /// สิ่งที่ต้องพิสูจน์คือ **ทางที่ผิดพลาด**: ปฏิเสธไมค์ · อีกฝ่ายไม่รับ ·
 /// หลังบ้านปฏิเสธ — ทุกทางต้องคืนสถานะให้สะอาด ไม่ค้างสายไว้
 
+/// ปุ่ม "หยุดแชร์หน้าจอ" มีสองที่: บนแถบควบคุมของสาย และบนกรอบจอที่กำลัง
+/// แชร์ (แบบ Discord) ทั้งคู่ทำงานเดียวกัน เทสต์จึงต้องระบุให้ชัดว่าอันไหน
+function controlButton(name: string) {
+  const stage = screen.queryByRole('region', { name: 'จอที่กำลังแชร์' });
+  const matches = screen.getAllByRole('button', { name });
+  const onControls = matches.filter((button) => !stage?.contains(button));
+
+  if (onControls.length !== 1) {
+    throw new Error(`คาดว่าจะเจอปุ่ม "${name}" บนแถบควบคุมหนึ่งปุ่ม แต่เจอ ${onControls.length}`);
+  }
+
+  return onControls[0];
+}
+
 const handlers = new Map<string, (payload: unknown) => void>();
 const emitted: { event: string; payload: unknown }[] = [];
 
@@ -56,10 +70,19 @@ class FakePeerConnection {
   }
 
   onicecandidate: ((event: { candidate: unknown }) => void) | null = null;
-  ontrack: ((event: { streams: unknown[] }) => void) | null = null;
+  ontrack:
+    | ((event: { streams: unknown[]; track: { kind: string; addEventListener: () => void } }) => void)
+    | null = null;
   onconnectionstatechange: (() => void) | null = null;
+  onnegotiationneeded: (() => void) | null = null;
 
   connectionState = 'new';
+
+  /// สถานะการเจรจา — จำเป็นตั้งแต่ย้ายมาใช้ perfect negotiation
+  ///
+  /// กฎ "ยื่นชนกันแล้วใครถอย" อ่านค่านี้ตัดสิน ถ้าของปลอมค้างที่ 'stable'
+  /// ตลอด เทสต์จะไม่มีทางเดินเข้าเส้นทางที่ชนกันเลยสักครั้ง
+  signalingState: RTCSignalingState = 'stable';
   closed = false;
   localDescription: unknown = null;
   remoteDescription: unknown = null;
@@ -105,12 +128,28 @@ class FakePeerConnection {
     return { type: 'answer', sdp: 'fake-answer' };
   }
 
-  async setLocalDescription(description: unknown) {
-    this.localDescription = description;
+  /// เรียกแบบไม่ใส่อาร์กิวเมนต์ได้ = เบราว์เซอร์ตัดสินเองว่าเป็น offer
+  /// หรือ answer ตามสถานะปัจจุบัน ซึ่งเป็นท่ามาตรฐานของ perfect negotiation
+  async setLocalDescription(description?: unknown) {
+    const resolved =
+      description ??
+      (this.signalingState === 'have-remote-offer'
+        ? { type: 'answer', sdp: 'fake-answer' }
+        : { type: 'offer', sdp: 'fake-offer' });
+
+    this.localDescription = resolved;
+    this.signalingState =
+      (resolved as { type: string }).type === 'offer'
+        ? 'have-local-offer'
+        : 'stable';
   }
 
   async setRemoteDescription(description: unknown) {
     this.remoteDescription = description;
+    this.signalingState =
+      (description as { type?: string })?.type === 'offer'
+        ? 'have-remote-offer'
+        : 'stable';
   }
 
   async addIceCandidate(candidate: unknown) {
@@ -587,9 +626,7 @@ describe('เก็บสายให้สะอาดทุกทาง', () =
     await userEvent.click(screen.getByRole('button', { name: 'แชร์หน้าจอ' }));
 
     await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: 'หยุดแชร์หน้าจอ' }),
-      ).toBeInTheDocument(),
+      expect(controlButton('หยุดแชร์หน้าจอ')).toBeInTheDocument(),
     );
 
     await userEvent.click(screen.getByRole('button', { name: 'วางสาย' }));
@@ -663,6 +700,21 @@ describe('WebRTC', () => {
     expect(FakePeerConnection.latest().addedTracks).toEqual([micStream.track]);
   });
 
+  /// อีกฝ่ายตอบ `answer` กลับมา = จบการจับมือหนึ่งรอบ สายกลับสู่ stable
+  ///
+  /// **ต้องเรียกทุกครั้งหลังยื่น offer** ไม่งั้นสายจะค้างที่ have-local-offer
+  /// แล้วรอบเจรจาถัดไปจะถูกข้ามด้วยกฎ "ยื่นได้ทีละรอบ" ซึ่งเป็นพฤติกรรมที่
+  /// ถูกต้องของโค้ดจริง — ของปลอมที่ไม่เคยตอบกลับต่างหากที่ไม่เหมือนจริง
+  async function peerAnswers(fromCoreUserId = 'bbb-peer') {
+    await act(async () => {
+      await handlers.get('rtc:signal')?.({
+        from_core_user_id: fromCoreUserId,
+        kind: 'answer',
+        data: { type: 'answer', sdp: 'ของอีกฝ่าย' },
+      });
+    });
+  }
+
   function offersSent() {
     return emitted.filter(
       (row) =>
@@ -712,12 +764,12 @@ describe('WebRTC', () => {
     });
   });
 
-  it('ฝั่งที่ชื่อมากกว่าไม่ยื่น offer เอง แต่ตอบ answer ได้', async () => {
-    // ตัดสินด้วยการเทียบชื่อ ทั้งสองฝั่งจึงได้ผลตรงกันโดยไม่ต้องคุยกันก่อน
-    // ถ้าทั้งคู่ยื่นพร้อมกัน สายจะไม่ติดแบบเงียบ ๆ
+  it('**ผู้รับสายยื่น offer เองได้ ไม่ต้องรอฝั่งโน้น**', async () => {
+    // เดิมแบ่งหน้าที่ตายตัวว่าใครเป็นฝ่ายยื่นด้วยการเทียบชื่อ ฝั่งที่ชื่อ
+    // มากกว่าจึงเงียบตลอด และเวลาฝั่งนั้นเพิ่มแทร็ก (เช่นแชร์หน้าจอ) ก็ต้อง
+    // ไปขอให้อีกฝั่งยื่นให้ ซึ่งใช้ไม่ได้ตามสเปก — ดู makeOffer
     //
-    // ผู้รับสายในเทสต์นี้คือ aaa-caller ส่วนผู้โทรคือ ccc-friend
-    // (aaa < ccc) จึงเป็นฝ่ายยื่น — สลับให้ชื่อเรามากกว่าเพื่อทดสอบอีกด้าน
+    // ตอนนี้ยื่นเองได้ทั้งคู่ ถ้าชนกันกฎ polite ตัดสินให้เอง
     await renderProvider();
 
     act(() => {
@@ -736,9 +788,10 @@ describe('WebRTC', () => {
       await Promise.resolve();
     });
 
-    expect(offersSent()).toHaveLength(0);
+    expect(offersSent()).toHaveLength(1);
 
-    // ได้ offer จากเขาแล้วต้องตอบ answer กลับได้ตามปกติ
+    // ยื่นไปแล้วแต่ของเขามาชนพอดี — เราชื่อมากกว่า (aaa > AAA) จึงเป็นฝ่าย
+    // ยอมถอย ต้องทิ้งของตัวเองแล้วตอบ answer ให้เขา ไม่ใช่เมินแล้วค้างกันทั้งคู่
     await act(async () => {
       await handlers.get('rtc:signal')?.({
         from_core_user_id: 'AAA-earlier',
@@ -756,9 +809,13 @@ describe('WebRTC', () => {
     ).toBe(true);
   });
 
-  it('ฝ่ายที่ไม่ได้ยื่น ขอให้อีกฝ่ายเปิดรอบใหม่ตอนแชร์หน้าจอ', async () => {
-    // ผู้ยื่นถูกตัดสินด้วยชื่อ ถ้าฝ่ายที่ไม่ได้ยื่นเพิ่มแทร็กหน้าจอ
-    // จะไม่มีใครสร้าง offer ให้เลย แล้วอีกฝ่ายก็ไม่เห็นภาพ
+  it('**ผู้รับสายแชร์หน้าจอแล้วยื่น offer เอง ไม่ใช่ไปขอให้อีกฝ่ายยื่น**', async () => {
+    // บั๊กเดิม: ฝั่งที่ไม่ได้ถูกเลือกให้เป็นผู้ยื่น จะส่ง `renegotiate` ไปขอ
+    // ให้อีกฝั่งเปิดรอบให้ — แต่ข้อเสนอที่อีกฝั่งสร้างมีเฉพาะช่องสื่อของเขา
+    // เอง ส่วนแทร็กหน้าจอของเราไม่มีช่องรองรับ และเราเพิ่มช่องในคำตอบไม่ได้
+    // (JSEP บังคับว่าคำตอบต้องมี m-section เท่าข้อเสนอ)
+    //
+    // ผลคือผู้รับสายกดแชร์จอแล้วผู้โทรไม่เห็นอะไรเลย ไม่มี error สักตัว
     await renderProvider();
 
     act(() => {
@@ -772,17 +829,45 @@ describe('WebRTC', () => {
     await userEvent.click(screen.getByRole('button', { name: /รับสาย/ }));
     await waitFor(() => expect(apiPost).toHaveBeenCalled());
 
+    const before = offersSent().length;
+
+    // จับมือรอบแรกให้จบก่อน ไม่งั้นสายยังค้างที่ have-local-offer
+    await peerAnswers('AAA-earlier');
+
     await userEvent.click(screen.getByRole('button', { name: 'แชร์หน้าจอ' }));
 
-    await waitFor(() =>
-      expect(
-        emitted.some(
-          (row) =>
-            row.event === 'rtc:signal' &&
-            (row.payload as { kind?: string }).kind === 'renegotiate',
-        ),
-      ).toBe(true),
-    );
+    // ยื่นเองจริง
+    await waitFor(() => expect(offersSent().length).toBe(before + 1));
+
+    // และไม่ไปขอใครให้ยื่นแทน
+    expect(
+      emitted.some(
+        (row) =>
+          row.event === 'rtc:signal' &&
+          (row.payload as { kind?: string }).kind === 'renegotiate',
+      ),
+    ).toBe(false);
+  });
+
+  it('ผู้แชร์เห็นจอของตัวเองระหว่างอยู่ในสาย', async () => {
+    // ของเดิม remoteStream ถูกยัดเข้า <audio> อย่างเดียว ภาพหน้าจอที่เจรจา
+    // มาได้จึงไม่ถูกเรนเดอร์ที่ไหนเลย — ไม่มีใครเห็นภาพสักฝ่าย
+    await renderProvider();
+    await callOut();
+
+    act(() => {
+      handlers.get('call:answered')?.({
+        accepted: true,
+        from_core_user_id: 'bbb-peer',
+      });
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'แชร์หน้าจอ' }));
+
+    expect(
+      await screen.findByRole('region', { name: 'จอที่กำลังแชร์' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('คุณกำลังแชร์หน้าจอนี้')).toBeInTheDocument();
   });
 
   it('หลังบ้านส่งสัญญาณต่อไม่ได้ = บอกผู้ใช้ ไม่ใช่ค้างที่กำลังเชื่อมต่อ', async () => {
@@ -819,6 +904,7 @@ describe('WebRTC', () => {
     });
 
     await waitFor(() => expect(offersSent()).toHaveLength(1));
+    await peerAnswers();
 
     await act(async () => {
       await handlers.get('rtc:signal')?.({
@@ -895,6 +981,7 @@ describe('WebRTC', () => {
     });
 
     await waitFor(() => expect(offersSent()).toHaveLength(1));
+    await peerAnswers();
 
     await userEvent.click(screen.getByRole('button', { name: 'แชร์หน้าจอ' }));
 
@@ -920,13 +1007,13 @@ describe('WebRTC', () => {
     });
 
     await waitFor(() => expect(offersSent()).toHaveLength(1));
+    await peerAnswers();
 
     await userEvent.click(screen.getByRole('button', { name: 'แชร์หน้าจอ' }));
     await waitFor(() => expect(offersSent()).toHaveLength(2));
+    await peerAnswers();
 
-    await userEvent.click(
-      screen.getByRole('button', { name: 'หยุดแชร์หน้าจอ' }),
-    );
+    await userEvent.click(controlButton('หยุดแชร์หน้าจอ'));
 
     const peer = FakePeerConnection.latest();
 
