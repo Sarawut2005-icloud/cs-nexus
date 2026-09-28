@@ -1,0 +1,221 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Maximize2,
+  Minimize2,
+  MonitorUp,
+  MonitorX,
+  Minus,
+  X,
+} from 'lucide-react';
+import { UserName } from '@/components/csmju/user-name';
+
+/// จอที่กำลังแชร์ — แบบเดียวกับ Discord
+///
+/// **บั๊กที่ตัวนี้แก้เป็นอย่างแรก: ผู้แชร์ไม่เห็นว่าตัวเองแชร์อะไรอยู่**
+///
+/// ของเดิมเรนเดอร์เฉพาะตอน `presenter !== me.id` คนที่กดแชร์จึงเห็นแค่ปุ่ม
+/// เปลี่ยนเป็น "หยุดแชร์หน้าจอ" แล้วต้องเชื่อใจว่าเลือกจอถูก — ซึ่งเป็น
+/// สาเหตุอันดับหนึ่งของอุบัติเหตุแชร์ผิดจอ (แชร์ทั้งเดสก์ท็อปทั้งที่ตั้งใจ
+/// แชร์แค่หน้าต่างเดียว แล้วอีเมลหรือแชทส่วนตัวโผล่ให้คนทั้งห้องเห็น)
+///
+/// บั๊กที่สอง: ของเดิมใส่ stream เดียวกับที่ `RemoteAudio` เล่นอยู่ลงใน
+/// `<video>` โดยไม่ได้ใส่ `muted` เสียงของผู้แชร์จึงดังสองรอบซ้อนกัน
+
+export type StageSize = 'mini' | 'normal' | 'full';
+
+interface Props {
+  stream: MediaStream | null;
+  /// `null` = เป็นจอของเราเอง
+  presenterCoreUserId: string | null;
+  /// ผู้แชร์กดหยุดได้จากตรงนี้เลย ไม่ต้องเลื่อนไปหาปุ่มข้างล่าง
+  onStopSharing?: () => void;
+}
+
+const SIZE_CLASS: Record<Exclude<StageSize, 'full'>, string> = {
+  mini: 'w-64',
+  normal: 'w-[min(32rem,calc(100vw-2rem))]',
+};
+
+export function ScreenStage({
+  stream,
+  presenterCoreUserId,
+  onStopSharing,
+}: Props) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const [size, setSize] = useState<StageSize>('normal');
+  const [hidden, setHidden] = useState(false);
+
+  const isMine = presenterCoreUserId === null;
+
+  useEffect(() => {
+    const video = videoRef.current;
+
+    if (!video) return;
+
+    // ตั้งเป็น null ตอนไม่มี stream ด้วย ไม่งั้นเฟรมสุดท้ายจะค้างบนจอ
+    // หลังคนแชร์หยุดไปแล้ว — ผู้ชมจะนึกว่ายังแชร์อยู่
+    video.srcObject = stream;
+  }, [stream]);
+
+  /// ออกจากโหมดเต็มจอเมื่อผู้ใช้กด Esc หรือออกทางอื่น
+  useEffect(() => {
+    const sync = () => {
+      if (!document.fullscreenElement) {
+        setSize((current) => (current === 'full' ? 'normal' : current));
+      }
+    };
+
+    document.addEventListener('fullscreenchange', sync);
+
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
+
+  const toggleFull = useCallback(() => {
+    const frame = frameRef.current;
+
+    if (!frame) return;
+
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined);
+
+      return;
+    }
+
+    // เบราว์เซอร์บางตัวปฏิเสธถ้าไม่ได้มาจากการกดของผู้ใช้ — ล้มแล้วก็แค่
+    // ไม่เต็มจอ ไม่ควรทำให้ทั้งหน้าพัง
+    void frame
+      .requestFullscreen()
+      .then(() => setSize('full'))
+      .catch(() => undefined);
+  }, []);
+
+  if (!stream) return null;
+
+  if (hidden) {
+    return (
+      <button
+        type="button"
+        onClick={() => setHidden(false)}
+        className="csmju-surface fixed bottom-24 right-4 z-40 flex items-center gap-2 px-3 py-2 text-csmju-label shadow-csmju-lg lg:bottom-4"
+      >
+        <MonitorUp aria-hidden className="size-4 text-primary" />
+        {isMine ? 'คุณกำลังแชร์หน้าจอ' : 'มีคนกำลังแชร์หน้าจอ'}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      ref={frameRef}
+      // ลอยอยู่มุมขวาล่างเหมือน Discord — ไม่ใช่ modal ที่บังทั้งหน้า
+      // เพราะระหว่างดูจอคนอื่น ผู้ใช้ยังต้องพิมพ์แชทและดูรายชื่อคนในห้องได้
+      className={
+        size === 'full'
+          ? 'fixed inset-0 z-50 flex flex-col bg-black'
+          : `csmju-surface fixed bottom-24 right-4 z-40 overflow-hidden shadow-csmju-lg lg:bottom-4 ${SIZE_CLASS[size]}`
+      }
+    >
+      <div
+        className={`flex items-center gap-2 px-2.5 py-1.5 ${
+          size === 'full'
+            ? 'bg-black/80 text-white'
+            : 'border-b border-border bg-card'
+        }`}
+      >
+        <span
+          aria-hidden
+          className="size-1.5 shrink-0 animate-pulse rounded-full bg-destructive"
+        />
+
+        <span className="min-w-0 flex-1 truncate text-csmju-caption">
+          {isMine ? (
+            <span className="font-medium text-primary">
+              คุณกำลังแชร์หน้าจอนี้
+            </span>
+          ) : (
+            <>
+              <UserName coreUserId={presenterCoreUserId} /> กำลังแชร์หน้าจอ
+            </>
+          )}
+        </span>
+
+        {isMine && onStopSharing && (
+          <button
+            type="button"
+            onClick={onStopSharing}
+            aria-label="หยุดแชร์หน้าจอ"
+            title="หยุดแชร์หน้าจอ"
+            className="grid size-6 place-items-center rounded-md text-destructive transition-colors hover:bg-destructive/10"
+          >
+            <MonitorX aria-hidden className="size-3.5" />
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setSize(size === 'mini' ? 'normal' : 'mini')}
+          aria-label={size === 'mini' ? 'ขยายจอ' : 'ย่อจอ'}
+          title={size === 'mini' ? 'ขยายจอ' : 'ย่อจอ'}
+          className="grid size-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+        >
+          {size === 'mini' ? (
+            <Maximize2 aria-hidden className="size-3.5" />
+          ) : (
+            <Minus aria-hidden className="size-3.5" />
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleFull}
+          aria-label={size === 'full' ? 'ออกจากเต็มจอ' : 'ดูเต็มจอ'}
+          title={size === 'full' ? 'ออกจากเต็มจอ' : 'ดูเต็มจอ'}
+          className="grid size-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+        >
+          {size === 'full' ? (
+            <Minimize2 aria-hidden className="size-3.5" />
+          ) : (
+            <Maximize2 aria-hidden className="size-3.5" />
+          )}
+        </button>
+
+        {size !== 'full' && (
+          <button
+            type="button"
+            onClick={() => setHidden(true)}
+            aria-label="ซ่อนจอที่แชร์"
+            title="ซ่อนจอที่แชร์"
+            className="grid size-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
+            <X aria-hidden className="size-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* จอที่แชร์สดไม่มีคำบรรยายให้ใส่ — ข้อความอธิบายว่าใครกำลังแชร์
+          อยู่ในแถบหัวข้างบน และ `aria-label` ข้างล่างบอกซ้ำให้เครื่องอ่านหน้าจอ */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        // **ต้อง muted เสมอ**
+        //
+        // จอของเราเอง: ไม่งั้นเสียงจากเครื่องตัวเองวนกลับเข้าไมค์
+        // จอคนอื่น: เสียงของเขาถูกเล่นโดย <RemoteAudio> อยู่แล้ว ใส่ซ้ำ
+        //           ที่นี่จะได้ยินเป็นสองเสียงซ้อนกัน (บั๊กเดิม)
+        muted
+        aria-label={
+          isMine ? 'หน้าจอที่คุณกำลังแชร์' : 'หน้าจอที่อีกฝ่ายกำลังแชร์'
+        }
+        className={
+          size === 'full'
+            ? 'min-h-0 w-full flex-1 bg-black object-contain'
+            : 'aspect-video w-full bg-black object-contain'
+        }
+      />
+    </div>
+  );
+}

@@ -17,6 +17,8 @@ import { Avatar, UserName } from '@/components/csmju/user-name';
 import { ConnectivityCheck } from '@/components/csmju/connectivity-check';
 import { api, ApiError } from '@/lib/csmju/api';
 import { useMe } from '@/lib/csmju/session';
+import { isPolite, shouldIgnoreOffer } from '@/lib/csmju/negotiation';
+import { ScreenStage } from '@/components/csmju/screen-stage';
 import {
   bindSocket,
   connectSocket,
@@ -39,11 +41,18 @@ interface PeerState {
   coreUserId: string;
   connection: RTCPeerConnection;
   stream: MediaStream | null;
-  /// เราเป็นฝ่ายยื่นข้อเสนอของสายนี้ไหม (ตัดสินด้วยการเทียบชื่อตอนเปิดสาย)
-  ///
-  /// ต้องจำไว้ เพราะตอนเพิ่มแทร็กหน้าจอต้องรู้ว่าจะยื่น offer เองได้ไหม
-  /// หรือต้องขอให้อีกฝั่งยื่นให้ — ถ้าทั้งคู่ยื่นพร้อมกัน สายจะพังเงียบ ๆ
-  isOfferer: boolean;
+}
+
+/// ธงของการเจรจาหนึ่งสาย — ดู `makeOffer` ว่าใช้ทำอะไร
+///
+/// **ต้องแยกออกจาก `PeerState`** เพราะ `PeerState` ถูกคัดลอกใหม่ทุกครั้งที่
+/// React ต้องวาดหน้าใหม่ ถ้าเก็บธงไว้ในนั้น ตัวที่ event handler ถืออยู่กับ
+/// ตัวที่อ่านตอนรับสัญญาณจะคนละใบกัน แล้วการตรวจจับการยื่นชนกันจะเพี้ยน
+interface Negotiation {
+  /// เรากำลังยื่นข้อเสนอของเราเองอยู่
+  makingOffer: boolean;
+  /// เพิ่งเมินข้อเสนอที่ชนกันไป — ICE ของรอบนั้นที่ตามมาต้องเมินด้วย
+  ignoredOffer: boolean;
 }
 
 export default function VoicePage() {
@@ -52,6 +61,13 @@ export default function VoicePage() {
   const [peers, setPeers] = useState<Record<string, PeerState>>({});
   const [muted, setMuted] = useState(false);
   const [presenter, setPresenter] = useState<string | null>(null);
+
+  /// จอที่ **เรา** กำลังแชร์ — เก็บเป็น state ไม่ใช่แค่ ref
+  ///
+  /// `screenStream` เป็น ref เพราะโค้ดจัดการสายต้องอ่านค่าล่าสุดเสมอ
+  /// แต่ ref เปลี่ยนแล้ว React ไม่วาดใหม่ ถ้าใช้ ref อย่างเดียวผู้แชร์จะไม่
+  /// เห็นจอตัวเองจนกว่าจะมีอย่างอื่นบังเอิญทำให้หน้าวาดใหม่
+  const [myScreen, setMyScreen] = useState<MediaStream | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -60,6 +76,7 @@ export default function VoicePage() {
   const localStream = useRef<MediaStream | null>(null);
   const screenStream = useRef<MediaStream | null>(null);
   const peersRef = useRef<Record<string, PeerState>>({});
+  const negotiationRef = useRef<Record<string, Negotiation>>({});
   const iceServers = useRef<RTCIceServer[]>([]);
   const unbindRef = useRef<(() => void)[]>([]);
 
@@ -79,49 +96,44 @@ export default function VoicePage() {
       );
   }, []);
 
-  /// สร้างการเชื่อมต่อไปยังเพื่อนหนึ่งคน
+  /// ยื่นข้อเสนอรอบใหม่ให้สายหนึ่งเส้น
   ///
-  /// `polite` ตัดสินว่าใครเป็นฝ่ายยื่น offer เพื่อไม่ให้ทั้งสองฝ่ายยื่นพร้อมกัน
-  /// (glare) — ใช้การเทียบชื่อผู้ใช้เป็นเกณฑ์ตายตัว ทำให้ทั้งสองฝั่งได้ผลเหมือนกัน
-  /// โดยไม่ต้องคุยกันก่อน
-  /// เปิดรอบเจรจาใหม่กับสายหนึ่งเส้น
+  /// **บั๊กที่ตัวนี้แก้: แชร์หน้าจอแล้วคนอื่นไม่เห็นอะไรเลย**
   ///
-  /// **บั๊กที่ตัวนี้แก้: แชร์หน้าจอแล้วอีกฝั่งไม่เห็นอะไรเลย**
+  /// ของเดิมแบ่งหน้าที่ตายตัวว่าใครเป็น "ฝ่ายยื่น" ตั้งแต่ตอนเปิดสาย
+  /// ฝ่ายที่ไม่ได้ยื่นจะส่งสัญญาณ `renegotiate` ไปขอให้อีกฝั่งยื่นให้แทน
   ///
-  /// การ addTrack เข้า RTCPeerConnection ที่ต่ออยู่แล้ว ไม่ทำให้ภาพวิ่งไปเอง
-  /// ต้องมีรอบ offer/answer ใหม่เสมอ ของเดิมเพิ่มแทร็กแล้วจบ ผู้แชร์จึงเห็น
-  /// แถบ "คุณกำลังแชร์หน้าจอ" ของเบราว์เซอร์และ UI ขึ้นว่าแชร์อยู่ แต่ปลายทาง
-  /// ไม่เคยได้รับอะไร — ไม่มี error ให้เห็นสักตัว
+  /// วิธีนั้นใช้ไม่ได้เลยตามสเปก WebRTC: **ฝ่ายที่ตอบเพิ่มช่องสื่อใหม่ใน
+  /// คำตอบไม่ได้** (JSEP บังคับว่าคำตอบต้องมีจำนวน m-section เท่าข้อเสนอ)
+  /// พอฝ่ายที่ไม่ได้ยื่นเป็นคนกดแชร์จอ อีกฝั่งจึงสร้างข้อเสนอที่ไม่มีช่อง
+  /// วิดีโอมาให้ ภาพจึงไม่มีทางวิ่งไปถึง — และไม่มี error ให้เห็นสักตัว
   ///
-  /// ฝ่ายยื่นถูกตัดสินด้วยการเทียบชื่อตอนเปิดสาย ถ้าเราไม่ใช่ฝ่ายยื่น
-  /// ต้องขอให้อีกฝั่งเปิดรอบให้ ไม่ใช่ยื่นเองซ้อนกัน
-  const renegotiate = useCallback(async (peer: PeerState) => {
-    const socket = socketRef.current;
+  /// ตัวใหม่ใช้ perfect negotiation ตามสเปก: **ยื่นได้ทั้งสองฝั่ง** ใครเพิ่ม
+  /// แทร็กก็ยื่นเอง ถ้าบังเอิญยื่นชนกัน ฝ่าย "polite" จะถอยให้เอง (ดูตัวรับ
+  /// สัญญาณข้างล่าง) จึงไม่ต้องมีใครขออนุญาตใครอีก
+  const makeOffer = useCallback(async (coreUserId: string) => {
+    const peer = peersRef.current[coreUserId];
+    const flags = negotiationRef.current[coreUserId];
 
-    if (!socket) return;
-
-    if (!peer.isOfferer) {
-      socket.emit('rtc:signal', {
-        to_core_user_id: peer.coreUserId,
-        kind: 'renegotiate',
-        data: null,
-      });
-
-      return;
-    }
+    if (!peer || !flags) return;
 
     try {
-      const offer = await peer.connection.createOffer();
+      flags.makingOffer = true;
 
-      await peer.connection.setLocalDescription(offer);
+      // เรียกแบบไม่ใส่อาร์กิวเมนต์ = ให้เบราว์เซอร์สร้างข้อเสนอที่ถูกต้อง
+      // ตามสถานะปัจจุบันเอง ปลอดภัยกว่า createOffer แล้วค่อยเซ็ตทีหลัง
+      // เพราะระหว่างสอง await นั้นสถานะอาจเปลี่ยนไปแล้ว
+      await peer.connection.setLocalDescription();
 
-      socket.emit('rtc:signal', {
-        to_core_user_id: peer.coreUserId,
+      socketRef.current?.emit('rtc:signal', {
+        to_core_user_id: coreUserId,
         kind: 'offer',
-        data: offer,
+        data: peer.connection.localDescription,
       });
     } catch {
       setError('เปิดรอบเชื่อมต่อใหม่ไม่สำเร็จ — ลองหยุดแล้วแชร์ใหม่');
+    } finally {
+      flags.makingOffer = false;
     }
   }, []);
 
@@ -148,14 +160,14 @@ export default function VoicePage() {
     }
 
     screenStream.current = null;
+    setMyScreen(null);
 
-    for (const peer of Object.values(peersRef.current)) {
-      await renegotiate(peer);
-    }
-  }, [renegotiate]);
+    // ไม่ต้องสั่งเจรจาเอง — `removeTrack` จุด `negotiationneeded` ให้แล้ว
+  }, []);
 
+  /// เปิดสายไปหาคนหนึ่งคน (เรียกซ้ำได้ ได้สายเดิมกลับไป)
   const createPeer = useCallback(
-    (coreUserId: string, shouldOffer: boolean) => {
+    (coreUserId: string) => {
       const existing = peersRef.current[coreUserId];
 
       if (existing) {
@@ -170,11 +182,20 @@ export default function VoicePage() {
         coreUserId,
         connection,
         stream: null,
-        isOfferer: shouldOffer,
       };
 
       peersRef.current = { ...peersRef.current, [coreUserId]: state };
+      negotiationRef.current[coreUserId] = {
+        makingOffer: false,
+        ignoredOffer: false,
+      };
       setPeers({ ...peersRef.current });
+
+      // ผูกก่อนเพิ่มแทร็ก — event นี้ถูกยิงแบบ async ก็จริง แต่ผูกทีหลัง
+      // แล้วอ่านยากว่ารอบแรกใครเป็นคนจุด
+      connection.onnegotiationneeded = () => {
+        void makeOffer(coreUserId);
+      };
 
       for (const track of localStream.current?.getTracks() ?? []) {
         connection.addTrack(track, localStream.current!);
@@ -214,23 +235,9 @@ export default function VoicePage() {
         }
       };
 
-      if (shouldOffer) {
-        void (async () => {
-          const offer = await connection.createOffer();
-
-          await connection.setLocalDescription(offer);
-
-          socketRef.current?.emit('rtc:signal', {
-            to_core_user_id: coreUserId,
-            kind: 'offer',
-            data: offer,
-          });
-        })();
-      }
-
       return state;
     },
-    [],
+    [makeOffer],
   );
 
   /// ต้อง memoize เพราะ cleanup ตอน unmount พึ่งมัน
@@ -244,6 +251,7 @@ export default function VoicePage() {
     }
 
     peersRef.current = {};
+    negotiationRef.current = {};
     setPeers({});
 
     for (const track of localStream.current?.getTracks() ?? []) {
@@ -307,38 +315,52 @@ export default function VoicePage() {
           kind: 'offer' | 'answer' | 'ice' | 'renegotiate';
           data: unknown;
         }>(socket, 'rtc:signal', async (payload) => {
-          // ฝั่งที่ได้ offer ไม่ต้องยื่น offer กลับ
-          const peer = createPeer(payload.from_core_user_id, false);
-
-          if (payload.kind === 'offer') {
-            await peer.connection.setRemoteDescription(
-              payload.data as RTCSessionDescriptionInit,
-            );
-
-            const answer = await peer.connection.createAnswer();
-
-            await peer.connection.setLocalDescription(answer);
-
-            socket.emit('rtc:signal', {
-              to_core_user_id: payload.from_core_user_id,
-              kind: 'answer',
-              data: answer,
-            });
-
-            return;
-          }
-
-          if (payload.kind === 'answer') {
-            await peer.connection.setRemoteDescription(
-              payload.data as RTCSessionDescriptionInit,
-            );
-
-            return;
-          }
+          const peer = createPeer(payload.from_core_user_id);
+          const flags = negotiationRef.current[payload.from_core_user_id];
 
           if (payload.kind === 'renegotiate') {
-            // อีกฝั่งเพิ่มแทร็กแต่ยื่นข้อเสนอเองไม่ได้ — เราเปิดรอบให้
-            await renegotiate(peer);
+            // ไม่มีใครในหน้านี้ส่งมาแล้ว (ทั้งสองฝั่งยื่นเองได้) แต่ยังรับไว้
+            // เพราะสัญญาของหลังบ้านยังประกาศชนิดนี้อยู่ — ถือเป็น "ช่วยยื่นที"
+            await makeOffer(payload.from_core_user_id);
+
+            return;
+          }
+
+          if (payload.kind === 'offer' || payload.kind === 'answer') {
+            const description = payload.data as RTCSessionDescriptionInit;
+
+            // **หัวใจของ perfect negotiation**
+            //
+            // ทั้งสองฝั่งยื่นข้อเสนอเองได้ จึงมีจังหวะที่ยื่นชนกัน (glare)
+            // เช่นคนหนึ่งกดแชร์จอพอดีกับที่อีกคนเพิ่งเข้าห้อง
+            //
+            // ทางออกคือกำหนดล่วงหน้าว่าใคร "ยอมถอย" ด้วยการเทียบ id ซึ่ง
+            // ทั้งสองฝั่งคำนวณได้ตรงกันโดยไม่ต้องคุยกันก่อน ฝ่ายที่ยอมถอย
+            // จะทิ้งข้อเสนอของตัวเองแล้วรับของอีกฝ่าย (setRemoteDescription
+            // ม้วนกลับให้เอง) ส่วนฝ่ายที่ไม่ยอมถอยก็เมินข้อเสนอที่ชนเข้ามา
+            //
+            // ถ้าไม่มีกลไกนี้ สายจะค้างที่ have-local-offer ทั้งคู่ถาวร
+            flags.ignoredOffer =
+              description.type === 'offer' &&
+              shouldIgnoreOffer({
+                polite: isPolite(me.id, payload.from_core_user_id),
+                makingOffer: flags.makingOffer,
+                signalingState: peer.connection.signalingState,
+              });
+
+            if (flags.ignoredOffer) return;
+
+            await peer.connection.setRemoteDescription(description);
+
+            if (description.type === 'offer') {
+              await peer.connection.setLocalDescription();
+
+              socket.emit('rtc:signal', {
+                to_core_user_id: payload.from_core_user_id,
+                kind: 'answer',
+                data: peer.connection.localDescription,
+              });
+            }
 
             return;
           }
@@ -348,8 +370,8 @@ export default function VoicePage() {
               payload.data as RTCIceCandidateInit,
             );
           } catch {
-            // candidate ที่มาก่อน remote description จะถูกปฏิเสธ
-            // ซึ่งไม่เป็นไรเพราะเบราว์เซอร์จะส่งชุดใหม่มาอีก
+            // candidate ที่มาก่อน remote description หรือของรอบที่เราเมินไป
+            // จะถูกปฏิเสธ ซึ่งไม่เป็นไรเพราะเบราว์เซอร์ส่งชุดใหม่มาอีก
           }
         }),
       );
@@ -366,12 +388,29 @@ export default function VoicePage() {
         ),
       );
 
-      // ยื่น offer ไปหาคนที่อยู่ในห้องก่อนเราเข้ามา
-      // เกณฑ์: ใครชื่อ "น้อยกว่า" เป็นฝ่ายยื่น เพื่อไม่ให้ทั้งคู่ยื่นพร้อมกัน
+      // **คนที่เพิ่งเข้ามาเป็นฝ่ายยื่น offer เสมอ**
+      //
+      // บั๊กเดิม: ใช้เกณฑ์ `me.id < participant.coreUserId` เพื่อกันไม่ให้
+      // ทั้งคู่ยื่นพร้อมกัน — แต่เกณฑ์นั้นใช้ได้เฉพาะเมื่อ **ทั้งสองฝั่ง**
+      // รู้จักกัน ซึ่งไม่จริงในโฟลว์นี้
+      //
+      // ลูปนี้วิ่งเฉพาะตอนเราเข้าห้อง และเห็นเฉพาะคนที่อยู่ก่อนเราเท่านั้น
+      // ส่วนคนที่อยู่ก่อนไม่มีทางรู้ว่าเราเข้ามา (ไม่มี event บอก) ผลคือ
+      // ถ้าชื่อเราเรียงทีหลังเขา จะไม่มีใครยื่นเลยสักฝ่าย — สายค้างตลอดกาล
+      //
+      //   ฝั่งคนเก่า  ขึ้นว่า "รอสัญญาณ"    (ไม่มี peer ด้วยซ้ำ)
+      //   ฝั่งคนใหม่  ขึ้นว่า "กำลังต่อสาย…" (มี peer แต่ไม่ยื่น)
+      //
+      // อาการจึงเป็น "บางคู่โทรติด บางคู่ไม่ติด" ตามลำดับตัวอักษรของ id
+      // ซึ่งดูเหมือนปัญหาเครือข่ายจนหาสาเหตุไม่เจอ
+      //
+      // ตอนนี้ไม่ต้องตัดสินใจอะไรเลย: แค่เปิดสาย แล้วการเพิ่มแทร็กไมค์ของเรา
+      // จะจุด `negotiationneeded` ให้ยื่นข้อเสนอเอง ส่วนคนที่อยู่ก่อนก็รับ
+      // ข้อเสนอแล้วเปิดสายฝั่งเขาตอบกลับมา
       for (const participant of joined.participants) {
         if (participant.coreUserId === me.id) continue;
 
-        createPeer(participant.coreUserId, me.id < participant.coreUserId);
+        createPeer(participant.coreUserId);
       }
     } catch (caught) {
       teardown();
@@ -399,6 +438,15 @@ export default function VoicePage() {
     }
 
     unbindRef.current = [];
+
+    // **คืนสิทธิ์แชร์หน้าจอก่อนออก** — ตัวเก็บกวาดตอนเปลี่ยนหน้าทำอยู่แล้ว
+    // แต่ปุ่มนี้ไม่เคยทำ ผลคือกดแชร์จออยู่แล้วกด "ออกจากห้อง" สิทธิ์จะค้าง
+    // ที่เซิร์ฟเวอร์ และค้างถาวรด้วย เพราะตัวปลดตอน socket หลุดดูจากแถวผู้
+    // เข้าร่วมที่ยังเปิดอยู่ ซึ่งคำขอ DELETE ข้างล่างเพิ่งปิดไปแล้ว
+    // — ห้องนั้นจะไม่มีใครแชร์จอได้อีกเลยจนกว่าจะรีสตาร์ตหลังบ้าน
+    if (presenter === me.id) {
+      socketRef.current?.emit('screen:release', { session_id: session.id });
+    }
 
     try {
       await api.del(`/voice-sessions/${session.id}/participants/me`);
@@ -456,15 +504,17 @@ export default function VoicePage() {
         audio: false,
       });
 
-      // ส่งภาพเข้าไปในทุกสายที่เปิดอยู่ แล้ว **เปิดรอบเจรจาใหม่ทุกสาย**
+      // ให้ผู้แชร์เห็นทันทีว่าเลือกจอไหนไป — ก่อนหน้านี้ต้องเชื่อใจว่าเลือกถูก
+      setMyScreen(screenStream.current);
+
+      // ส่งภาพเข้าไปในทุกสายที่เปิดอยู่
       //
-      // ถ้าไม่เจรจา ภาพจะไม่วิ่งไปไหนเลย แม้แทร็กจะถูกเพิ่มเข้า connection แล้ว
+      // `addTrack` จุด `negotiationneeded` ของสายนั้นให้เอง เราจึงยื่นข้อเสนอ
+      // รอบใหม่โดยไม่ต้องขออนุญาตใคร — ซึ่งเป็นสิ่งที่โค้ดเดิมทำไม่ได้
       for (const peer of Object.values(peersRef.current)) {
         for (const track of screenStream.current.getVideoTracks()) {
           peer.connection.addTrack(track, screenStream.current);
         }
-
-        await renegotiate(peer);
       }
 
       // ผู้ใช้กดหยุดแชร์จากแถบของเบราว์เซอร์เองได้ ต้องปล่อยสิทธิ์ตามด้วย
@@ -623,6 +673,7 @@ export default function VoicePage() {
           session={session}
           peers={Object.values(peers)}
           presenter={presenter}
+          myScreen={myScreen}
           muted={muted}
           onToggleMute={toggleMute}
           onToggleScreen={() => void toggleScreen()}
@@ -637,6 +688,7 @@ function ActiveSession({
   session,
   peers,
   presenter,
+  myScreen,
   muted,
   onToggleMute,
   onToggleScreen,
@@ -645,6 +697,7 @@ function ActiveSession({
   session: JoinVoiceResponse;
   peers: PeerState[];
   presenter: string | null;
+  myScreen: MediaStream | null;
   muted: boolean;
   onToggleMute: () => void;
   onToggleScreen: () => void;
@@ -753,14 +806,22 @@ function ActiveSession({
         ) : null,
       )}
 
-      {presenter && presenter !== me.id && (
-        <ScreenView
+      {/* จอที่แชร์อยู่ — ลอยอยู่มุมขวาล่างแบบ Discord
+          หนึ่งห้องแชร์ได้ทีละคน จึงมีได้ทีละจอเสมอ */}
+      {presenter === me.id ? (
+        <ScreenStage
+          stream={myScreen}
+          presenterCoreUserId={null}
+          onStopSharing={onToggleScreen}
+        />
+      ) : presenter ? (
+        <ScreenStage
           stream={
             peers.find((peer) => peer.coreUserId === presenter)?.stream ?? null
           }
-          presenter={presenter}
+          presenterCoreUserId={presenter}
         />
-      )}
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <button
@@ -830,29 +891,3 @@ function RemoteAudio({
   );
 }
 
-function ScreenView({
-  stream,
-  presenter,
-}: {
-  stream: MediaStream | null;
-  presenter: string;
-}) {
-  const ref = useRef<HTMLVideoElement | null>(null);
-
-  useEffect(() => {
-    if (ref.current && stream) {
-      ref.current.srcObject = stream;
-    }
-  }, [stream]);
-
-  return (
-    <div className="overflow-hidden rounded-xl border border-border bg-black">
-      <p className="bg-card px-3 py-1.5 text-xs text-muted-foreground">
-        {presenter} กำลังแชร์หน้าจอ
-      </p>
-      <video ref={ref} autoPlay playsInline className="w-full">
-        <track kind="captions" label={`หน้าจอของ ${presenter}`} />
-      </video>
-    </div>
-  );
-}
